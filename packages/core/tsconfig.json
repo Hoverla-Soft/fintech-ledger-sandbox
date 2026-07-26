@@ -1,0 +1,3 @@
+{
+  "extends": "@fintech-ledger-sandbox/config/tsconfig.base.json"
+}

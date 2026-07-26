@@ -307,6 +307,19 @@ importers:
 
   packages/config: {}
 
+  packages/core:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@fintech-ledger-sandbox/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   packages/db:
     dependencies:
       '@fintech-ledger-sandbox/env':
