@@ -1,0 +1,24 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-lyra",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@fintech-ledger-sandbox/ui/components",
+    "utils": "@fintech-ledger-sandbox/ui/lib/utils",
+    "hooks": "@fintech-ledger-sandbox/ui/hooks",
+    "lib": "@fintech-ledger-sandbox/ui/lib",
+    "ui": "@fintech-ledger-sandbox/ui/components"
+  },
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {}
+}
