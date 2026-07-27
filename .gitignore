@@ -48,6 +48,12 @@ lerna-debug.log*
 coverage
 .nyc_output
 
+# Claude Code session state — written by /work-task at task start, per-session
+# for Agent Teams. Ephemeral: committing it makes every clone inherit a finished
+# task's Scope, so the PreToolUse scope guard silently blocks unrelated edits.
+.claude/.active-task-scope.json
+.claude/.active-task-scope.*.json
+
 # Misc
 *.tgz
 .cache

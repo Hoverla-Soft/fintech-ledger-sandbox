@@ -17,7 +17,9 @@ Deliver:
 
 ## Status
 
-Human Review
+Done
+
+Committed as `1c089b3`. Verification at close: `pnpm check-types` 0 · `pnpm test` 0 (68 tests, 5 files, forced non-cached) · `pnpm build` 0 · lint N/A (no linter wired). Retention preconditions confirmed: money-representation decision is in `docs/adr/0002-money-representation.md`, invariant coverage is in `docs/test-coverage.md`.
 
 ## Scope (allowed paths)
 
@@ -99,7 +101,7 @@ Found during this task, deliberately not fixed here — each is outside this tas
 
 | Item | Where it belongs |
 |---|---|
-| `packages/core` declares `zod` as a runtime dependency but no source file imports it. Pre-existing since the Phase 1 scaffold (`2f49019`), and `architecture.md` line 12 + `index.ts`'s docblock both describe core as depending on "TypeScript + Zod". Either drop the dependency or make the docs match. | A follow-up task; `docs/development/architecture.md` is outside this Scope. |
+| ~~`packages/core` declares `zod` as a runtime dependency but no source file imports it.~~ **Resolved 2026-07-27, after this task closed.** `zod` was removed from `packages/core/package.json` (the package now has *no* runtime dependencies), and the "TypeScript + Zod" wording was corrected in both `docs/development/architecture.md` and `index.ts`'s docblock. Zod stays at the contract boundary, per `ledger.md`'s "Validation: Zod at the contract boundary". | Done — no follow-up needed. |
 | `Money.parse` puts no length cap on the decimal string before `BigInt(...)`, and `BigInt()` parsing is superlinear in digit count. The regex itself is safe (anchored, no ambiguous quantifiers — no backtracking risk). This is correctly *not* a domain concern: `packages/core` has no notion of an untrusted request. | **Phase 4** — bound the string length in the Zod contract at the `packages/api` boundary, per `ledger.md`'s "Validation: Zod at the contract boundary". |
 | `bigint` does not serialize to JSON. Every amount crossing the API boundary must be encoded as a string and decoded via `Money.ofMinorUnits`/`Money.parse`. | **Phase 4** — recorded as a Consequence in ADR 0002. |
 | `vitest.workspace.ts` is listed in Scope but was intentionally not created — Vitest 4 removed workspace files in favour of `test.projects`, which the root `vitest.config.ts` uses instead. | Nothing to do; noted so the unused Scope entry isn't mistaken for an omission. |

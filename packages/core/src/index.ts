@@ -4,7 +4,8 @@
  * Pure, zero-infrastructure domain logic: the Money value object, the balanced
  * Transaction / posting model, account rules, and the ledger invariants encoded
  * so illegal states are unrepresentable. This package depends on nothing but
- * TypeScript + Zod and is unit-tested with no database.
+ * TypeScript — no runtime dependencies at all, not even a validation library —
+ * and is unit-tested with no database.
  *
  * Public API is re-exported from here. Consumers (`packages/api`,
  * `packages/db`) must import only through this entry point — never by

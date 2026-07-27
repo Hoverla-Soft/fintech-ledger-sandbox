@@ -13,9 +13,6 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {
-    "zod": "catalog:"
-  },
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",
     "typescript": "catalog:",
