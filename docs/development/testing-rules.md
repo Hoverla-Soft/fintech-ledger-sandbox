@@ -4,19 +4,21 @@
 
 | Item | Value |
 |---|---|
-| Framework | {{e.g. Vitest, Jest}} |
-| Test location | {{e.g. apps/api/src/__tests__/}} |
-| Test type | {{unit / integration against a real DB / both}} |
+| Framework | Vitest 4 |
+| Test location | `packages/core/src/**/*.test.ts` — colocated with the source file it covers (e.g. `money/money.ts` ↔ `money/money.test.ts`) |
+| Test type | unit — no database, no HTTP, no I/O of any kind |
 
 ## Running tests
 
 ```bash
-{{TEST_CMD}}          # all tests
-{{TEST_WATCH_CMD}}    # watch mode
+pnpm test          # all tests (turbo runs each package's `test` task; root config also indexes per-package vitest.config.ts files)
+pnpm test:watch    # watch mode
 ```
 
 ## Conventions
 
+- Tests live next to the code they cover (`src/**/*.test.ts`), not in a separate `__tests__` tree — this is the convention as each new package adds its own suite, not only for `packages/core`.
+- `packages/core` is a pure domain package: its tests must never require a database, network call, filesystem access, or any other I/O. If a future package's tests need a real dependency (e.g. Postgres for `packages/db`), that is integration-type testing and must be declared as such in this table when it lands, not silently mixed into a package documented as unit-only.
 - New backend logic (services, mappers, adapters) needs a test proving it works with a mocked provider interface, not a real external call.
 - New API routes need at least one test covering the happy path and one error case.
 - Configuration is executable behavior. Changes to `tsconfig*.json`, package/workspace manifests, lint, test, build, bundler, framework, deployment, or environment-schema config need an automated check using the owning tool, plus a focused regression test when typecheck/lint/test/build does not fully exercise the changed behavior.

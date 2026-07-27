@@ -9,12 +9,12 @@ Format: numbered `NNNN-kebab-title.md`, with **Context / Decision / Consequences
 | # | Decision | Status |
 |---|---|---|
 | [0001](0001-internal-package-src-exports.md) | Internal packages export TypeScript source, not `dist` | Accepted |
+| [0002](0002-money-representation.md) | Money representation: integer minor units as `bigint`, known-exponent currency allowlist | Accepted |
 
-## Planned (the four load-bearing ledger decisions)
+## Planned (the remaining load-bearing ledger decisions)
 
 These are drafted as their phases land, so the reasoning is captured at decision time:
 
-- **0002 — Money representation**: integer minor units (`bigint`), no floats, currency-checked (Phase 2).
 - **0003 — Balance & concurrency strategy**: materialized balances + immutable postings + `SELECT … FOR UPDATE`, reconciliation as an invariant (Phase 3).
 - **0004 — Idempotency**: client-supplied idempotency keys, DB-uniqueness-enforced (Phase 3/4).
 - **0005 — Tenant isolation**: Better Auth organization plugin, org-scoped everything, no cross-tenant reads (Phase 4).
