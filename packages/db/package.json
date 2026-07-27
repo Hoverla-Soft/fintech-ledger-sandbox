@@ -5,11 +5,26 @@
     ".": {
       "default": "./src/index.ts"
     },
-    "./*": {
-      "default": "./src/*.ts"
+    "./schema/auth": {
+      "default": "./src/schema/auth.ts"
+    },
+    "./schema/organization": {
+      "default": "./src/schema/organization.ts"
+    },
+    "./posting": {
+      "default": "./src/posting/index.ts"
+    },
+    "./repositories": {
+      "default": "./src/repositories/index.ts"
+    },
+    "./errors": {
+      "default": "./src/errors.ts"
     }
   },
   "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
@@ -20,6 +35,7 @@
     "db:down": "docker compose down"
   },
   "dependencies": {
+    "@fintech-ledger-sandbox/core": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.2",
@@ -28,8 +44,10 @@
   },
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",
+    "@testcontainers/postgresql": "catalog:",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -17,6 +17,11 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "@fintech-ledger-sandbox/db#test": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true

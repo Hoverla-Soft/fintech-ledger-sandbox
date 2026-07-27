@@ -10,7 +10,7 @@ The real package list for this repo. `backend-architecture-guard` reads this sec
 | `apps/web` | The React + TanStack Router console (the "sandbox" UI). Routes, screens, layouts, feature components. Consumes the oRPC router **types** from `packages/api`. |
 | `packages/api` | The oRPC layer: procedures (`publicProcedure`/`protectedProcedure`), middleware (auth, org/tenant context), routers, and the app router type exported to the web client. Orchestrates use-cases by calling `packages/core` (domain) and `packages/db` (persistence). No raw SQL, no React. |
 | `packages/core` | **The domain. Pure, zero-infrastructure.** Money value object (bigint minor units), balanced `Transaction`/posting model, account rules, and the ledger invariants encoded so illegal states are unrepresentable. Has **no runtime dependencies at all** — not even a validation library; Zod belongs at the contract boundary, not in the domain. Unit-tested with no database. This is the heart of the showcase. |
-| `packages/db` | Persistence only: Drizzle schema, the Postgres client, repositories, and the atomic posting routine (transaction + row locks). Migrations live in `packages/db/drizzle/`. Knows nothing about HTTP. |
+| `packages/db` | Persistence only: Drizzle schema, the Postgres client, repositories, and the atomic posting routine (transaction + row locks). Migrations live in `packages/db/drizzle/`. Knows nothing about HTTP. Depends on `packages/core` (a runtime dependency, not just types) to reuse the funds rule (`core.applyDelta`) and domain model (`Transaction`) inside the posting routine rather than restating them in SQL — a leaf edge, since `core` depends on nothing. |
 | `packages/auth` | Better Auth configuration (Drizzle adapter, organization plugin, session config). The identity/tenancy source of truth. |
 | `packages/contracts` | *(added as needed)* Shared Zod schemas / DTOs that must be referenced by more than one package without pulling in runtime service logic. When a schema is only used inside `packages/api`, it stays there. |
 | `packages/integrations` | *(none in v1)* Third-party provider clients/adapters. The sandbox has no external providers; this package appears only if one is added (e.g. a real payment rail), and then only behind a normalized interface. |
@@ -18,7 +18,7 @@ The real package list for this repo. `backend-architecture-guard` reads this sec
 | `packages/env` | Environment variable schemas (server + web), validated with Zod. The single place env is parsed. |
 | `packages/config` | Shared `tsconfig.base.json` and other cross-package tool config. |
 
-Dependency direction is one-way and enforced: `apps/*` → `packages/api` → (`packages/core`, `packages/db`, `packages/auth`) → (`packages/env`, `packages/config`). **`packages/core` depends on none of the others** — that purity is the property the reference implementation exists to demonstrate.
+Dependency direction is one-way and enforced: `apps/*` → `packages/api` → (`packages/core`, `packages/db`, `packages/auth`) → (`packages/env`, `packages/config`), with one same-layer edge: `packages/db` → `packages/core` (Phase 3's posting routine reuses `core.applyDelta`/`Transaction` at runtime rather than restating the funds rule in SQL). **`packages/core` depends on none of the others** — that purity is the property the reference implementation exists to demonstrate, and the `db` → `core` edge stays a leaf edge rather than a cycle.
 
 ### Workspace package build contract
 

@@ -29,6 +29,11 @@ export const session = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Required by Better Auth's organization plugin (v1.6.23): tracks which
+    // org a session is currently acting within. Nullable, no FK — the
+    // plugin's own field def for this column declares no `references`
+    // either, so a session can exist before the user has an active org.
+    activeOrganizationId: text("active_organization_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );

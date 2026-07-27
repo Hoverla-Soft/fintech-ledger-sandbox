@@ -32,7 +32,7 @@ Filled from actual decisions for this project (see the grilling record and `docs
 | API layer (REST / RPC / GraphQL) | **oRPC** — typed RPC at `/rpc`, plus generated **OpenAPI** reference at `/api-reference` |
 | Auth framework / session management | **Better Auth** (`packages/auth`) + **organization plugin** for multi-tenancy |
 | Identity protocols / providers | Email + password (v1); session cookies. OAuth/passkeys are future extensions |
-| Testing framework | Vitest 4 (unit) — installed and wired with the `packages/core` domain suite in Phase 2. Playwright (e2e) is planned but **not yet installed**; integration testing against a real DB is also not yet wired (Phase 3+) |
+| Testing framework | Vitest 4 (unit) — installed and wired with the `packages/core` domain suite in Phase 2. Integration testing against a real DB is wired in Phase 3 via `@testcontainers/postgresql` (`packages/db`'s Testcontainers harness, `src/test/setup.ts`) — requires a reachable Docker daemon; see `docs/development/testing-rules.md`. Playwright (e2e) is planned but **not yet installed** |
 | CSS / styling | Tailwind CSS v4 |
 | UI primitives | Radix UI (via shadcn/ui) |
 | Component library / design system | shadcn/ui in `packages/ui` (shared design system) |
