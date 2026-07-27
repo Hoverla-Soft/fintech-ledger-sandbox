@@ -22,6 +22,11 @@
       "outputs": [],
       "cache": false
     },
+    "@fintech-ledger-sandbox/api#test": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true

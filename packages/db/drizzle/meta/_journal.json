@@ -22,6 +22,13 @@
       "when": 1785153255777,
       "tag": "0002_ledger_posting_immutability_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785187129259,
+      "tag": "0003_ledger_timestamp_millisecond_precision",
+      "breakpoints": true
     }
   ]
 }

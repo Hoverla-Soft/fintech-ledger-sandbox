@@ -1,0 +1,122 @@
+import type { LedgerError } from "@fintech-ledger-sandbox/core";
+import type { PersistenceError } from "@fintech-ledger-sandbox/db/errors";
+import { ORPCError } from "@orpc/server";
+
+/**
+ * The single translation point from typed domain/persistence errors to HTTP.
+ *
+ * `packages/core` and `packages/db` both deliberately refuse to know about
+ * HTTP — `core/errors.ts` says so explicitly ("deliberately no HTTP status
+ * codes here; that mapping belongs at the `packages/api` boundary"). This is
+ * that boundary. Every expected failure the ledger can produce arrives here
+ * as a discriminated union member and leaves as an `ORPCError` with a stable
+ * public code.
+ *
+ * oRPC's own `COMMON_ERROR_STATUS_MAP` already assigns the statuses
+ * `ledger.md` §Error paths asks for — `NOT_FOUND` → 404, `CONFLICT` → 409,
+ * `UNPROCESSABLE_CONTENT` → 422 — so no branch below overrides `status`
+ * manually. Verified against `@orpc/server`'s documentation during design.
+ *
+ * **Why the full map lands in Phase 4a when only 404 is reachable:** the read
+ * surface can only produce `AccountNotFound` / `TransactionNotFound`. But
+ * `docs/backend/error-handling.md` is a 4a deliverable and has to document
+ * the complete table, and this is a pure function over a closed union — the
+ * `never` assertion below means adding a tenth error kind in a later phase is
+ * a compile error here, not a silent 500 in production. Writing half the map
+ * now and reopening the doc in 4b costs more than finishing it. The 409/422
+ * branches are unit-tested here and wired to live endpoints in 4b.
+ */
+
+/** Every expected error the ledger's API surface can translate. */
+export type LedgerApiError = LedgerError | PersistenceError;
+
+/**
+ * Stable, machine-readable failure codes. These are a public contract: the
+ * console (Phase 5) switches on `data.reason`, so a value here may be added
+ * to but never renamed without a corresponding client change.
+ */
+export type LedgerErrorReason =
+  | "account_not_found"
+  | "transaction_not_found"
+  | "idempotency_conflict"
+  | "insufficient_funds"
+  | "currency_mismatch"
+  | "unsupported_currency"
+  | "invalid_amount"
+  | "non_positive_amount"
+  | "too_few_postings"
+  | "unbalanced_transaction";
+
+/**
+ * Messages are fixed strings, never interpolated with the offending value.
+ *
+ * Two reasons. A cross-org `accountId` echoed back would confirm the id's
+ * shape to a caller probing another tenant, and `ledger.md` line 56 requires
+ * that a cross-org lookup reveal nothing. And an interpolated database or
+ * driver message is exactly the internal detail `docs/backend/error-handling.md`
+ * forbids returning. Callers that need specifics get them from the typed
+ * `reason`, not from prose.
+ */
+const MESSAGES: Record<LedgerErrorReason, string> = {
+  account_not_found: "Account not found.",
+  transaction_not_found: "Transaction not found.",
+  idempotency_conflict: "This idempotency key was already used with a different request payload.",
+  insufficient_funds: "The source account has insufficient funds for this transfer.",
+  currency_mismatch: "All postings in a transaction must share one currency.",
+  unsupported_currency: "That currency is not supported.",
+  invalid_amount: "The amount is not a valid monetary value.",
+  non_positive_amount: "Every posting amount must be greater than zero.",
+  too_few_postings: "A transaction requires at least two postings.",
+  unbalanced_transaction: "The transaction's postings do not net to zero.",
+};
+
+/**
+ * Maps a typed ledger error onto its oRPC code and public reason.
+ *
+ * `AccountNotFound` and `TransactionNotFound` both become a plain `404` that
+ * is byte-identical whether the id is genuinely missing or belongs to another
+ * organization — `packages/db/src/errors.ts` makes the two indistinguishable
+ * on purpose, and undoing that here would leak tenant existence through the
+ * error channel. Note that `403` is never produced by this function: role and
+ * membership denial happens in middleware, before a handler runs. A `403`
+ * must never be the signal that a resource exists in another tenant.
+ */
+function classify(error: LedgerApiError): { code: string; reason: LedgerErrorReason } {
+  switch (error.kind) {
+    case "AccountNotFound":
+      return { code: "NOT_FOUND", reason: "account_not_found" };
+    case "TransactionNotFound":
+      return { code: "NOT_FOUND", reason: "transaction_not_found" };
+    case "IdempotencyConflict":
+      return { code: "CONFLICT", reason: "idempotency_conflict" };
+    case "InsufficientFunds":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "insufficient_funds" };
+    case "CurrencyMismatch":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "currency_mismatch" };
+    case "UnsupportedCurrency":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "unsupported_currency" };
+    case "InvalidAmount":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "invalid_amount" };
+    case "NonPositiveAmount":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "non_positive_amount" };
+    case "TooFewPostings":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "too_few_postings" };
+    case "UnbalancedTransaction":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "unbalanced_transaction" };
+    default: {
+      // Exhaustiveness guard: if `LedgerError` or `PersistenceError` gains a
+      // member, this stops compiling instead of falling through to a 500.
+      const unhandled: never = error;
+      return unhandled;
+    }
+  }
+}
+
+/** Translates a typed ledger error into the `ORPCError` to throw from a handler. */
+export function toORPCError(error: LedgerApiError): ORPCError<string, { reason: LedgerErrorReason }> {
+  const { code, reason } = classify(error);
+  return new ORPCError(code, {
+    message: MESSAGES[reason],
+    data: { reason },
+  });
+}

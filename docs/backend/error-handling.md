@@ -2,15 +2,59 @@
 
 ## Error response shape
 
+oRPC's own envelope, unmodified:
+
 ```json
-{{the actual error envelope this API returns — status code, error code, message, field-level details if applicable}}
+{
+  "code": "NOT_FOUND",
+  "status": 404,
+  "message": "Account not found.",
+  "data": { "reason": "account_not_found" }
+}
 ```
+
+- `code` is oRPC's error code; `status` is the HTTP status it maps to. The mapping is oRPC's built-in `COMMON_ERROR_STATUS_MAP` — this API overrides no status.
+- `message` is a **fixed string per branch**, never interpolated with the offending value. An echoed-back account id would confirm to a caller probing another tenant that their id was well-formed, and an interpolated driver message would leak internals.
+- `data.reason` is the stable, machine-readable contract. Clients switch on `reason`, never on `message`. A value may be added but not renamed without a corresponding client change.
 
 ## Error codes
 
-| Code | Meaning | HTTP status |
-|---|---|---|
-| {{...}} | {{...}} | {{...}} |
+Produced by `toORPCError` (`packages/api/src/errors.ts`), the single translation point from typed domain and persistence errors to HTTP.
+
+| `data.reason` | Origin | oRPC `code` | HTTP status |
+|---|---|---|---|
+| `account_not_found` | `AccountNotFound` (`packages/db`) | `NOT_FOUND` | 404 |
+| `transaction_not_found` | `TransactionNotFound` (`packages/db`) | `NOT_FOUND` | 404 |
+| `idempotency_conflict` | `IdempotencyConflict` (`packages/db`) | `CONFLICT` | 409 |
+| `insufficient_funds` | `InsufficientFunds` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `currency_mismatch` | `CurrencyMismatch` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `unsupported_currency` | `UnsupportedCurrency` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `invalid_amount` | `InvalidAmount` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `non_positive_amount` | `NonPositiveAmount` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `too_few_postings` | `TooFewPostings` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `unbalanced_transaction` | `UnbalancedTransaction` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
+
+Emitted by middleware rather than by the error map (see ADR 0005):
+
+| `data.reason` | Meaning | oRPC `code` | HTTP status |
+|---|---|---|---|
+| — | No session | `UNAUTHORIZED` | 401 |
+| `no_active_organization` | Signed in, but the session names no organization | `FORBIDDEN` | 403 |
+| `not_a_member` | The session names an organization the user has no `member` row for — **or one that does not exist** | `FORBIDDEN` | 403 |
+| `insufficient_role` | Ledger role is `viewer`, action requires `admin` | `FORBIDDEN` | 403 |
+| `invalid_cursor` | Malformed pagination cursor | `BAD_REQUEST` | 400 |
+
+Zod contract-validation failures produce oRPC's standard `BAD_REQUEST` (400) with its own issue details.
+
+## Status codes are assigned by category, never per endpoint
+
+This is a correctness rule, not a style preference. If "exists but forbidden" were distinguishable from "does not exist", the API would be an enumeration oracle for other tenants.
+
+- **404** — any resource that is missing *or* belongs to another organization. The two are byte-identical in code, message, and body. `packages/db` collapses them into one error type on purpose; handlers forward it without branching.
+- **403** — you may not act in this organization, or your role is insufficient. Never a signal that a resource exists. Naming a nonexistent organization also returns 403, with the same body as naming a real one you do not belong to.
+- **401** — no session at all.
+- **422** — the request was understood and authorized, but violates a ledger invariant.
+- **409** — an idempotency key was reused with a different payload.
 
 ## Conventions
 
@@ -86,9 +130,11 @@ try {
 
 ## Verification checklist
 
-- [ ] Expected errors return a stable public code and do not leak internals
-- [ ] Unexpected request/job failures are logged exactly once with correlation context and stack trace
-- [ ] No empty catches, floating promises, or log-and-continue behavior hide failures
-- [ ] Secret and sensitive-data redaction has an automated test
-- [ ] Dev and production log thresholds/formats are configured and production logs reach their declared destination
-- [ ] Monitoring captures unexpected errors, and graceful shutdown covers fatal process failures
+Status as of Phase 4a. Items still open name what would close them rather than being left blank.
+
+- [x] Expected errors return a stable public code and do not leak internals — the `reason` table above; `packages/api/src/errors.test.ts` asserts no branch interpolates an id or a balance into its message.
+- [x] Unexpected request/job failures are logged exactly once with correlation context and stack trace — logged once at the outermost boundary (`logUnexpectedError` in `apps/server`), and expected 4xx are deliberately *not* logged. Correlation IDs are not yet emitted; they arrive with the structured logger below.
+- [x] No empty catches, floating promises, or log-and-continue behavior hide failures — the two `catch` blocks in `packages/api` (`decodeCursor`) return a typed `null` that the router converts into a `400`.
+- [ ] Secret and sensitive-data redaction has an automated test — **open.** No structured logger exists yet, so there is no redaction layer to test. Due with pino (see `tech-stack.md`).
+- [ ] Dev and production log thresholds/formats are configured — **open.** The sandbox logs via Hono's `logger()` and `console.error`; thresholds and JSON output arrive with pino.
+- [ ] Monitoring captures unexpected errors, and graceful shutdown covers fatal process failures — **open, and partly by design.** `tech-stack.md` declares error monitoring explicitly `none` for this sandbox. Graceful shutdown and `uncaughtException`/`unhandledRejection` handlers are genuinely missing from `apps/server` and are not in Phase 4a's scope; they belong with the API hardening work.

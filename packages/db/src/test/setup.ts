@@ -8,13 +8,27 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDb, type Db } from "../index";
 
 /**
- * Testcontainers bootstrap for `packages/db`'s integration suite.
+ * Testcontainers bootstrap for the ledger's integration suites.
  *
- * Internal to this package on purpose — not part of the `"./*"` export
- * map narrowed in Phase 3 (approved boundary decision 1). A caller
- * outside this package has no legitimate reason to spin up a test
- * database; only this package's own `*.test.ts` files import it, via a
- * relative path.
+ * **Published** as `@fintech-ledger-sandbox/db/testing` (Phase 4a,
+ * approved boundary decision 4). Until Phase 4a this was internal, on the
+ * reasoning that "a caller outside this package has no legitimate reason
+ * to spin up a test database" — true only while `packages/db` was the
+ * sole consumer. `packages/api` broke that assumption: it needs a
+ * *migrated* database to prove tenant isolation (invariant #5) through
+ * the real repositories, and the alternatives were both worse than
+ * publishing. Reaching in via a relative `../../db/src/test/setup` is
+ * forbidden by CLAUDE.md's public-entry-point rule, and a second copy in
+ * `packages/api` would fork four things that must never drift: the
+ * `POSTGRES_IMAGE` version, the `ALL_TABLES` truncate list, the
+ * migrations folder path, and the immutability-trigger workaround below.
+ *
+ * This is a *named, curated* subpath export, not a reinstatement of the
+ * `"./*"` wildcard Phase 3 removed — that wildcard was exposing
+ * `posting/lock-accounts.ts` and `posting/reserve-key.ts` as
+ * independently callable internals, which is a different problem. Nothing
+ * here is reachable from production code paths; it is test support, and
+ * `@testcontainers/postgresql` stays a `devDependency`.
  *
  * Not auto-wired as a global Vitest `setupFiles` hook: starting a
  * container is slow (seconds, not milliseconds), so each test file calls

@@ -1,3 +1,29 @@
+/**
+ * ## Why every `created_at` here declares `precision: 3`
+ *
+ * Postgres `timestamp` defaults to **microsecond** precision. JavaScript's
+ * `Date` — what Drizzle hands back for a timestamp column — holds only
+ * **milliseconds**. Left at the default, every timestamp that crosses into
+ * application code is silently truncated, and any value sent back to Postgres
+ * for comparison is therefore strictly *smaller* than the row it came from.
+ *
+ * That is not theoretical. It broke cursor pagination in
+ * `repositories/transactions.ts`: a row stored at `21:14:05.884495` came back
+ * as `21:14:05.884`, the cursor sent `21:14:05.884`, and
+ * `created_at > cursor` matched that same row again — so the last row of
+ * every page reappeared as the first row of the next. Found in Phase 4a by
+ * the API layer's multi-page pagination test (see
+ * `docs/tasks/2026-07-27-phase-4a-api-foundation-reads.md` → Scope
+ * expansions).
+ *
+ * Pinning storage to millisecond precision makes the database and the
+ * language agree exactly, so a `Date` round-trips without loss and the
+ * ordinary `>` comparison is correct as written. The alternative — teaching
+ * one cursor to carry microseconds — would have fixed pagination alone and
+ * left the same mismatch waiting for the next timestamp comparison anyone
+ * wrote. Do not remove `precision: 3` without re-solving that problem.
+ */
+
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
@@ -62,7 +88,8 @@ export const ledgerAccount = pgTable(
     // `sql` default sidesteps that entirely since it's stored as a string.
     balance: bigint("balance", { mode: "bigint" }).notNull().default(sql`0`),
     active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // `precision: 3` is load-bearing — see the note at the top of this file.
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
   },
   (table) => [
     // No standalone `org_id` index here: the leading column of the unique
@@ -100,7 +127,8 @@ export const ledgerTransaction = pgTable(
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // `precision: 3` is load-bearing — see the note at the top of this file.
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
   },
   (table) => [
     // No standalone `org_id` index here: the composite index below already
@@ -140,7 +168,8 @@ export const ledgerPosting = pgTable(
     currency: text("currency").notNull(),
     // Append-only — see the immutability trigger in its own custom
     // migration. Never mutated or deleted once inserted.
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // `precision: 3` is load-bearing — see the note at the top of this file.
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
   },
   (table) => [
     // Standalone `org_id` index kept: unlike the other ledger tables, no
@@ -179,7 +208,8 @@ export const ledgerIdempotencyKey = pgTable(
     transactionId: text("transaction_id").references(() => ledgerTransaction.id, {
       onDelete: "cascade",
     }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // `precision: 3` is load-bearing — see the note at the top of this file.
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
   },
   (table) => [
     // No standalone `org_id` index here: the unique constraint below
@@ -210,7 +240,8 @@ export const ledgerAuditEntry = pgTable(
       onDelete: "cascade",
     }),
     metadata: jsonb("metadata"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // `precision: 3` is load-bearing — see the note at the top of this file.
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
   },
   (table) => [
     // No standalone `org_id` index here: the composite index below already

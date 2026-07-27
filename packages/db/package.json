@@ -19,6 +19,9 @@
     },
     "./errors": {
       "default": "./src/errors.ts"
+    },
+    "./testing": {
+      "default": "./src/test/setup.ts"
     }
   },
   "scripts": {

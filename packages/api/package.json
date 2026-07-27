@@ -9,9 +9,14 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@fintech-ledger-sandbox/auth": "workspace:*",
+    "@fintech-ledger-sandbox/core": "workspace:*",
     "@fintech-ledger-sandbox/db": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
     "@orpc/client": "catalog:",
@@ -19,11 +24,13 @@
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.2",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

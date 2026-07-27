@@ -7,8 +7,8 @@
 | Item | Value |
 |---|---|
 | Framework | Vitest 4 |
-| Test location | `packages/core/src/**/*.test.ts` (unit), `packages/db/src/**/*.test.ts` (integration) |
-| Test type | `packages/core`: unit (no database). `packages/db`: integration — real Postgres via Testcontainers, requires a reachable Docker daemon (see `docs/development/testing-rules.md`) |
+| Test location | `packages/core/src/**/*.test.ts` (unit), `packages/db/src/**/*.test.ts` (integration), `packages/api/src/**/*.test.ts` (unit + integration) |
+| Test type | `packages/core`: unit (no database). `packages/db` and `packages/api`: integration — real Postgres via Testcontainers, requires a reachable Docker daemon (see `docs/development/testing-rules.md`). `packages/api` additionally holds pure unit files (role mapping, error map, wire codecs) that need no database but share the suite's container lifecycle |
 
 ## Running tests
 
@@ -17,7 +17,10 @@ pnpm test          # all tests (turbo runs each package's `test` task)
 pnpm --filter @fintech-ledger-sandbox/core test   # core suite only
 pnpm --filter @fintech-ledger-sandbox/core test:watch
 pnpm --filter @fintech-ledger-sandbox/db test     # db suite only — needs Docker
+pnpm --filter @fintech-ledger-sandbox/api test    # api suite only — needs Docker
 ```
+
+`packages/db` and `packages/api` each declare a dedicated `#test` task in `turbo.json` with `cache: false`. A Testcontainers suite is not a pure function of its source inputs — Docker availability and applied migrations are environmental — so a cached "pass" could be replayed for a run that never started a container.
 
 ---
 
@@ -101,5 +104,59 @@ Scope note: `packages/db`'s suite is **integration**, not unit — real Postgres
 ### `packages/db/src/repositories/reconciliation.test.ts`
 - Invariant #2 boundary case: a freshly created account with no postings reconciles cleanly at zero
 - Proves `reconcileAccounts` actually *detects* drift rather than always reporting `reconciled: true`: directly corrupting `ledger_account.balance` via raw SQL (bypassing `postTransaction` entirely) is reported as `reconciled: false` with the correct computed-vs-recorded mismatch
+
+---
+
+Scope note: `packages/api`'s suite covers the **API boundary** — that the acting organization is derived rather than accepted (ADR 0005), that domain errors become the right HTTP status, and that money and cursors cross the wire without loss. It shares one Postgres container per run via `src/test/global-setup.ts`, which reuses `packages/db`'s published harness (`@fintech-ledger-sandbox/db/testing`) rather than standing up a second one.
+
+### `packages/api/src/auth/roles.test.ts`
+- `toLedgerRole` maps Better Auth's `owner`/`admin` to ledger `admin` and `member` to `viewer`, case-insensitively and tolerating surrounding whitespace
+- **Fails closed:** every unrecognized value (`""`, `"guest"`, `"superuser"`, `"administrator"`, …) maps to `viewer`, never `admin`
+- Multi-role columns (`"admin,member"`, `"member, admin"`) grant `admin` when any element is a write role — a whole-string comparison would silently demote a genuine admin
+
+### `packages/api/src/errors.test.ts`
+- All ten members of the `LedgerApiError` union map to the documented oRPC code and HTTP status (404 / 409 / 422), asserted from a table typed as the union itself so it cannot fall behind the code
+- No branch interpolates the offending identifier or a balance into its `message` — a probed account id appears nowhere in the serialized error, which is what keeps a cross-org 404 from confirming id validity
+- No branch ever produces `403`: role denial happens in middleware, so a 403 is never a signal that a resource exists in another tenant
+
+### `packages/api/src/contracts/money.test.ts`
+- `toWireMoney` encodes amounts as decimal **strings**, round-trips through `Money.parse`, and respects each currency's own exponent (JPY exponent-0, BHD exponent-3) rather than assuming two decimal places
+- A value beyond `Number.MAX_SAFE_INTEGER` crosses the boundary exactly — the concrete reason ADR 0002 chose `bigint`
+- `toWireMoneyFromMinorUnits` handles zero and negative balances (legitimate for `external` accounts) and **throws** on a corrupt persisted currency rather than formatting at a guessed scale
+- `decimalAmountSchema` rejects an empty string and a million-digit string, and accepts exactly at the cap — closing the Phase 2 deferral that `BigInt` parsing is superlinear in digit count
+
+### `packages/api/src/contracts/cursor.test.ts`
+- Cursors round-trip with millisecond fidelity, are URL-safe, and are opaque (the raw transaction id does not appear in the token)
+- Ten malformed-input classes return `null` rather than throwing — bad base64, non-JSON, JSON scalars/arrays, missing or wrong-typed fields, empty string
+- An unparseable date returns `null` specifically: `new Date("nonsense")` yields an Invalid Date rather than throwing, which Drizzle would render as SQL `NULL` and silently return an empty page instead of an error
+
+### `packages/api/src/procedures.test.ts`
+- The procedure ladder's rejection paths, all *before* any repository query runs: no session → `401`; signed in with no active organization → `403 no_active_organization`; signed in naming an org with no `member` row → `403 not_a_member`
+- Naming a **nonexistent** organization returns a `403` identical to naming a real one the user does not belong to — so organizations are not enumerable either
+- A genuine member is admitted, and the raw Better Auth role string in `member.role` actually reaches `toLedgerRole` (both `member` and `admin` rows are admitted to the read surface)
+
+### `packages/api/src/routers/tenant-isolation.test.ts`
+- Invariant #5 at the API boundary, across all seven read procedures with two fully-populated orgs whose accounts share identical names: `accounts.list`, `transactions.list`, `reconciliation.verify`, `audit.list`, and `audit.rejections` each return only the acting org's rows
+- `accounts.get` and `transactions.get` report another org's real id with a `404` **byte-identical** to a missing id — same code, status, message, and data — and never echo the probed id back
+- `transactions.get` never surfaces another org's postings
+- **The forged-claim case:** a session naming an org the user is not a member of is rejected with `403 not_a_member` rather than reading that org's data — the specific failure that would occur if `activeOrganizationId` were trusted without the membership lookup
+- No response body from any procedure contains `orgId`, though every repository row carries it
+
+### `packages/api/src/routers/no-org-input.test.ts`
+- ADR 0005 enforced mechanically: walks the real router, introspects the real Zod input schemas, and asserts none accepts `orgId`/`organizationId`/`tenantId`/`org`/`organization`
+- Guards the guard — asserts the exact procedure count and that a known field (`accountId`) is actually readable, so a broken introspection fails loudly instead of passing vacuously over zero procedures
+
+### `packages/api/src/routers/reads.test.ts`
+- Balances, posting amounts, and reconciliation figures serialize as decimal strings; a whole response survives `JSON.stringify`, which would throw outright if a raw `bigint` leaked
+- An `external` account's negative balance encodes correctly; timestamps are ISO-8601 strings
+- Cursor pagination walks every row **exactly once** across pages with no duplicates — the test that caught the microsecond/millisecond precision bug fixed in `drizzle/0003_ledger_timestamp_millisecond_precision.sql`
+- A malformed cursor is `400`, not a silent empty page; an out-of-range `limit` is rejected at the contract boundary
+- `reconciliation.verify` reports agreeing recorded/computed balances after real postings and derives `allReconciled`
+- A posted transfer appears in `audit.list` with the correct actor; an insufficient-funds rejection surfaces through `audit.rejections`, proving ADR 0003's separate-transaction rejection recording is visible from the read side
+
+### `packages/api/src/http.test.ts`
+- The status codes above actually reach the wire, through a real Hono app and oRPC's `OpenAPIHandler`: `200`, `401`, `403` (both reasons), `404`, and `400` for contract-validation failure
+- A cross-org `404` and a missing-id `404` are byte-identical *as HTTP responses*, and the probed id appears nowhere in the body
+- Deliberately does **not** cover Better Auth: the app is assembled with a stub context, because the claim under test is oRPC's status translation rather than authentication. `apps/server`'s own `createContext` wiring is therefore not exercised here
 
 <!-- add one block per test file, keep in sync with what actually exists -->

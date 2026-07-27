@@ -12,9 +12,10 @@ Format: numbered `NNNN-kebab-title.md`, with **Context / Decision / Consequences
 | [0002](0002-money-representation.md) | Money representation: integer minor units as `bigint`, known-exponent currency allowlist | Accepted |
 | [0003](0003-balance-and-concurrency.md) | Balance & concurrency: materialized balances + ordered `SELECT … FOR UPDATE` + trigger-enforced immutability, reconciliation as a continuously-asserted invariant | Accepted |
 | [0004](0004-idempotency.md) | Idempotency: client-supplied keys, DB-uniqueness-enforced via a blocking plain `INSERT` (not `ON CONFLICT DO NOTHING`) | Accepted |
+| [0005](0005-tenant-isolation.md) | Tenant isolation at the API boundary: the acting org is derived from a verified `member` row, never accepted as input; category-based `403`/`404` so neither orgs nor resources are enumerable | Accepted |
 
 ## Planned (the remaining load-bearing ledger decisions)
 
 These are drafted as their phases land, so the reasoning is captured at decision time:
 
-- **0005 — Tenant isolation**: the schema foundation (org-scoped tables, composite FKs, `org_id`-filtered reads) landed in Phase 3 (see ADR 0003); this ADR captures the remaining piece — API-level enforcement (auth/session middleware deriving the acting org, no endpoint accepting a caller-supplied `org_id`) — due with Phase 4.
+- *(none outstanding — the next ADR is written when the next load-bearing decision is made. Phase 4b's rate-limiting strategy and Phase 4c's seed/reset access model are the likely candidates.)*

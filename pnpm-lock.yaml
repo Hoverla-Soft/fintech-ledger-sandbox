@@ -254,6 +254,9 @@ importers:
       '@fintech-ledger-sandbox/auth':
         specifier: workspace:*
         version: link:../auth
+      '@fintech-ledger-sandbox/core':
+        specifier: workspace:*
+        version: link:../core
       '@fintech-ledger-sandbox/db':
         specifier: workspace:*
         version: link:../db
@@ -275,6 +278,9 @@ importers:
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -288,6 +294,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
 
   packages/auth:
     dependencies:
