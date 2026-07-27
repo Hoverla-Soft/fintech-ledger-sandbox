@@ -19,9 +19,9 @@ Deliver:
 
 ## Status
 
-Human Review
+Done
 
-Completed 2026-07-27 via `/feature-loop`. Not yet committed.
+Completed 2026-07-27 via `/feature-loop`. Committed as `27a8f97` (47 files, +7375/-55).
 
 **Verification at close** — `pnpm check-types` 0 (5/5 tasks, now including `packages/db`) · `pnpm test` 0 (**96 tests**: 68 unit in `packages/core`, 28 integration in `packages/db` against real Postgres via Testcontainers) · `pnpm build` 0 · `migration-integrity-guard --check` 0 · lint `N/A: no linter wired`.
 
