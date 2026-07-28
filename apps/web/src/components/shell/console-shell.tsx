@@ -21,6 +21,7 @@ const NAV_LINKS = [
   { to: "/transactions", label: "History" },
   { to: "/reconciliation", label: "Reconciliation" },
   { to: "/sandbox", label: "Sandbox" },
+  { to: "/audit", label: "Audit" },
 ] as const;
 
 export function ConsoleShell({ children }: { children: ReactNode }) {

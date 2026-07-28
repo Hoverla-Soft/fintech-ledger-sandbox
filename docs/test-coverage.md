@@ -336,4 +336,10 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The panel states that re-running appends another rejection entry each time (`ADR 0008`)
 - A scenario that posted nothing renders a dash rather than a broken transaction link
 
+### `apps/web/src/features/audit/entry-display.test.ts` (Phase 5g)
+- **`actionLabel` falls back to the raw identifier** for an action this console has never seen. `action` is `z.string()`, not an enum, so a `switch` with no default would blank exactly the novel entries worth reading
+- **Prototype-chain hazard, found by this test.** The lookup was an object literal, so `labels["__proto__"]` returned `Object.prototype` and `labels["toString"]` a function — neither `undefined`, so the fallback never fired and the cell rendered `[object Object]`. Now a `Map`, which has no prototype chain. `packages/core`'s currency parser guards the same hazard with `Object.hasOwn`
+- `formatMetadata` handles `null`/`undefined` (returning `null`, not the string `"null"`), primitives, arrays, and nested objects; **survives a circular structure**, which would otherwise make `JSON.stringify` throw inside a table cell and take down the whole log; returns `null` rather than the string `"undefined"` for a function or symbol
+- `isExpectedRefusal` recognises the sandbox's intended refusal so repeated identical rows do not read as repeated bugs, without softening a genuine failure or misclassifying a posted entry
+
 <!-- add one block per test file, keep in sync with what actually exists -->
