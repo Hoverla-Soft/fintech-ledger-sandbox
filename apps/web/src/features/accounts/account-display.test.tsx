@@ -16,6 +16,19 @@ function account(overrides: Partial<WireAccount> = {}): WireAccount {
   };
 }
 
+/**
+ * The rendered balance, read as one string.
+ *
+ * The amount and its currency code live in separate elements so the figure can
+ * carry the emphasis, which means `getByText` — it joins only an element's
+ * *direct* text children — can no longer see the pair. Reading `textContent`
+ * asserts the same contract more directly: whatever the server sent, followed
+ * by its currency, with nothing added and nothing reformatted.
+ */
+function renderedBalance(): string {
+  return screen.getByTestId("account-balance").textContent ?? "";
+}
+
 describe("AccountBalance", () => {
   it("renders the wire string exactly, at whatever scale the server sent", () => {
     // The server has already formatted this with Money.format() at the
@@ -24,7 +37,7 @@ describe("AccountBalance", () => {
     render(
       <AccountBalance account={account({ balance: { amount: "1234.50", currency: "USD" } })} />,
     );
-    expect(screen.getByText("1234.50 USD")).toBeInTheDocument();
+    expect(renderedBalance()).toBe("1234.50 USD");
   });
 
   it("does not pad a zero-exponent currency to two decimals", () => {
@@ -33,8 +46,7 @@ describe("AccountBalance", () => {
         account={account({ currency: "JPY", balance: { amount: "1250", currency: "JPY" } })}
       />,
     );
-    expect(screen.getByText("1250 JPY")).toBeInTheDocument();
-    expect(screen.queryByText("1250.00 JPY")).not.toBeInTheDocument();
+    expect(renderedBalance()).toBe("1250 JPY");
   });
 
   it("renders a three-exponent currency at three decimals", () => {
@@ -43,7 +55,18 @@ describe("AccountBalance", () => {
         account={account({ currency: "BHD", balance: { amount: "0.005", currency: "BHD" } })}
       />,
     );
-    expect(screen.getByText("0.005 BHD")).toBeInTheDocument();
+    expect(renderedBalance()).toBe("0.005 BHD");
+  });
+
+  it("keeps the amount and its currency in one contiguous accessible string", () => {
+    // The visible gap is drawn with a margin, so without the literal space the
+    // pair would reach a screen reader as "1250JPY".
+    render(
+      <AccountBalance
+        account={account({ currency: "JPY", balance: { amount: "1250", currency: "JPY" } })}
+      />,
+    );
+    expect(renderedBalance()).not.toContain("1250JPY");
   });
 
   it("renders a negative external balance plainly, not as an error", () => {
@@ -54,7 +77,7 @@ describe("AccountBalance", () => {
         account={account({ type: "external", balance: { amount: "-5000.00", currency: "USD" } })}
       />,
     );
-    expect(screen.getByText("-5000.00 USD")).toBeInTheDocument();
+    expect(renderedBalance()).toBe("-5000.00 USD");
     expect(container.querySelector(".text-destructive")).toBeNull();
   });
 

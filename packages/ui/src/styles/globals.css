@@ -1,3 +1,26 @@
+/*
+ * DIRECTION CONTRACT — "The Ruled Ledger Page" (see /DESIGN.md)
+ *
+ * THESIS: a ledger console built as ruled paper rather than a dashboard. It
+ * refuses the metric-tile grid and the pillowy floating card.
+ *
+ * OWN-WORLD: cool near-neutral ground (hue 264), one deep indigo carrying state
+ * and action, three semantic hues that never appear without meaning. Squared
+ * geometry, corners 4px at most, 1px rules, no resting shadows, compact 28-32px
+ * controls, the platform UI face, monospaced tabular money.
+ *
+ * STORY: an operator answers a question about money — does this balance, who
+ * posted it, did the reversal land — and reads the answer without doubt.
+ *
+ * FIRST VIEWPORT: a 15rem ruled sidebar of grouped routes carrying the sandbox
+ * badge; a 3.5rem top bar with breadcrumb and organization switcher; content on
+ * the open canvas; the command palette over everything on Cmd/Ctrl+K.
+ *
+ * FORM: the brief pinned its own direction — the craft bar of Stripe, Mercury,
+ * Linear and Ramp, executed straight as an Operate surface. No concept roll was
+ * dealt, so there is no seed key.
+ */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -7,76 +30,120 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.003 264);
+  --foreground: oklch(0.21 0.02 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.21 0.02 264);
+  --primary: oklch(0.45 0.17 267);
+  --primary-foreground: oklch(0.99 0.004 267);
+  --secondary: oklch(0.965 0.004 264);
+  --secondary-foreground: oklch(0.28 0.02 264);
+  --muted: oklch(0.965 0.004 264);
+  /* The lightest value that still clears 4.5:1 on both --card and --muted. */
+  --muted-foreground: oklch(0.455 0.016 264);
+  --accent: oklch(0.955 0.014 267);
+  --accent-foreground: oklch(0.36 0.1 267);
+  --destructive: oklch(0.48 0.19 25);
+  --destructive-foreground: oklch(0.99 0.004 25);
+  --success: oklch(0.47 0.115 155);
+  --success-foreground: oklch(0.99 0.004 155);
+  --warning: oklch(0.62 0.14 72);
+  --warning-foreground: oklch(0.18 0.03 72);
+  --border: oklch(0.915 0.005 264);
+  --input: oklch(0.885 0.007 264);
+  --ring: oklch(0.45 0.17 267);
+  --chart-1: oklch(0.45 0.17 267);
+  --chart-2: oklch(0.58 0.14 238);
+  --chart-3: oklch(0.68 0.11 205);
+  --chart-4: oklch(0.55 0.13 300);
+  --chart-5: oklch(0.72 0.1 170);
+  --radius: 0.25rem;
+  --sidebar: oklch(0.973 0.004 264);
+  --sidebar-foreground: oklch(0.21 0.02 264);
+  --sidebar-primary: oklch(0.45 0.17 267);
+  --sidebar-primary-foreground: oklch(0.99 0.004 267);
+  --sidebar-accent: oklch(0.935 0.016 267);
+  --sidebar-accent-foreground: oklch(0.32 0.11 267);
+  --sidebar-border: oklch(0.91 0.005 264);
+  --sidebar-ring: oklch(0.45 0.17 267);
+  /* Shade, not smudge: shadows carry the neutral's own hue. */
+  --shadow-tint: 0.21 0.03 264;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: oklch(0.17 0.012 264);
+  --foreground: oklch(0.97 0.004 264);
+  --card: oklch(0.215 0.014 264);
+  --card-foreground: oklch(0.97 0.004 264);
+  --popover: oklch(0.235 0.015 264);
+  --popover-foreground: oklch(0.97 0.004 264);
+  --primary: oklch(0.68 0.15 267);
+  --primary-foreground: oklch(0.16 0.03 267);
+  --secondary: oklch(0.27 0.015 264);
+  --secondary-foreground: oklch(0.96 0.004 264);
+  --muted: oklch(0.26 0.013 264);
+  --muted-foreground: oklch(0.72 0.016 264);
+  --accent: oklch(0.31 0.045 267);
+  --accent-foreground: oklch(0.9 0.04 267);
+  /* Light enough to serve as *text* on the dark canvas, which the tinted
+     destructive button variant needs; its paired foreground darkens to match. */
+  --destructive: oklch(0.65 0.19 25);
+  --destructive-foreground: oklch(0.16 0.03 25);
+  --success: oklch(0.7 0.13 155);
+  --success-foreground: oklch(0.15 0.03 155);
+  --warning: oklch(0.76 0.14 72);
+  --warning-foreground: oklch(0.16 0.03 72);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --ring: oklch(0.68 0.15 267);
+  --chart-1: oklch(0.68 0.15 267);
+  --chart-2: oklch(0.7 0.12 238);
+  --chart-3: oklch(0.78 0.1 205);
+  --chart-4: oklch(0.7 0.13 300);
+  --chart-5: oklch(0.8 0.1 170);
+  --sidebar: oklch(0.195 0.013 264);
+  --sidebar-foreground: oklch(0.97 0.004 264);
+  --sidebar-primary: oklch(0.68 0.15 267);
+  --sidebar-primary-foreground: oklch(0.16 0.03 267);
+  --sidebar-accent: oklch(0.3 0.045 267);
+  --sidebar-accent-foreground: oklch(0.9 0.04 267);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.68 0.15 267);
+  --shadow-tint: 0 0 0;
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  /*
+   * The platform UI stack rather than a webfont. The previous token named
+   * "Inter Variable", which nothing in this repo ever loaded — every screen
+   * silently fell back to Arial. A console an operator reads all day renders
+   * best in the face their OS hints for, and no webfont means no flash of
+   * unstyled text over a balance.
+   */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.125rem;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 600;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.015em;
+  --text-title--font-weight: 600;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.5rem;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading--font-weight: 600;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.06em;
+  --text-label--font-weight: 600;
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -93,6 +160,11 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -108,13 +180,31 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+
+  /*
+   * A hairline corner scale, topping out at 4px. `button.tsx` and `badge.tsx`
+   * are explicitly `rounded-none`; this scale keeps everything else in the same
+   * squared language instead of putting pillowed cards next to square controls.
+   */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.75rem;
+  --radius-4xl: 1rem;
+
+  /* Nothing at rest carries a shadow; these are for things that truly float. */
+  --shadow-xs: 0 1px 2px 0 oklch(var(--shadow-tint) / 0.06);
+  --shadow-sm:
+    0 1px 3px 0 oklch(var(--shadow-tint) / 0.08), 0 1px 2px -1px oklch(var(--shadow-tint) / 0.06);
+  --shadow-md:
+    0 4px 12px -2px oklch(var(--shadow-tint) / 0.1), 0 2px 4px -2px oklch(var(--shadow-tint) / 0.06);
+  --shadow-lg:
+    0 16px 40px -12px oklch(var(--shadow-tint) / 0.18),
+    0 4px 12px -4px oklch(var(--shadow-tint) / 0.08);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
@@ -123,8 +213,19 @@
   }
   body {
     @apply font-sans bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   html {
     @apply font-sans;
+  }
+  /*
+   * Tabular figures wherever money or an identifier renders, applied at the
+   * element rather than left to each caller to remember. Misaligned decimal
+   * points in a balance column are how a misread happens.
+   */
+  .font-mono,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
   }
 }

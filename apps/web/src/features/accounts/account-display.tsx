@@ -41,16 +41,30 @@ export function isSuspenseAccount(account: WireAccount): boolean {
  */
 export function AccountBalance({ account }: { account: WireAccount }) {
   const isNegative = account.balance.amount.startsWith("-");
+  // Only a `normal` account going negative is remarkable: invariant #6 makes it
+  // impossible, so if one ever renders, it should look wrong.
+  const isImpossible = isNegative && account.type === "normal";
 
   return (
     <span
-      className={
-        // Only a `normal` account going negative is remarkable: invariant #6
-        // makes it impossible, so if one ever renders, it should look wrong.
-        isNegative && account.type === "normal" ? "font-mono text-destructive" : "font-mono"
-      }
+      data-testid="account-balance"
+      className="inline-flex items-baseline justify-end font-mono"
     >
-      {account.balance.amount} {account.balance.currency}
+      <span className={isImpossible ? "text-destructive" : undefined}>
+        {account.balance.amount}
+      </span>
+      {/*
+        The literal space is load-bearing even though `ml-1.5` draws the visible
+        gap: a flex container does not render a whitespace-only text run, so this
+        collapses visually while keeping the accessible text one contiguous
+        "1234.50 USD" rather than "1234.50USD" for a screen reader.
+
+        The currency itself steps back so the figure is what the eye lands on,
+        but it stays at full contrast — this column can hold more than one
+        currency at a time, and a code the reader has to hunt for is worse than
+        a loud one.
+      */}{" "}
+      <span className="ml-1.5 text-xs text-muted-foreground">{account.balance.currency}</span>
     </span>
   );
 }

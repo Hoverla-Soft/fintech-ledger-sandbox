@@ -11,6 +11,7 @@ import {
 import { Skeleton } from "@fintech-ledger-sandbox/ui/components/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
+import { Building2, Check, ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -36,7 +37,9 @@ export function OrgSwitcher() {
   const [switching, setSwitching] = useState(false);
 
   if (isPending) {
-    return <Skeleton className="h-9 w-40" />;
+    // Sized to the control it stands in for, so the top bar does not reflow
+    // when the organization resolves.
+    return <Skeleton className="h-8 w-40" />;
   }
 
   async function onSwitch(organizationId: string) {
@@ -58,8 +61,17 @@ export function OrgSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="outline" disabled={switching} />}>
-        {org?.name ?? "No organization"}
-        <span className="ml-2 text-xs text-muted-foreground">{role}</span>
+        <Building2
+          className="hidden size-3.5 shrink-0 text-muted-foreground sm:block"
+          aria-hidden="true"
+        />
+        <span className="sr-only">Organization:</span>
+        <span className="max-w-[8ch] truncate sm:max-w-[12ch]">
+          {org?.name ?? "No organization"}
+        </span>
+        {/* Dropped below sm: the name is the identifier, the role is reference. */}
+        <span className="hidden text-xs text-muted-foreground sm:inline">{role}</span>
+        <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card">
         <DropdownMenuGroup>
@@ -72,8 +84,13 @@ export function OrgSwitcher() {
                 void onSwitch(candidate.id);
               }}
             >
-              {candidate.name}
-              {candidate.id === org?.id ? " ✓" : ""}
+              <span className="flex-1">{candidate.name}</span>
+              {candidate.id === org?.id ? (
+                <>
+                  <span className="sr-only">Current organization</span>
+                  <Check className="size-3.5" aria-hidden="true" />
+                </>
+              ) : null}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />

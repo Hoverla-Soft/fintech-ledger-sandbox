@@ -1,52 +1,45 @@
-import { Separator } from "@fintech-ledger-sandbox/ui/components/separator";
-import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { useState } from "react";
 
-import { ModeToggle } from "@/components/mode-toggle";
-import UserMenu from "@/components/user-menu";
-
-import { OrgSwitcher } from "./org-switcher";
+import { CommandPalette } from "./command-palette";
+import { ConsoleMobileNav, ConsoleSidebar } from "./sidebar";
+import { ConsoleTopBar } from "./top-bar";
 
 /**
  * The chrome every signed-in console route renders inside.
  *
- * Nav links are declared here rather than per-route so a screen added in a
- * later slice is reachable by clicking rather than by typing a URL. 5c–5g each
- * add their own entry as they land; the list is short on purpose until then.
+ * A two-column application frame: persistent navigation on the left from `lg`
+ * up, and a content column that owns its own scroll. The scroll container being
+ * `main` rather than the document is what lets a ledger table's header stick to
+ * the top of the reading area instead of scrolling away with the page.
+ *
+ * Destinations are declared once in `nav.ts` and read by the sidebar, the
+ * breadcrumb, and the palette, so a screen added later cannot end up reachable
+ * only by typing its URL.
  */
-const NAV_LINKS = [
-  { to: "/dashboard", label: "Overview" },
-  { to: "/accounts", label: "Accounts" },
-  { to: "/transfer", label: "Transfer" },
-  { to: "/transactions", label: "History" },
-  { to: "/reconciliation", label: "Reconciliation" },
-  { to: "/sandbox", label: "Sandbox" },
-  { to: "/audit", label: "Audit" },
-] as const;
-
 export function ConsoleShell({ children }: { children: ReactNode }) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   return (
-    <div className="grid grid-rows-[auto_auto_1fr] h-full">
-      <div className="flex flex-row items-center justify-between gap-4 px-4 py-2">
-        <nav className="flex gap-4 text-sm" aria-label="Console">
-          {NAV_LINKS.map(({ to, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className="text-muted-foreground hover:text-foreground data-[status=active]:text-foreground data-[status=active]:font-medium"
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          <OrgSwitcher />
-          <ModeToggle />
-          <UserMenu />
-        </div>
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <ConsoleSidebar />
+
+      {/*
+        `min-w-0` is load-bearing. A grid item's automatic minimum size is its
+        content, so without it a wide table or a crowded top bar pushes this
+        column past its track and the *whole page* scrolls sideways — taking the
+        breadcrumb and the table's first columns off screen. With it, overflow
+        stays inside whichever element owns it.
+      */}
+      <div className="grid min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]">
+        <ConsoleTopBar onOpenPalette={() => setPaletteOpen(true)} />
+        <ConsoleMobileNav />
+        <main className="min-h-0 overflow-auto px-4 py-6 sm:px-6">
+          <div className="mx-auto w-full max-w-7xl">{children}</div>
+        </main>
       </div>
-      <Separator />
-      <main className="min-h-0 overflow-auto p-4">{children}</main>
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

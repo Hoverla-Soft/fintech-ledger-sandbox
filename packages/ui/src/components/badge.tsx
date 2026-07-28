@@ -25,7 +25,13 @@ const badgeVariants = cva(
         default: "border-transparent bg-primary text-primary-foreground",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
         outline: "text-foreground",
-        destructive: "border-transparent bg-destructive text-white",
+        // Every coloured variant names its own paired foreground token rather
+        // than assuming white reads on it. `text-white` on `--destructive` fell
+        // below 4.5:1 in the dark theme, where that token has to stay light
+        // enough to double as *text* for the tinted destructive button.
+        destructive: "border-transparent bg-destructive text-destructive-foreground",
+        success: "border-transparent bg-success text-success-foreground",
+        warning: "border-transparent bg-warning text-warning-foreground",
         muted: "border-transparent bg-muted text-muted-foreground",
       },
     },
