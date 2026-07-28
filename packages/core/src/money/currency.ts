@@ -29,6 +29,25 @@ const CURRENCY_MINOR_UNIT_EXPONENTS = {
 export type Currency = keyof typeof CURRENCY_MINOR_UNIT_EXPONENTS;
 
 /**
+ * The allowlist as an enumerable, ordered, frozen list.
+ *
+ * `parseCurrency` answers "is this code known?", which is all the domain and
+ * the API boundary ever needed — both validate a code someone else supplied.
+ * A user interface has the opposite problem: it must *offer* the codes before
+ * anyone has typed one, and it cannot do that from a type alias, which is
+ * erased at runtime. Added in Phase 5a for the console's currency picker.
+ *
+ * Derived from `CURRENCY_MINOR_UNIT_EXPONENTS` rather than written out a
+ * second time, so a currency can never appear in one and not the other —
+ * `currency.test.ts` asserts that agreement in both directions. Ordering is
+ * the object's own insertion order: grouped by exponent (2, then 0, then 3),
+ * which is also the order a picker should show them in.
+ */
+export const CURRENCIES: readonly Currency[] = Object.freeze(
+  Object.keys(CURRENCY_MINOR_UNIT_EXPONENTS) as Currency[],
+);
+
+/**
  * Parses an arbitrary string into a known `Currency`. Rejects any code
  * whose minor-unit exponent is not on the allowlist above.
  */

@@ -27,3 +27,13 @@ catalog:
   tailwindcss: ^4.3.2
   vitest: ^4.1.10
   "@testcontainers/postgresql": ^12.0.4
+  # The `apps/web` console suite (Phase 5a). `packages/*` suites are Node-environment
+  # and need none of this; the console's highest-risk behaviours are DOM-bound
+  # ("the dialog closes only after the request resolves", "submit is disabled in
+  # flight", "the form stays open with the reason inline"), so they need a real
+  # document. See docs/development/tech-stack.md → Testing framework.
+  happy-dom: ^20.11.1
+  # v16 is the first line supporting React 19's createRoot/act contract.
+  "@testing-library/react": ^16.3.2
+  "@testing-library/user-event": ^14.6.1
+  "@testing-library/jest-dom": ^7.0.0

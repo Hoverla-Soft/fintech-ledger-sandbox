@@ -7,8 +7,8 @@
 | Item | Value |
 |---|---|
 | Framework | Vitest 4 |
-| Test location | `packages/core/src/**/*.test.ts` (unit), `packages/db/src/**/*.test.ts` (integration), `packages/api/src/**/*.test.ts` (unit + integration) |
-| Test type | `packages/core`: unit (no database). `packages/db` and `packages/api`: integration — real Postgres via Testcontainers, requires a reachable Docker daemon (see `docs/development/testing-rules.md`). `packages/api` additionally holds pure unit files (role mapping, error map, wire codecs) that need no database but share the suite's container lifecycle |
+| Test location | `packages/core/src/**/*.test.ts` (unit), `packages/db/src/**/*.test.ts` (integration), `packages/api/src/**/*.test.ts` (unit + integration), `apps/web/src/**/*.test.{ts,tsx}` (unit + component) |
+| Test type | `packages/core`: unit (no database). `packages/db` and `packages/api`: integration — real Postgres via Testcontainers, requires a reachable Docker daemon (see `docs/development/testing-rules.md`). `packages/api` additionally holds pure unit files (role mapping, error map, wire codecs) that need no database but share the suite's container lifecycle. `apps/web`: unit and component — `happy-dom` environment with `@testing-library/react`, added Phase 5a. No database and **no Docker**; files run in parallel |
 
 ## Running tests
 
@@ -18,6 +18,7 @@ pnpm --filter @fintech-ledger-sandbox/core test   # core suite only
 pnpm --filter @fintech-ledger-sandbox/core test:watch
 pnpm --filter @fintech-ledger-sandbox/db test     # db suite only — needs Docker
 pnpm --filter @fintech-ledger-sandbox/api test    # api suite only — needs Docker
+pnpm --filter web test                            # console suite only — no Docker needed
 ```
 
 `packages/db` and `packages/api` each declare a dedicated `#test` task in `turbo.json` with `cache: false`. A Testcontainers suite is not a pure function of its source inputs — Docker availability and applied migrations are environmental — so a cached "pass" could be replayed for a run that never started a container.
@@ -36,6 +37,8 @@ Scope note: `packages/core` is a pure domain with no database or HTTP. These sui
 - `parseCurrency` rejects the empty string
 - `parseCurrency` is case-sensitive (`"usd"` rejected) and never treats an inherited `Object.prototype` member (`"toString"`) as a known currency
 - `minorUnitExponent` reports the correct ISO-4217 exponent for exponent-2 (USD), exponent-0 (JPY), and exponent-3 (BHD) currencies
+- `CURRENCIES` (added Phase 5a for the console's picker) lists exactly the allowlist and **agrees with `parseCurrency` in both directions** — everything offered is accepted, and everything accepted is offered, so a picker can neither present a code the parser rejects nor hide one it would take. Asserted against a hand-written literal rather than the export itself, so deleting a currency from the implementation cannot delete it from the test
+- `CURRENCIES` is grouped by exponent (the order a picker renders) and is frozen, so a consumer cannot mutate the shared allowlist at runtime
 
 ### `packages/core/src/money/money.test.ts`
 - `Money.ofMinorUnits` accepts a genuine `bigint`; rejects an integral number, `NaN`, and a float cast through `as unknown as bigint` with `InvalidAmount` / `"not-a-bigint"` — never uses `number` for amounts
@@ -196,5 +199,57 @@ Scope note: `packages/api`'s suite covers the **API boundary** — that the acti
 - **Beyond one chunk** — a ledger past `RESET_CHUNK_SIZE` completes over multiple calls via the suspense path and ends at `remaining: 0`; exactly one suspense account is opened, it is `external`, and it finishes at zero; reconciliation stays clean throughout; two currencies both drain without a transaction ever spanning them
 - **The loop** — seed → reset → seed → reset runs twice end to end, asserting the org is funded after each seed and unwound after each reset, with reconciliation clean at all four points
 - **Permissions and tenancy** — a `viewer` in the same org is refused `403 insufficient_role` on both procedures; seeding and resetting one org leaves another org's accounts and transactions completely untouched
+
+### `packages/api/src/contracts/currencies.test.ts`
+- The allowlist is reachable through the package's `@fintech-ledger-sandbox/api/contracts/currencies` subpath, which is how `apps/web` gets it without depending on `packages/core` directly
+- **Every offered currency survives the same boundary parser the write endpoints use** — a picker cannot present a code `transactions.create` would reject with `422 unsupported_currency`
+- One minor unit of each currency round-trips through `format` → `parseBoundedAmount` back to `1n`, and the rendered form carries exactly the declared number of fraction digits — the property a hardcoded exponent of 2 breaks on JPY (0) and BHD (3)
+
+---
+
+## `apps/web` — the console (Phase 5a)
+
+Unit tests over the console's pure kernel. No database and no Docker. The `happy-dom` environment is configured now so later slices render into a working harness, but 5a itself renders nothing — `apps/web/src/routes/` and `src/components/` are untouched by this phase.
+
+### `apps/web/src/lib/ledger/amount.test.ts`
+- **The exponent is per-currency and never guessed** — one whole unit parses to `1n` (JPY), `100n` (USD), `1000n` (BHD). A hardcoded exponent of 2 passes every USD case in the file and silently misplaces the decimal point on the rest
+- JPY `"12.50"` is rejected (exponent 0 admits no fraction digits); JPY `"1250"` is 1250 minor units, not 125000; BHD `"1.250"` is 1250
+- USD `"12.505"` is rejected as **excess precision rather than rounded** — the console does not decide where a half-cent went (`ADR 0002`)
+- For all ten currencies: an amount with exactly the permitted fraction digits parses, and one digit more is rejected
+- Malformed input is rejected by class — `""`, whitespace, `"NaN"`, `"Infinity"`, `"1e5"`, `".5"`, `"5."`, `"1,000"`, `"$5"`, `"--5"`, `"5 5"` — and surrounding whitespace on a pasted value is trimmed rather than rejected
+- Length is capped before the string reaches `BigInt`, mirroring the server's CPU-sink guard; `MAX_MINOR_UNITS` parses and one minor unit more is rejected as **out of range, distinguishably from malformed** — the server collapses both into `422 invalid_amount`, but they are different problems to someone typing
+- `formatMinorUnits` renders zero at each currency's own scale (`0.00` / `0` / `0.000`), pads sub-unit amounts (`0.05`), keeps the sign on the negative balances `external` accounts legitimately hold, and **round-trips through `parseAmount` for every currency** across positive, negative, and large values
+- An unknown currency renders as a raw integer plus code rather than a guessed scale — obviously-unformatted beats plausibly-wrong. `formatAmountWithCurrency` does **not** append the code a second time in that branch (regression: it produced `"1250 XXX XXX"`)
+
+### `apps/web/src/lib/ledger/postings.test.ts`
+- **Orientation, the failure the server cannot catch.** An unbalanced array returns `422 unbalanced_transaction`; a *balanced but inverted* one posts cleanly, moves money the wrong way, and produces no error anywhere. So orientation is pinned against the `funding` seed scenario **imported from `packages/api/src/sandbox/scenarios.ts`** — the payload the API's own integration suite posts against real Postgres — asserting the destination is debited and the source credited. Verified by mutation: inverting `composeTransfer` fails these tests while all 18 balance-only assertions still pass
+- Swapping source and destination produces a **different** array, and the account debited in one is credited in the other
+- The multi-leg posted scenarios (`payroll`, `marketplace_payout`) agree: the account money leaves carries the single credit
+- `composeTransfer` scales to the currency, not to two decimal places — 1250 minor units is `"12.50"` USD, `"1250"` JPY, `"1.250"` BHD
+- Rejects a non-positive amount and a transfer to the same account (which would net to zero against itself)
+- `composeLegs` accepts a balanced N-leg split, rejects an unbalanced one, rejects fewer than 2 and more than `MAX_POSTINGS` legs, and rejects a non-positive leg — direction carries the sign, never the amount
+- **Both composers reject an unknown currency up front** (regression). `formatMinorUnits` refuses to guess a scale and returns `"100 XXX"` — correct for display, but not a decimal string, so the composers used to return `ok: true` carrying it as a wire `amount` and the failure surfaced only as a thrown `assertBalanced` instead of a typed rejection a form could render inline
+- **Randomised splits for every leg count from 2 to 100** net to exactly `0n`, under a seeded PRNG so a failure is reproducible rather than a flake
+- `assertBalanced` throws on an unbalanced array, on fewer than 2 or more than 100 legs, on legs spanning more than one currency, and on an amount that is not a decimal string
+- **The false-pass regression** — `"1.0"` debit against `"10"` credit both reduce to the digits `10`. A scale-blind check cancels them and waves through a transfer moving nine units of real money. Legs are rescaled to a common width before summing, and legs written at different widths that genuinely agree (`"1.0"` / `"1.00"`) still pass
+
+### `apps/web/src/lib/ledger/idempotency.test.ts`
+- **A retry reuses the key byte-for-byte** — the single property that makes a retry a replay rather than a second posting (`ADR 0006:17`)
+- Minting happens exactly once per operation: repeat calls write nothing further, so the function is safe to call from an effect React may run more than once
+- A key **survives a reload** — a fresh store reading the same persisted slot resumes it, so refreshing mid-submit cannot create a second transaction
+- Each operation kind holds its own slot, so two open forms cannot clobber each other; a reversal key is scoped to the transaction being reversed
+- `newOperation` replaces the held key and becomes the new stable one; `completeOperation` releases only its own slot; `peekOperation` reads **without minting**
+- **Importing the module is inert** — evaluating it touches `sessionStorage` zero times and calls `randomUUID` zero times. `vi.resetModules()` is load-bearing here: without it the static import has already run, the dynamic re-import returns the cache, and the assertion passes no matter what the module body does. A follow-up call proves the re-import evaluated a live module, so the check cannot pass vacuously
+- `createSessionKeyStore` round-trips through the real `sessionStorage`, and **falls back to memory instead of throwing** when storage is unavailable — losing replay protection is bad, a console that cannot post at all is worse. Two independent callers on the fallback path get the **same** key (regression: a fresh memory map per call gave them different keys for one operation, reintroducing the double-post the module exists to prevent)
+
+### `apps/web/src/lib/ledger/errors.test.ts`
+- Copy exists for **all 17 published reasons**, and the set is checked against the literals actually present in **every non-test `.ts` file under `packages/api/src`**, walked recursively — so an 18th reason added upstream fails here by name instead of falling silently through to the generic fallback in production. The scan was originally three hand-picked top-level files and already missed `invalid_cursor`, which is emitted from `routers/transactions.ts`; the count is now pinned to the full published total so a *narrowing* of the scan is caught too. The repo root is located by walking up for `pnpm-workspace.yaml`, so the test passes from both `pnpm --filter web test` and a run started at the repo root
+- **The server's `message` is never rendered** for any reason — it is a fixed operator-facing string and explicitly not a stable contract (`docs/backend/error-handling.md`)
+- `account_not_found` and `transaction_not_found` say "not in this organization" and never "another organization" — the copy must not become an existence oracle for another tenant (`ADR 0005`)
+- Failures the user can fix keep the form open, and so do transient ones — a `rate_limited` submit must not discard what the user typed. Only `blocked` and `reauthenticate` close it. `no_active_organization` and `not_a_member` route to re-authentication rather than an error screen (`docs/product/roles-and-permissions/ledger.md:70`)
+- **The idempotency key is abandoned only on `409 idempotency_conflict`** — asserted across all 17 reasons. Critically not on `insufficient_funds`: a fresh key there would post twice
+- `rate_limited` surfaces `scope`, `limit`, and `retryAfterSeconds` from the body (there is no `Retry-After` header, `ADR 0007`), and tolerates a body missing them
+- The three no-reason branches each render distinctly: a bare `401`, a Zod `BAD_REQUEST` whose field issues are exposed for form binding, and an unmapped `500` that reveals no internals
+- **Hostile input is renderable** — an unrecognised reason falls back without printing `undefined`; a network `TypeError`, `null`, `undefined`, a bare string, a number, an empty object, a string `data`, and a non-array `issues` all return copy rather than throwing inside the error handler; malformed issue entries are dropped rather than propagated
 
 <!-- add one block per test file, keep in sync with what actually exists -->

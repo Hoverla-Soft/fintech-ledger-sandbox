@@ -13,6 +13,11 @@ import { defineConfig } from "vitest/config";
  */
 export default defineConfig({
   test: {
-    projects: ["packages/*/vitest.config.ts"],
+    // `apps/*` was added in Phase 5a alongside the `apps/web` console suite.
+    // Before that this glob covered `packages/*` only, so an app-level
+    // `vitest.config.ts` would have been picked up by `turbo run test` (which
+    // walks package manifests) but silently skipped from the repo root — the
+    // two entry points this file exists to keep aligned would have disagreed.
+    projects: ["packages/*/vitest.config.ts", "apps/*/vitest.config.ts"],
   },
 });

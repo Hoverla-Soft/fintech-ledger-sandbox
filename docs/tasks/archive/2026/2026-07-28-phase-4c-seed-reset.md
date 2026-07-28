@@ -10,7 +10,9 @@ It also resolves the open consequence ADR 0005 recorded against itself — *"Pha
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28.
 
 Verified 2026-07-28: `check-types` 6/6, `test` 324 passed (68 core + 28 db + 228 api), `build` 2/2, migration integrity guard PASS (exit 0, and this phase adds no migration). Lint is `N/A` — no linter is wired in this repo yet.
 

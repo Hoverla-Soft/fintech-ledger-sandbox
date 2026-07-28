@@ -27,7 +27,7 @@ export type {
 } from "./errors";
 export { isLedgerError } from "./errors";
 export type { Currency } from "./money/currency";
-export { parseCurrency } from "./money/currency";
+export { CURRENCIES, minorUnitExponent, parseCurrency } from "./money/currency";
 export { Money } from "./money/money";
 export type { Result } from "./result";
 export { err, ok } from "./result";
