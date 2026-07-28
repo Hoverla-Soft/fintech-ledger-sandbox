@@ -8,7 +8,9 @@ They are one slice rather than two because a failed reset surfaces as `422 unbal
 
 ## Status
 
-Human Review
+Done
+
+Human review waived by the user 2026-07-28 for the remainder of Phase 5.
 
 ## Scope (allowed paths)
 
