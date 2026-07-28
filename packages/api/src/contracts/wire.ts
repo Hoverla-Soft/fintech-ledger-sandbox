@@ -53,6 +53,11 @@ export const transactionSchema = z.object({
   id: z.string(),
   currency: z.string(),
   reversesTransactionId: z.string().nullable(),
+  reversedBy: z
+    .array(z.string())
+    .describe(
+      "Ids of the transactions that reverse this one — the inverse of `reversesTransactionId`, which points forwards only. Empty when this transaction has not been reversed. An array rather than a boolean because nothing forbids reversing the same transaction twice: there is no unique constraint on the column and `transactions.reverse` performs no existing-reversal check, so a scalar would be correct only until the first double reversal.",
+    ),
   createdBy: z.string(),
   createdAt: z.string(),
 });
@@ -140,6 +145,10 @@ export function toWireTransaction(row: LedgerTransactionRow): z.infer<typeof tra
     id: row.id,
     currency: row.currency,
     reversesTransactionId: row.reversesTransactionId,
+    // Copied into a fresh array: the repository hands back a `readonly
+    // string[]` and the wire type is mutable, so sharing the reference would
+    // let a caller mutate what the repository considers immutable.
+    reversedBy: [...row.reversedBy],
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
   };

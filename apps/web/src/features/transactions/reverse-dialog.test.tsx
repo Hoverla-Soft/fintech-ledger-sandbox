@@ -27,13 +27,13 @@ const { CONFIRMATION_WORD, ReverseDialog } = await import("./reverse-dialog");
 
 const TXN = "11111111-2222-3333-4444-555555555555";
 
-function renderDialog(transactionId = TXN) {
+function renderDialog(transactionId = TXN, reversedBy: readonly string[] = []) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ReverseDialog transactionId={transactionId} />
+      <ReverseDialog transactionId={transactionId} reversedBy={reversedBy} />
     </QueryClientProvider>,
   );
 }
@@ -111,15 +111,18 @@ describe("confirmation friction", () => {
     expect(reverseTransaction).not.toHaveBeenCalled();
   });
 
-  it("states that reversals are not deduplicated, rather than claiming to check", async () => {
-    // The API records that a transaction *is* a reversal, never that one *has
-    // been* reversed — there is no reverse lookup (open question #3). The
-    // dialog must not imply a check it cannot perform.
+  it("still states that reversals are not deduplicated", async () => {
+    // This assertion predates 6b, when the dialog could only disclose its own
+    // blindness ("this console cannot tell whether this transaction has
+    // already been reversed"). `reversedBy` removed the blindness but changed
+    // nothing about the API: reversing is still permitted and still not
+    // deduplicated, so that warning must survive. The "cannot tell" framing is
+    // covered by its own describe block below, which asserts it is gone.
     renderDialog();
     await userEvent.click(screen.getByRole("button", { name: "Reverse" }));
 
     expect(screen.getByText(/not deduplicated/i)).toBeInTheDocument();
-    expect(screen.getByText(/apply the correction twice/i)).toBeInTheDocument();
+    expect(screen.getByText(/apply the correction each time/i)).toBeInTheDocument();
   });
 });
 
@@ -160,5 +163,51 @@ describe("idempotency", () => {
     // A reversal moves money; retrying it automatically is never correct.
     expect(reverseTransaction).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/server string/)).not.toBeInTheDocument();
+  });
+});
+
+describe("already-reversed warning (Phase 6b, open question #3)", () => {
+  async function open() {
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reverse" }));
+  }
+
+  it("says nothing has reversed this transaction when reversedBy is empty", async () => {
+    renderDialog(TXN, []);
+    await open();
+
+    expect(screen.queryByTestId("already-reversed")).not.toBeInTheDocument();
+    expect(screen.getByText(/Nothing has reversed this transaction yet/)).toBeInTheDocument();
+  });
+
+  it("states plainly that the transaction was already reversed", async () => {
+    // Before 6b this dialog could only disclose its own blindness — "this
+    // console cannot tell whether this transaction has already been reversed".
+    renderDialog(TXN, ["reversal-1"]);
+    await open();
+
+    expect(screen.getByTestId("already-reversed")).toHaveTextContent(
+      "This transaction has already been reversed.",
+    );
+    expect(screen.queryByText(/cannot tell whether/)).not.toBeInTheDocument();
+  });
+
+  it("counts the reversals when there is more than one", async () => {
+    // The rendering that a boolean `reversed` flag could not have produced.
+    renderDialog(TXN, ["reversal-1", "reversal-2"]);
+    await open();
+
+    expect(screen.getByTestId("already-reversed")).toHaveTextContent(
+      "This transaction has already been reversed 2 times.",
+    );
+  });
+
+  it("warns but does not block — reversing again is still permitted", async () => {
+    // The API does not deduplicate reversals, so the console must not pretend
+    // to. This is a warning, not a guard.
+    reverseTransaction.mockResolvedValue({ id: "new-reversal" });
+    renderDialog(TXN, ["reversal-1"]);
+    await openAndConfirm();
+
+    await waitFor(() => expect(reverseTransaction).toHaveBeenCalledTimes(1));
   });
 });

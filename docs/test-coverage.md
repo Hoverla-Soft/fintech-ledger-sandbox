@@ -346,4 +346,27 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The 401 rejection is asserted through a **test-local protected-only router**, not a production procedure. `privateData` was `protectedProcedure`'s only consumer and was removed in 5h; the coverage could not move to a real procedure because every remaining one sits on `orgProcedure`/`adminProcedure`, which compose `requireAuth` **and** `requireOrg` — and `requireOrg` re-checks the session itself, so such a test would still pass with `requireAuth` deleted outright
 - A companion case asserts the same fixture **serves** a signed-in caller, so a fixture failing for any unrelated reason cannot satisfy the 401 assertion and look like working coverage
 
+### `packages/api/src/routers/reads.test.ts` — amounts and reversals on the read surface (extended Phase 6b)
+- **`transactions.list` returns every posting on every row**, so a history table can show what moved. Before 6b it returned `transactionSchema` — id, currency, actor, timestamp, reversal marker, and no amounts
+- **A 3-leg split keeps all three legs.** This is the test that would fail if someone collapsed postings into a scalar `amount` field; a balanced transaction may have any number of legs, so no single "amount" exists to return
+- **Query count is constant in page size** — a 6-row page issues the same number of queries as a 2-row page. Counted by wrapping `pool.query`, *not* by listening for a `query` event: `pg.Pool` emits no such event, so a listener-based counter would have recorded 0 for both and passed vacuously. Caught by `tsc`, not at runtime. The test also asserts the count is `> 0`, so a wrapper that stops intercepting fails instead of passing silently
+- **`reversedBy` is `[]` for an unreversed transaction**, and names the reversal on both `list` and `get`
+- **A transaction reversed twice reports both reversal ids.** The assertion that forces `reversedBy` to be a list rather than a boolean. It funds the account first, and that is load-bearing: each reversal re-debits the wallet, so reversing a credit twice against an unfunded account is refused for `insufficient_funds` by invariant #6 — double reversal is *possible but not always affordable*, which is exactly why it cannot be a schema-level flag
+
+### `packages/api/src/routers/writes.test.ts` — append-only under a derived field (updated Phase 6b)
+- The append-only assertion compares the whole response **minus `reversedBy`**, so a newly added *stored* column is still covered automatically rather than being silently exempted by a field-by-field rewrite
+- `reversedBy` is then asserted to go from `[]` to `[reversal.id]` — excluded from the equality but not from the test. It changing is the correct consequence of *appending* a reversal, the opposite of a mutation: nothing on the original row or its postings is rewritten
+
+### `apps/web/src/features/transactions/total.test.ts` (Phase 6b)
+- **Sums every debit leg of a split**, not just the first — the case a scalar wire `amount` could not have represented
+- **Counts debits only**, so a balanced transaction is not double-counted
+- **`0.10 + 0.20 === 0.30` exactly**, because the sum is `bigint` minor units. In binary floating point it is not (ADR 0002)
+- **Zero-exponent currencies** (JPY) render with no decimal point, rather than inheriting a two-decimal assumption
+- **Returns `null`, never a partial sum**, when a leg will not parse, when debit legs disagree on currency, or for an unknown currency code. A total that silently drops an unreadable leg would understate what moved while looking authoritative — so the table renders an explicit dash, which is a different claim from `0.00`
+
+### `apps/web/src/features/transactions/reverse-dialog.test.tsx` — already-reversed warning (extended Phase 6b)
+- **States plainly that the transaction was already reversed**, and counts them when there is more than one. Before 6b this dialog could only disclose its own blindness: *"this console cannot tell whether this transaction has already been reversed"*
+- **Warns but does not block.** The API does not deduplicate reversals, so the console must not pretend to — reversing again still fires exactly one mutation
+- The pre-existing *"reversals are not deduplicated"* assertion is **kept**, not deleted: `reversedBy` removed the blindness but changed nothing about the API
+
 <!-- add one block per test file, keep in sync with what actually exists -->

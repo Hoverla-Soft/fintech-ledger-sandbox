@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
+import { createPosting, Transaction } from "@fintech-ledger-sandbox/core";
 import type { Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-
 import {
   buildTransfer,
   clientFor,
+  money,
   postTransfer,
   type SeededTenant,
   seedAccount,
   seedTenant,
   sessionFor,
+  unwrap,
 } from "../test/fixtures";
 
 /**
@@ -147,6 +149,161 @@ describe("transactions.list pagination", () => {
       status: 400,
     });
     await expect(client().transactions.list({ limit: 0 })).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+describe("transactions.list carries what moved (Phase 6b, open question #2)", () => {
+  it("returns every posting on every row, so a history table can show amounts", async () => {
+    // Before 6b this endpoint returned `transactionSchema`, which has no
+    // amounts and no postings — the console could say a transfer happened but
+    // not what moved. The N+1 objection on record was about the *client*
+    // calling `transactions.get` per row; server-side this is one extra
+    // batched `IN` query for the whole page.
+    await postTransfer(db, tenant, fundingId, walletId, "12.34");
+
+    const { transactions } = await client().transactions.list({});
+    const [transaction] = transactions;
+
+    expect(transaction?.postings).toHaveLength(2);
+    expect(transaction?.postings.find((posting) => posting.accountId === walletId)).toMatchObject({
+      direction: "debit",
+      amount: { amount: "12.34", currency: "USD" },
+    });
+    expect(transaction?.postings.find((posting) => posting.accountId === fundingId)).toMatchObject({
+      direction: "credit",
+      amount: { amount: "12.34", currency: "USD" },
+    });
+  });
+
+  it("keeps every leg of a transaction with more than two postings", async () => {
+    // The reason no scalar `amount` field was added: a split has no single
+    // amount. If a future change collapses postings into one number, this
+    // fails.
+    const secondWalletId = await seedAccount(db, tenant.orgId, "normal", "Wallet Two");
+    const amount = money("10.00");
+    const half = money("5.00");
+    await postTransaction(db, {
+      orgId: tenant.orgId,
+      actorId: tenant.userId,
+      idempotencyKey: randomUUID(),
+      requestHash: randomUUID(),
+      transaction: unwrap(
+        Transaction.create([
+          unwrap(createPosting(walletId, "debit", half)),
+          unwrap(createPosting(secondWalletId, "debit", half)),
+          unwrap(createPosting(fundingId, "credit", amount)),
+        ]),
+      ),
+    });
+
+    const { transactions } = await client().transactions.list({});
+    const split = transactions.find((candidate) => candidate.postings.length === 3);
+
+    expect(split).toBeDefined();
+    expect(split?.postings.filter((posting) => posting.direction === "debit")).toHaveLength(2);
+  });
+
+  it("issues a constant number of queries regardless of page size", async () => {
+    // The property that makes D2 true. If someone reintroduces a per-row
+    // lookup, query count grows with the page and this fails.
+    for (let index = 0; index < 6; index += 1) {
+      await postTransfer(db, tenant, fundingId, walletId, "1.00");
+    }
+
+    // Counted by wrapping the pool's own `query`, not by listening for a
+    // `query` event — `pg.Pool` emits no such event, so a listener-based
+    // counter would record 0 for every page size and the comparison below
+    // would pass while measuring nothing.
+    const countFor = async (limit: number) => {
+      const pool = db.$client;
+      const original = pool.query.bind(pool);
+      let calls = 0;
+      // biome-ignore lint/suspicious/noExplicitAny: pg's `query` has 6 overloads; re-typing them here would add nothing to the assertion.
+      (pool as any).query = (...args: unknown[]) => {
+        calls += 1;
+        return (original as (...a: unknown[]) => unknown)(...args);
+      };
+      try {
+        await client().transactions.list({ limit });
+      } finally {
+        (pool as any).query = original;
+      }
+      return calls;
+    };
+
+    const forSix = await countFor(6);
+    const forTwo = await countFor(2);
+
+    // Guard the guard: if the wrapper stopped intercepting, both would be 0
+    // and the equality below would hold vacuously.
+    expect(forTwo).toBeGreaterThan(0);
+    expect(forSix).toBe(forTwo);
+  });
+});
+
+describe("reversedBy (Phase 6b, open question #3)", () => {
+  it("is empty for a transaction nothing reverses", async () => {
+    const transactionId = await postTransfer(db, tenant, fundingId, walletId, "5.00");
+
+    const transaction = await client().transactions.get({ transactionId });
+    expect(transaction.reversedBy).toEqual([]);
+  });
+
+  it("names the reversal on the transaction that was reversed, in both list and get", async () => {
+    // `reversesTransactionId` only ever points forwards. Before 6b there was
+    // no way to ask "has this been reversed?", so ADR 0006:42 assumed a
+    // capability that did not exist.
+    const originalId = await postTransfer(db, tenant, fundingId, walletId, "5.00");
+    const reversal = await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: originalId,
+    });
+
+    const viaGet = await client().transactions.get({ transactionId: originalId });
+    expect(viaGet.reversedBy).toEqual([reversal.id]);
+
+    const { transactions } = await client().transactions.list({});
+    const viaList = transactions.find((candidate) => candidate.id === originalId);
+    expect(viaList?.reversedBy).toEqual([reversal.id]);
+
+    // The reversal itself has not been reversed; the two directions are
+    // distinct and must not be conflated.
+    expect(viaGet.reversesTransactionId).toBeNull();
+    const reversalRow = transactions.find((candidate) => candidate.id === reversal.id);
+    expect(reversalRow?.reversesTransactionId).toBe(originalId);
+    expect(reversalRow?.reversedBy).toEqual([]);
+  });
+
+  it("reports BOTH reversals when a transaction is reversed twice", async () => {
+    // The assertion that forces `reversedBy` to be a list. Nothing forbids a
+    // second reversal — no unique constraint on the column, no check in
+    // `transactions.reverse` — so a boolean or a single id would be correct
+    // here until the second call and silently wrong afterwards.
+    //
+    // The wallet is funded first, and that detail is load-bearing. Each
+    // reversal debits the wallet again, so reversing a 5.00 credit twice
+    // against an unfunded wallet is refused for `insufficient_funds` — by the
+    // balance invariant, not by any reversal-specific rule. Double reversal is
+    // therefore *possible but not always affordable*, which is exactly why it
+    // cannot be modelled as a boolean: whether a second one exists depends on
+    // the balance at the time, not on anything structural.
+    await postTransfer(db, tenant, fundingId, walletId, "100.00");
+    const originalId = await postTransfer(db, tenant, fundingId, walletId, "5.00");
+
+    const first = await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: originalId,
+    });
+    const second = await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: originalId,
+    });
+
+    expect(first.id).not.toBe(second.id);
+
+    const transaction = await client().transactions.get({ transactionId: originalId });
+    expect(transaction.reversedBy).toHaveLength(2);
+    expect([...transaction.reversedBy].sort()).toEqual([first.id, second.id].sort());
   });
 });
 

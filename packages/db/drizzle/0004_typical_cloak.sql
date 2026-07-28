@@ -1,0 +1,1 @@
+CREATE INDEX "ledger_transaction_reversesTransactionId_idx" ON "ledger_transaction" USING btree ("reverses_transaction_id") WHERE "ledger_transaction"."reverses_transaction_id" is not null;

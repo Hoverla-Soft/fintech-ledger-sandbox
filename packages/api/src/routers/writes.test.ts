@@ -482,13 +482,29 @@ describe("transactions.reverse", () => {
     const original = await asAdmin().transactions.create(transfer("100.00"));
     const before = await asAdmin().transactions.get({ transactionId: original.id });
 
-    await asAdmin().transactions.reverse({
+    const reversal = await asAdmin().transactions.reverse({
       idempotencyKey: randomUUID(),
       transactionId: original.id,
     });
 
     const after = await asAdmin().transactions.get({ transactionId: original.id });
-    expect(after).toEqual(before);
+
+    // Everything *stored* about the original is byte-identical. This is the
+    // append-only property, and it is asserted on the whole object minus one
+    // field rather than field-by-field, so a newly added stored column is
+    // covered by this test automatically instead of being silently exempt.
+    const { reversedBy: reversedByBefore, ...storedBefore } = before;
+    const { reversedBy: reversedByAfter, ...storedAfter } = after;
+    expect(storedAfter).toEqual(storedBefore);
+
+    // `reversedBy` is excluded above because it is *derived*, not stored: it
+    // reports which other rows point at this one. It changing is the correct
+    // observable consequence of appending a reversal, and is the opposite of a
+    // mutation — nothing on the original row or its postings was rewritten.
+    // Asserted rather than merely excluded, so dropping it from the response
+    // still fails this test (Phase 6b).
+    expect(reversedByBefore).toEqual([]);
+    expect(reversedByAfter).toEqual([reversal.id]);
   });
 
   it("permits reversing a reversal, which re-applies the original effect", async () => {

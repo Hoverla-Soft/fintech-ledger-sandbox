@@ -22,6 +22,7 @@ import {
   pageNumber,
   resetToFirstPage,
 } from "@/features/transactions/pagination";
+import { formatTransactionTotal, type WirePosting } from "@/features/transactions/total";
 import { describeFailure } from "@/lib/ledger/errors";
 import { orpc } from "@/utils/orpc";
 
@@ -34,6 +35,27 @@ export const Route = createFileRoute("/_auth/transactions/")({
  * `limit` is unreachable from this screen.
  */
 const PAGE_SIZE = 25;
+
+/**
+ * The total a transaction moved, or an explicit dash when it cannot be
+ * computed.
+ *
+ * The dash matters: rendering `0.00` for a transaction whose legs would not
+ * parse would claim nothing moved, which is a different and false statement.
+ * On a ledger the difference between "nothing" and "we cannot say" is the
+ * whole point.
+ */
+function TransactionTotal({ postings }: { postings: readonly WirePosting[] }) {
+  const total = formatTransactionTotal(postings);
+  if (total === null) {
+    return (
+      <span className="text-muted-foreground" title="This transaction's legs could not be totalled">
+        —
+      </span>
+    );
+  }
+  return <>{total}</>;
+}
 
 function TransactionsRoute() {
   const [page, setPage] = useState<PageState>(FIRST_PAGE);
@@ -106,6 +128,7 @@ function TransactionsRoute() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Transaction</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead>Posted</TableHead>
                   <TableHead>Kind</TableHead>
@@ -123,14 +146,24 @@ function TransactionsRoute() {
                         {transaction.id.slice(0, 8)}…
                       </Link>
                     </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      <TransactionTotal postings={transaction.postings} />
+                    </TableCell>
                     <TableCell>{transaction.currency}</TableCell>
                     <TableCell>{new Date(transaction.createdAt).toLocaleString()}</TableCell>
-                    <TableCell>
+                    <TableCell className="space-x-1">
                       {transaction.reversesTransactionId ? (
                         <Badge variant="secondary">reversal</Badge>
                       ) : (
                         <Badge variant="muted">transfer</Badge>
                       )}
+                      {transaction.reversedBy.length > 0 ? (
+                        <Badge variant="destructive">
+                          {transaction.reversedBy.length === 1
+                            ? "reversed"
+                            : `reversed ×${transaction.reversedBy.length}`}
+                        </Badge>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}

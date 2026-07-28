@@ -29,26 +29,38 @@ export const CONFIRMATION_WORD = "REVERSE";
 /**
  * Reverse a transaction.
  *
- * ## What this dialog cannot tell you, and says so
+ * ## The already-reversed warning
  *
- * `reversesTransactionId` is a **forward** pointer: it records that a
- * transaction *is* a reversal, never that one *has been* reversed. There is no
- * reverse lookup, no filter, and `transactions.list` is forward-only and
- * capped at 200 rows, so the history cannot be walked to find out either
- * (open question #3).
+ * `reversesTransactionId` is a **forward** pointer — it records that a
+ * transaction *is* a reversal, never that one *has been* reversed. Until Phase
+ * 6b there was no way to ask the inverse question, so this dialog could only
+ * disclose its own blindness: *"this console cannot tell whether this
+ * transaction has already been reversed"*.
  *
- * `docs/adr/0006-write-endpoint-contract.md` anticipates a console that warns
- * "this was already reversed". That capability does not exist. Rather than
- * imply a check it cannot perform, this dialog states the truth: reversing is
- * permitted, is not deduplicated, and doing it twice applies the correction
- * twice. Typing the confirmation word makes that a deliberate act rather than
- * a reflex.
+ * `reversedBy` (6b, open question #3) closes that. The warning now states
+ * what is actually true of *this* transaction, which is what
+ * `docs/adr/0006-write-endpoint-contract.md` assumed all along.
+ *
+ * What has **not** changed: reversing is still permitted and still not
+ * deduplicated, so the warning informs rather than blocks. Whether a second
+ * reversal succeeds depends on the balance at the time — reversing a credit
+ * twice can be refused for `insufficient_funds` — so the dialog never promises
+ * an outcome it does not control. Typing the confirmation word keeps this a
+ * deliberate act rather than a reflex.
  */
 export function ReverseDialog({
   transactionId,
+  reversedBy,
   onReversed,
 }: {
   transactionId: string;
+  /**
+   * Ids of transactions already reversing this one, from `transactions.get`.
+   * Empty is the common case. Required rather than optional: an omitted prop
+   * would default to "not reversed", which is the exact false reassurance this
+   * warning exists to prevent.
+   */
+  reversedBy: readonly string[];
   onReversed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -132,12 +144,27 @@ export function ReverseDialog({
           </AlertDialogHeader>
 
           <div className="space-y-2 rounded-none border border-destructive/50 p-3 text-sm">
-            <p className="font-medium text-destructive">Reversals are not deduplicated.</p>
-            <p className="text-muted-foreground">
-              This console cannot tell whether this transaction has already been reversed — the API
-              records that a transaction <em>is</em> a reversal, not that one <em>has</em> been
-              reversed. Reversing twice will succeed both times and apply the correction twice.
-            </p>
+            {reversedBy.length > 0 ? (
+              <>
+                <p className="font-medium text-destructive" data-testid="already-reversed">
+                  {reversedBy.length === 1
+                    ? "This transaction has already been reversed."
+                    : `This transaction has already been reversed ${reversedBy.length} times.`}
+                </p>
+                <p className="text-muted-foreground">
+                  Reversing again posts <em>another</em> mirrored transaction and applies the
+                  correction a further time. Reversals are not deduplicated, so this will succeed.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-destructive">Reversals are not deduplicated.</p>
+                <p className="text-muted-foreground">
+                  Nothing has reversed this transaction yet. Reversing it more than once would
+                  succeed every time and apply the correction each time.
+                </p>
+              </>
+            )}
           </div>
 
           <Field>

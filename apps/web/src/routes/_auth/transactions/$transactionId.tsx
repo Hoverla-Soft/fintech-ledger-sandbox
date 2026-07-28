@@ -55,6 +55,13 @@ function TransactionDetailRoute() {
               </div>
               <div className="flex items-center gap-2">
                 {data.reversesTransactionId ? <Badge variant="secondary">reversal</Badge> : null}
+                {data.reversedBy.length > 0 ? (
+                  <Badge variant="destructive">
+                    {data.reversedBy.length === 1
+                      ? "reversed"
+                      : `reversed ×${data.reversedBy.length}`}
+                  </Badge>
+                ) : null}
                 {/*
                   Hidden for viewers as a courtesy; `403 insufficient_role` is
                   still handled by the mutation (ADR 0009). Reversing a
@@ -65,6 +72,7 @@ function TransactionDetailRoute() {
                 {canWrite ? (
                   <ReverseDialog
                     transactionId={data.id}
+                    reversedBy={data.reversedBy}
                     onReversed={() => {
                       void transaction.refetch();
                     }}

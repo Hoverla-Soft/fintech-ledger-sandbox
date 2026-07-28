@@ -24,9 +24,7 @@ import { computeRequestHash } from "../contracts/request-hash";
 import {
   postedTransactionSchema,
   toWirePostedTransaction,
-  toWireTransaction,
   toWireTransactionWithPostings,
-  transactionSchema,
   transactionWithPostingsSchema,
 } from "../contracts/wire";
 import { type LedgerApiError, reasonFor, toORPCError } from "../errors";
@@ -275,7 +273,7 @@ export const transactionsRouter = {
     )
     .output(
       z.object({
-        transactions: z.array(transactionSchema),
+        transactions: z.array(transactionWithPostingsSchema),
         nextCursor: z.string().nullable(),
       }),
     )
@@ -303,7 +301,7 @@ export const transactionsRouter = {
       });
 
       return {
-        transactions: page.items.map(toWireTransaction),
+        transactions: page.items.map(toWireTransactionWithPostings),
         nextCursor: page.nextCursor === null ? null : encodeCursor(page.nextCursor),
       };
     }),

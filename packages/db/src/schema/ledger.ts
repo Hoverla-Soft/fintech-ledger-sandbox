@@ -139,6 +139,22 @@ export const ledgerTransaction = pgTable(
     // Composite unique target for `ledger_posting`'s `(transaction_id,
     // org_id)` FK (invariant #5 defense-in-depth).
     unique("ledger_transaction_id_orgId_unique").on(table.id, table.orgId),
+    // Reverse direction of the self-FK above: "has this transaction been
+    // reversed?", which the FK alone cannot answer efficiently — it points
+    // forwards only, so without this the lookup is a sequential scan.
+    //
+    // Partial, because `reverses_transaction_id` is NULL for every
+    // transaction that is not itself a reversal — the overwhelming majority.
+    // The index then holds only rows the lookup can ever match.
+    //
+    // Deliberately NOT unique: a transaction may be reversed more than once.
+    // `transactions.reverse` performs no existing-reversal check and nothing
+    // in the schema forbids a second one, so the read side returns a *list*
+    // of reversals (see the 6b task file, D3). Adding UNIQUE here would be a
+    // product decision that silently invalidates existing data.
+    index("ledger_transaction_reversesTransactionId_idx")
+      .on(table.reversesTransactionId)
+      .where(sql`${table.reversesTransactionId} is not null`),
   ],
 );
 
