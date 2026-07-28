@@ -8,7 +8,9 @@ Two things here are harder than they look. The cursor is **opaque and forward-on
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28; Phase 5f started immediately after.
 
 ## Scope (allowed paths)
 

@@ -315,4 +315,25 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The idempotency key is scoped per transaction, so reversing A and reversing B cannot collide as a false `409`; the slot is released after success
 - Exactly one attempt on failure — a reversal moves money and is never retried automatically — and the server's raw `message` is never rendered
 
+### `apps/web/src/features/sandbox/reset-loop.test.ts` (Phase 5f)
+- **Termination is exact.** Fed the protocol's `{99,150} → {99,51} → {51,0}` the loop issues **three** calls and no fourth — a fourth would post compensating entries against an already-zeroed ledger. An already-clean org terminates in one call as a no-op
+- **The same run key on every call.** Reset is idempotent per key, so a retried chunk replays rather than double-compensating; minting mid-loop would re-post work already applied
+- Progress is cumulative across chunks, not just the last response, and transaction ids accumulate
+- **A mid-loop `429` pauses for `retryAfterSeconds` and resumes** under the same key, retaining prior progress — chunks are charged against 60/min/org and 30/min/user, so a large ledger can throttle its own loop. Falls back to a default pause when the body omits the field
+- **`422 unbalanced_transaction` halts as a distinct `unbalanced` outcome**, not a generic failure — `ADR 0008` has reset refuse rather than destroy evidence, so it is a reconciliation alarm. Mid-loop, it retains the progress made before halting
+- Any other failure, including a transport error with no reason, halts after exactly one attempt rather than looping
+- A `maxCalls` backstop stops a server that never reduces `remaining`, and reports failure rather than silently claiming success — the ledger is partially unwound and someone needs to know
+
+### `apps/web/src/features/reconciliation/drift.test.ts` (Phase 5f)
+- Drift is zero when an account reconciles, signed positive when the recorded balance overstates the postings and negative when it understates — the direction is the diagnosis, not just the alarm
+- Correct at all three exponent scales, and for the negative balances external accounts legitimately hold
+- **Balances are padded to a common width before subtracting** — `"1.0"` against `"10"` must not read as agreeing (the same false-pass trap fixed in the 5a kernel and the postings table), while `"1.0"` against `"1.00"` must
+- `formatDrift` signs the output, renders no sign for zero, and pads a sub-unit drift rather than dropping the leading zero
+
+### `apps/web/src/features/sandbox/scenario-outcomes.test.tsx` (Phase 5f)
+- **An expected refusal renders distinctly from both a success and a failure.** The seed set deliberately includes a transfer the ledger must reject — it demonstrates invariant #6 and gives the rejections log real data — so rendering it in red would report the suite as broken when it is working exactly as designed
+- An *unexpected* rejection still shows its reason unsoftened; a posted scenario is never classified as a rejection
+- The panel states that re-running appends another rejection entry each time (`ADR 0008`)
+- A scenario that posted nothing renders a dash rather than a broken transaction link
+
 <!-- add one block per test file, keep in sync with what actually exists -->
