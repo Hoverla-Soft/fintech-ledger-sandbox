@@ -342,4 +342,8 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - `formatMetadata` handles `null`/`undefined` (returning `null`, not the string `"null"`), primitives, arrays, and nested objects; **survives a circular structure**, which would otherwise make `JSON.stringify` throw inside a table cell and take down the whole log; returns `null` rather than the string `"undefined"` for a function or symbol
 - `isExpectedRefusal` recognises the sandbox's intended refusal so repeated identical rows do not read as repeated bugs, without softening a genuine failure or misclassifying a posted entry
 
+### `packages/api/src/procedures.test.ts` — `protectedProcedure` (updated Phase 5h)
+- The 401 rejection is asserted through a **test-local protected-only router**, not a production procedure. `privateData` was `protectedProcedure`'s only consumer and was removed in 5h; the coverage could not move to a real procedure because every remaining one sits on `orgProcedure`/`adminProcedure`, which compose `requireAuth` **and** `requireOrg` — and `requireOrg` re-checks the session itself, so such a test would still pass with `requireAuth` deleted outright
+- A companion case asserts the same fixture **serves** a signed-in caller, so a fixture failing for any unrelated reason cannot satisfy the 401 assertion and look like working coverage
+
 <!-- add one block per test file, keep in sync with what actually exists -->

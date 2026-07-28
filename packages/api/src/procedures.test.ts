@@ -1,10 +1,11 @@
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
-import { ORPCError } from "@orpc/server";
+import { createRouterClient, ORPCError } from "@orpc/server";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import type { Db } from "@fintech-ledger-sandbox/db";
 
-import { clientFor, seedOrphanUser, seedTenant, sessionFor } from "./test/fixtures";
+import { protectedProcedure } from "./procedures";
+import { clientFor, contextFor, seedOrphanUser, seedTenant, sessionFor } from "./test/fixtures";
 
 /**
  * The procedure ladder's rejection paths — the checks that run *before* any
@@ -42,12 +43,45 @@ describe("publicProcedure", () => {
   });
 });
 
+/**
+ * A protected-only router that exists solely for this file.
+ *
+ * `protectedProcedure` had exactly one consumer in the production router —
+ * the Better-T-Stack `privateData` scaffold, removed in Phase 5h — and this
+ * was the only assertion exercising its unauthenticated rejection.
+ *
+ * That coverage cannot be moved onto a real procedure. Every remaining one
+ * sits on `orgProcedure` or `adminProcedure`, and both compose `requireAuth`
+ * *and* `requireOrg` — where `requireOrg` deliberately re-checks the session
+ * itself (see `procedures.ts`, which explains why). A 401 test against those
+ * would therefore still pass with `requireAuth` deleted outright, proving
+ * nothing about this rung of the ladder.
+ *
+ * So the fixture stays and the production procedure goes, rather than keeping
+ * a shipped endpoint alive to satisfy a test.
+ */
+const protectedOnlyRouter = {
+  requiresSession: protectedProcedure.handler(({ context }) => context.session?.userId ?? null),
+};
+
 describe("protectedProcedure", () => {
   it("rejects a request with no session as 401", async () => {
-    const error = await captureError(() => clientFor(db, null).privateData({}));
+    const client = createRouterClient(protectedOnlyRouter, { context: contextFor(db, null) });
+    const error = await captureError(() => client.requiresSession({}));
 
     expect(error.status).toBe(401);
     expect(error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("serves a caller who has a session, so the rejection above is about auth and not the fixture", async () => {
+    // Guards the guard: without this, a fixture that threw for *any* reason
+    // would satisfy the 401 assertion and look like working coverage.
+    const tenant = await seedTenant(db);
+    const client = createRouterClient(protectedOnlyRouter, {
+      context: contextFor(db, sessionFor(tenant)),
+    });
+
+    await expect(client.requiresSession({})).resolves.toBe(tenant.userId);
   });
 });
 
