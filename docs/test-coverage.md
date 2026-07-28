@@ -276,4 +276,29 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - A throttled submit attaches to no field but **keeps the form open**, carrying `retryAfterSeconds` from the body
 - No branch surfaces the server's raw `message`
 
+### `apps/web/src/features/transfer/submission.test.ts` (Phase 5d)
+- **Orientation, re-asserted at the submission boundary** against the same `funding` scenario the 5a kernel is pinned to — the destination is debited, the source credited. Checked at both layers rather than once, because a balanced-but-inverted array is accepted by the server, moves money the wrong way, and produces no `data.reason` anywhere
+- Swapping source and destination produces a different payload
+- USD `"12.50"` sends `1250n`; JPY `"1250"` sends `1250`, not `125000`; JPY `"12.50"` is rejected as excess precision rather than rounded
+- Every rejection carries **the field that caused it** — amount, source, or destination — so a message never floats free of the control it refers to. Covers empty, whitespace, non-numeric, exponential, negative, and zero amounts, plus missing source, missing destination, and same-account
+- `describeTransfer` reads direction in plain language using account *names*, and reads differently when reversed
+
+### `apps/web/src/features/transfer/eligibility.test.ts` (Phase 5d)
+- Sources exclude closed accounts; destinations additionally exclude a different currency (invariant #7 — no FX in this sandbox) and the source itself, pre-empting `422 currency_mismatch` and `422 account_inactive` without removing either server branch
+- An `external` destination is allowed — money leaving the sandbox is an ordinary transfer
+- **`canTransfer` is false for two accounts in different currencies** — the case a naive `length >= 2` gets wrong. An org holding one USD and one JPY account has two accounts and can transfer nothing, so the empty state must not tell the user to create an account they already have
+
+### `apps/web/src/features/transfer/transfer-form.test.tsx` (Phase 5d)
+- **Exactly one idempotency key is minted under StrictMode's double-invoked effects.** React 19 runs effects twice in development; a key minted per effect or per render turns a retry into a second posting, and nothing upstream dedupes it because the server's request hash deliberately excludes the key (ADR 0006). **Verified by mutation:** swapping `startOperation` for `newOperation` fails this test and only this test — the payload, orientation, and balance assertions all still pass, which is exactly why counting mints is a separate test
+- A `422` leaves the key in place so resubmitting is a replay under one key (ADR 0004); a successful post releases the slot so the next transfer is a new operation; the persisted key is the one actually sent
+- The payload debits the destination and credits the source
+- The confirmation step names the direction in plain language and posts **nothing** until confirmed
+- `409 idempotency_conflict` triggers exactly one attempt, never an automatic retry, and offers an explicit start-over that mints a different key
+
+### `apps/web/src/features/transactions/postings-table.test.tsx` (Phase 5d)
+- The **net-to-zero proof** renders for a balanced transaction and says "Does not balance" loudly when it is not — unreachable from real data, so if it ever renders it is a reconciliation alarm and must not be quiet
+- Sums are `BigInt` over digit strings, never `Number`. Legs are rescaled to a common width first: `"1.0"` against `"10"` must *not* balance (the same false-pass trap fixed in the 5a kernel), while `"1.0"` against `"1.00"` must
+- A zero-exponent currency sums without inventing decimals
+- Account names render when known, with the id as a fallback rather than a blank cell
+
 <!-- add one block per test file, keep in sync with what actually exists -->

@@ -8,7 +8,9 @@ Ship the accounts screen, and in doing so prove the whole write pipeline — adm
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28; Phase 5d started immediately after.
 
 ## Scope (allowed paths)
 
