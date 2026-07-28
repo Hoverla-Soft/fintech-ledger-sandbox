@@ -10,7 +10,9 @@ Transaction detail ships **in this slice**, not later, because `docs/product/req
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28; Phase 5e started immediately after.
 
 ## Scope (allowed paths)
 

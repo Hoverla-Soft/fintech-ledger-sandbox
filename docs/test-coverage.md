@@ -301,4 +301,18 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - A zero-exponent currency sums without inventing decimals
 - Account names render when known, with the id as a fallback rather than a blank cell
 
+### `apps/web/src/features/transactions/pagination.test.ts` (Phase 5e)
+- **The cursor is carried verbatim** — asserted against a realistic base64url token. Trimming, re-encoding, or appending anything would either be rejected by the server or, worse, decode to an `Invalid Date` and return a *silently empty page* rather than an error
+- A forward walk visits each page once: no skips, no repeats, page number derived from the walk
+- `nextCursor === null` does not advance — the control is disabled, and this makes a stray click harmless too
+- Back-navigation pops a client-held stack (the API is forward-only: no `prevCursor`, no total, no `hasPrevious`), returns to the exact prior page, walks all the way to page one, and is a no-op there rather than underflowing
+- **`resetToFirstPage` discards the whole walk, not one step** — on `400 invalid_cursor` the entire sequence is stale, so popping once would just hand back another cursor the server will also reject
+
+### `apps/web/src/features/transactions/reverse-dialog.test.tsx` (Phase 5e)
+- **The payload is exactly `{transactionId, idempotencyKey}`** — asserted by key set, with an explicit check that no `postings` key is present. The server rebuilds the mirrored legs from persisted rows precisely so there is nothing for a caller to tamper with
+- Confirmation friction: the action is disabled until the word `REVERSE` is typed, and is **case-sensitive** so it cannot be done by reflex; dismissing fires no mutation
+- **The dialog states that reversals are not deduplicated** rather than implying a check it cannot perform. `reversesTransactionId` is a forward pointer — the API records that a transaction *is* a reversal, never that one *has been* reversed (open question #3)
+- The idempotency key is scoped per transaction, so reversing A and reversing B cannot collide as a false `409`; the slot is released after success
+- Exactly one attempt on failure — a reversal moves money and is never retried automatically — and the server's raw `message` is never rendered
+
 <!-- add one block per test file, keep in sync with what actually exists -->

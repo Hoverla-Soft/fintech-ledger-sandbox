@@ -7,6 +7,8 @@ import { useMemo } from "react";
 
 import { QueryState } from "@/components/states";
 import { PostingsTable } from "@/features/transactions/postings-table";
+import { ReverseDialog } from "@/features/transactions/reverse-dialog";
+import { useOrgContext } from "@/lib/org/session";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/transactions/$transactionId")({
@@ -29,6 +31,7 @@ function TransactionDetailRoute() {
   // is cosmetic — `PostingsTable` falls back to the id — so it deliberately
   // does not gate the transaction from rendering.
   const accounts = useQuery(orpc.accounts.list.queryOptions());
+  const { canWrite } = useOrgContext();
 
   const accountNames = useMemo(() => {
     const names = new Map<string, string>();
@@ -40,8 +43,8 @@ function TransactionDetailRoute() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">
-      <Button variant="outline" size="sm" render={<Link to="/accounts" />}>
-        ← Accounts
+      <Button variant="outline" size="sm" render={<Link to="/transactions" />}>
+        ← All transactions
       </Button>
 
       <QueryState query={transaction} loadingRows={4}>
@@ -52,9 +55,24 @@ function TransactionDetailRoute() {
                 <h1 className="text-xl font-bold">Transaction</h1>
                 <p className="mt-1 font-mono text-xs break-all text-muted-foreground">{data.id}</p>
               </div>
-              {data.reversesTransactionId ? (
-                <Badge variant="secondary">reversal</Badge>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {data.reversesTransactionId ? <Badge variant="secondary">reversal</Badge> : null}
+                {/*
+                  Hidden for viewers as a courtesy; `403 insufficient_role` is
+                  still handled by the mutation (ADR 0009). Reversing a
+                  reversal is deliberately permitted by the API — it re-applies
+                  the original effect — so this is offered on every
+                  transaction rather than only on non-reversals.
+                */}
+                {canWrite ? (
+                  <ReverseDialog
+                    transactionId={data.id}
+                    onReversed={() => {
+                      void transaction.refetch();
+                    }}
+                  />
+                ) : null}
+              </div>
             </div>
 
             {data.reversesTransactionId ? (

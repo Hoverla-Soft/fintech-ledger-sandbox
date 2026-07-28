@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { to: "/dashboard", label: "Overview" },
   { to: "/accounts", label: "Accounts" },
   { to: "/transfer", label: "Transfer" },
+  { to: "/transactions", label: "History" },
 ] as const;
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
