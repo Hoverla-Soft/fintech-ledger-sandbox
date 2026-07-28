@@ -1,0 +1,15 @@
+# Revisions to skip when running `git blame`.
+#
+# Enable locally (once per clone):
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub applies this file automatically in its blame view.
+#
+# Only ever add commits that provably changed no behaviour. A commit listed
+# here becomes invisible to blame, so listing one that did change behaviour
+# hides it permanently from the person trying to find out why.
+
+# style: apply Biome formatting and safe fixes repo-wide (Phase 6a)
+# First formatter pass over a repo that had never had one — 117 files, no
+# logic. Suite was 576 tests passing before and after.
+60a243c811e42a512849c5507519522456c9af4e

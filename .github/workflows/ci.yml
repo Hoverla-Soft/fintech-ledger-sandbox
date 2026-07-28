@@ -1,0 +1,77 @@
+name: CI
+
+# Runs exactly the five commands a task file's Verification block declares
+# (docs/tasks/TEMPLATE.md). If this workflow and that block ever diverge, the
+# block is the source of truth — fix the workflow, never weaken the block.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The workflow reads code and nothing else. No repository secrets are used, and
+# nothing here writes to the repo, publishes, or deploys.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # `apps/server/.env` and `apps/web/.env` are gitignored, so a CI checkout
+      # has neither, and `packages/env` validates at import time with Zod. These
+      # are throwaway values that satisfy the schema; they are NOT secrets and
+      # must never become real ones.
+      #
+      # Set explicitly rather than via SKIP_ENV_VALIDATION, deliberately: the
+      # skip flag would let a genuinely missing or malformed variable through
+      # unnoticed, which is the same class of failure as a lint script that
+      # checks nothing.
+      BETTER_AUTH_SECRET: ci-not-a-secret-value-at-least-32-chars-long
+      BETTER_AUTH_URL: http://localhost:3000
+      CORS_ORIGIN: http://localhost:3001
+      DATABASE_URL: postgresql://postgres:password@localhost:5432/fintech-ledger-sandbox
+      VITE_SERVER_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Deliberately NOT a `services: postgres:` block. The `packages/db` and
+      # `packages/api` suites use @testcontainers/postgresql, which starts and
+      # migrates its own `postgres:18` container per suite (see
+      # packages/db/src/test/setup.ts). What they need is a reachable Docker
+      # daemon, which ubuntu-latest provides natively — a service container
+      # would sit idle beside the one Testcontainers actually uses.
+      - name: Verify Docker is available for Testcontainers
+        run: docker info > /dev/null
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm check-types
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Migration integrity guard
+        run: node .claude/scripts/migration-integrity-guard.js --check
