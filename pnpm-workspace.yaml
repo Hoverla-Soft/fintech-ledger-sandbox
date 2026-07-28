@@ -37,3 +37,7 @@ catalog:
   "@testing-library/react": ^16.3.2
   "@testing-library/user-event": ^14.6.1
   "@testing-library/jest-dom": ^7.0.0
+  # Linter *and* formatter, one binary (Phase 6a). Catalogued so all 8 workspace
+  # packages resolve the identical version — a formatter that differs by package
+  # would rewrite the same file two ways depending on who ran it last.
+  "@biomejs/biome": ^2.5.6
