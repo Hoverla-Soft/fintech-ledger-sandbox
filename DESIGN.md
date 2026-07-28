@@ -2,20 +2,20 @@
 name: Ledger sandbox
 description: A double-entry ledger console built like a precision instrument — squared, dense, and legible under audit.
 colors:
-  ink: "oklch(0.21 0.02 264)"
-  paper: "oklch(0.985 0.003 264)"
-  surface: "oklch(1 0 0)"
-  rule: "oklch(0.915 0.005 264)"
-  quiet-ink: "oklch(0.455 0.016 264)"
-  ledger-indigo: "oklch(0.45 0.17 267)"
-  ledger-indigo-wash: "oklch(0.955 0.014 267)"
-  audit-green: "oklch(0.47 0.115 155)"
-  caution-amber: "oklch(0.62 0.14 72)"
+  ink: "oklch(0.235 0.018 220)"
+  paper: "oklch(0.958 0.004 75)"
+  surface: "oklch(0.997 0.002 75)"
+  rule: "oklch(0.885 0.006 75)"
+  quiet-ink: "oklch(0.45 0.02 220)"
+  ledger-petrol: "oklch(0.44 0.07 197)"
+  ledger-petrol-wash: "oklch(0.95 0.017 197)"
+  audit-green: "oklch(0.5 0.125 148)"
+  signal-orange: "oklch(0.78 0.16 65)"
   reject-red: "oklch(0.48 0.19 25)"
-  night-ink: "oklch(0.97 0.004 264)"
-  night-paper: "oklch(0.17 0.012 264)"
-  night-surface: "oklch(0.215 0.014 264)"
-  night-indigo: "oklch(0.68 0.15 267)"
+  night-ink: "oklch(0.965 0.004 80)"
+  night-paper: "oklch(0.185 0.016 220)"
+  night-surface: "oklch(0.225 0.018 220)"
+  night-petrol: "oklch(0.68 0.1 196)"
 typography:
   display:
     fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
@@ -67,7 +67,7 @@ spacing:
   2xl: "2rem"
 components:
   button-primary:
-    backgroundColor: "{colors.ledger-indigo}"
+    backgroundColor: "{colors.ledger-petrol}"
     textColor: "{colors.surface}"
     rounded: "0"
     padding: "0 0.625rem"
@@ -84,8 +84,8 @@ components:
     rounded: "{rounded.sm}"
     padding: "0.375rem 0.5rem"
   nav-item-active:
-    backgroundColor: "{colors.ledger-indigo-wash}"
-    textColor: "{colors.ledger-indigo}"
+    backgroundColor: "{colors.ledger-petrol-wash}"
+    textColor: "{colors.ledger-petrol}"
     rounded: "{rounded.sm}"
     padding: "0.375rem 0.5rem"
   table-head:
@@ -117,40 +117,44 @@ What this system refuses is the generic admin template: pillowy rounded cards fl
 
 **Key Characteristics:**
 - Squared geometry throughout; corners are a hairline at most (≤4px), never a pillow
-- Neutrals carry a faint cool cast (hue 264); a single indigo carries state and action
+- Neutrals run warm as paper (hue 75) against petrol-cool ink (hue 220); a single petrol carries state and action
 - Money is monospaced, tabular, right-aligned, and never colored for being merely positive
 - Hairline rules and tonal steps do the separating; shadows appear only when something floats
 - Dense by default: compact control heights (28–32px), 13–14px body text
 
 ## Colors
 
-A cool near-neutral ground under one deep indigo, plus three semantic hues that appear only when they carry meaning a reader must act on.
+A warm bone ground under petrol-cool ink, one deep petrol carrying action and state, plus three semantic hues that appear only when they carry meaning a reader must act on.
+
+The hue set derives from Color Hunt palette [`ff9e20215e611d2128f4f2f2`](https://colorhunt.co/palette/ff9e20215e611d2128f4f2f2) — `#215E61` becomes the action hue, `#FF9E20` the caution hue, `#1D2128` the ink and the dark canvas, `#F4F2F2` the paper. Four poster colors are not a system, so each token below is derived from them and checked in-gamut and against WCAG, never pasted.
 
 ### Primary
-- **Ledger Indigo** (`oklch(0.45 0.17 267)`): the only saturated color in ordinary use. It marks the active navigation item, the primary action, focus rings, and links. Deep enough to carry white text at 4.8:1, restrained enough not to read as a consumer brand accent.
-- **Ledger Indigo Wash** (`oklch(0.955 0.014 267)`): the tinted fill behind an active nav item or a selected row. It is the *only* place indigo appears as a background in the light theme.
+- **Ledger Petrol** (`oklch(0.44 0.07 197)`): the only saturated color in ordinary use. It marks the active navigation item, the primary action, focus rings, and links. Carries white text at 7.3:1 and reads as instrumentation rather than a consumer brand accent — partly *because* its chroma is low. Teal at this lightness tops out at `C 0.075` in sRGB, so the value sits just inside that ceiling deliberately: a clipped OKLCH color is gamut-mapped differently by every engine, and would render as a different color per browser. To deepen it, lower the lightness; never raise the chroma.
+- **Ledger Petrol Wash** (`oklch(0.95 0.017 197)`): the tinted fill behind an active nav item or a selected row. It is the *only* place petrol appears as a background in the light theme.
 
 ### Secondary
-- **Audit Green** (`oklch(0.47 0.115 155)`): reconciliation clean, a verification that passed, a seed scenario that posted. Never used to celebrate a positive balance, and never to mark an account merely *active* — almost every account is, so colouring it makes green mean nothing.
-- **Caution Amber** (`oklch(0.62 0.14 72)`): the sandbox environment badge, and any state that is expected-but-notable — a suspense account opened by a reset, a drift figure that needs review.
+- **Audit Green** (`oklch(0.5 0.125 148)`): reconciliation clean, a verification that passed, a seed scenario that posted. Never used to celebrate a positive balance, and never to mark an account merely *active* — almost every account is, so colouring it makes green mean nothing. Held 49° off the primary's hue and given more chroma than it strictly needs, because a blue-leaning green beside a teal primary is the one real confusion this palette can produce.
+- **Signal Orange** (`oklch(0.78 0.16 65)`): the sandbox environment badge, and any state that is expected-but-notable — a suspense account opened by a reset, a drift figure that needs review. It is the source palette's loudest color and it is *not* the primary, because at this lightness it cannot carry white text and a primary hue must survive being a filled button. Spending it on the sandbox badge instead puts it in the chrome of every screen, where it does a job.
 - **Reject Red** (`oklch(0.48 0.19 25)`): a rejected transaction, a failed load, a destructive confirmation, and the one balance that should look wrong — a `normal` account gone negative, which invariant #6 makes impossible.
 
 ### Neutral
-- **Ink** (`oklch(0.21 0.02 264)`): all primary text. Near-black with just enough blue to sit with indigo rather than fight it.
-- **Quiet Ink** (`oklch(0.455 0.016 264)`): secondary text, column headers, metadata. Chosen at exactly the lightness that still clears 4.5:1 on both white surfaces and the muted fill — the previous value cleared neither.
-- **Paper** (`oklch(0.985 0.003 264)`): the application canvas.
-- **Surface** (`oklch(1 0 0)`): cards and tables, one tonal step above the canvas. This step, not a shadow, is what makes content read as raised.
-- **Rule** (`oklch(0.915 0.005 264)`): every divider and table border, always 1px.
+- **Ink** (`oklch(0.235 0.018 220)`): all primary text. Near-black pulled toward petrol so text and the action hue belong to one family.
+- **Quiet Ink** (`oklch(0.45 0.02 220)`): secondary text, column headers, metadata. Chosen at exactly the lightness that still clears 4.5:1 on every surface it lands on — card, canvas, sidebar, muted fill, and the petrol wash.
+- **Paper** (`oklch(0.958 0.004 75)`): the application canvas. Bone rather than white, and warm where the ink is cool — the ledger book's own contrast, warm stock and cold ink. Its darker value is also what lets surfaces step up visibly without a shadow.
+- **Surface** (`oklch(0.997 0.002 75)`): cards and tables, one tonal step above the canvas. Warm white, not pure white, so it shares the paper's cast rather than reading cold against it. This step, not a shadow, is what makes content read as raised.
+- **Rule** (`oklch(0.885 0.006 75)`): every divider and table border, always 1px.
 
 ### Dark theme
-Not a per-token inversion. The canvas is a deep blue-black (`oklch(0.17 0.012 264)`) rather than pure black, so hairline rules remain visible and surfaces can step upward tonally. Indigo lightens to `oklch(0.68 0.15 267)` to keep contrast on a dark ground, and every semantic hue lightens with it while its paired foreground darkens.
+Not a per-token inversion. The canvas is a petrol-black (`oklch(0.185 0.016 220)`) rather than neutral black, so it belongs to the primary's hue family and hairline rules stay visible on it. Text keeps the light theme's warm cast (`oklch(0.965 0.004 80)`), which is what makes the two themes read as one product rather than a negative of it. Petrol lightens to `oklch(0.68 0.1 196)` to hold contrast on a dark ground, and every semantic hue lightens with it while its paired foreground darkens.
 
 ### Named Rules
-**The One Voice Rule.** Indigo is the only saturated hue that appears without a semantic reason. If a screen shows indigo in more than two places at once — active nav plus primary action — one of them is decoration and comes out.
+**The One Voice Rule.** Petrol is the only saturated hue that appears without a semantic reason. If a screen shows petrol in more than two places at once — active nav plus primary action — one of them is decoration and comes out.
 
 **The Unremarkable Number Rule.** A positive balance gets no color. Only a *negative* balance is colored, and only when it is genuinely notable: `external` accounts are expected to go negative and render in plain ink, while a negative `normal` account renders in Reject Red because the ledger's own invariants say it cannot exist.
 
-**The Meaning-Only Rule.** Green, amber, and red never appear as accents, illustration, or chart decoration. Each one is a claim about state that a reader may need to act on.
+**The Meaning-Only Rule.** Green, orange, and red never appear as accents, illustration, or chart decoration. Each one is a claim about state that a reader may need to act on. The chart ramp therefore stays inside the petrol→blue band.
+
+**The In-Gamut Rule.** Every token resolves inside sRGB. A value outside it is not "more vivid" — it is handed to each browser's gamut mapping and becomes a different color in each one, which is not a thing a system can promise contrast about.
 
 ## Typography
 
@@ -191,10 +195,10 @@ Depth is tonal first. The canvas is the darkest surface in light mode and the da
 Shadows appear only when an element genuinely floats above the page — dropdown, popover, dialog, command palette — and they are tinted with the neutral's own hue rather than pure black, so they read as shade rather than smudge.
 
 ### Shadow Vocabulary
-- **xs** (`0 1px 2px 0 oklch(0.21 0.03 264 / 0.06)`): a control that is being pressed or dragged.
-- **sm** (`0 1px 3px 0 oklch(0.21 0.03 264 / 0.08), 0 1px 2px -1px oklch(0.21 0.03 264 / 0.06)`): a hovered menu item surface.
-- **md** (`0 4px 12px -2px oklch(0.21 0.03 264 / 0.10), 0 2px 4px -2px oklch(0.21 0.03 264 / 0.06)`): dropdowns and popovers.
-- **lg** (`0 16px 40px -12px oklch(0.21 0.03 264 / 0.18), 0 4px 12px -4px oklch(0.21 0.03 264 / 0.08)`): dialogs and the command palette.
+- **xs** (`0 1px 2px 0 oklch(0.235 0.03 220 / 0.06)`): a control that is being pressed or dragged.
+- **sm** (`0 1px 3px 0 oklch(0.235 0.03 220 / 0.08), 0 1px 2px -1px oklch(0.235 0.03 220 / 0.06)`): a hovered menu item surface.
+- **md** (`0 4px 12px -2px oklch(0.235 0.03 220 / 0.10), 0 2px 4px -2px oklch(0.235 0.03 220 / 0.06)`): dropdowns and popovers.
+- **lg** (`0 16px 40px -12px oklch(0.235 0.03 220 / 0.18), 0 4px 12px -4px oklch(0.235 0.03 220 / 0.08)`): dialogs and the command palette.
 
 ### Named Rules
 **The Flat-At-Rest Rule.** If an element is part of the page, it has no shadow. A shadow is a claim that something is temporarily on top of everything else, and that claim must be true.
@@ -211,14 +215,14 @@ Empty states use a 1px dashed rule rather than a solid card, so a region with no
 
 ### Buttons
 - **Shape:** square (0 radius), 2rem tall at default, 1.75rem at `sm`, with a transparent 1px border so size never shifts between variants.
-- **Primary:** Ledger Indigo fill, white text, 0.625rem horizontal padding.
-- **Hover / Focus:** primary lightens to 80% opacity on hover; focus shows a 1px indigo border plus a 1px indigo ring at 50%. Active state translates down 1px — a press, not a bounce.
+- **Primary:** Ledger Petrol fill, white text, 0.625rem horizontal padding.
+- **Hover / Focus:** primary lightens to 80% opacity on hover; focus shows a 1px petrol border plus a 1px petrol ring at 50%. Active state translates down 1px — a press, not a bounce.
 - **Outline / Ghost / Secondary:** neutral fills over the canvas; used for everything that is not the one primary action on screen.
 - **Destructive:** a 10% Reject Red tint with Reject Red text, not a solid red slab. Destructive actions in a ledger are rare and deliberate; a solid red button invites the reflex click.
 
 ### Badges
 - **Style:** square, 1px border, 0.6875rem text. Fill-and-text pairs only — never a border-only colored variant, which reads as a disabled control.
-- **Variants:** `default` (indigo), `secondary`, `outline`, `muted`, `success`, `warning`, `destructive`. Each colored variant pairs its fill with an explicitly darkened or lightened foreground token so it clears AA in both themes.
+- **Variants:** `default` (petrol), `secondary`, `outline`, `muted`, `success`, `warning`, `destructive`. Each colored variant pairs its fill with an explicitly darkened or lightened foreground token so it clears AA in both themes.
 
 ### Cards / Containers
 - **Corner Style:** 4px hairline (`rounded-lg`).
@@ -229,11 +233,11 @@ Empty states use a 1px dashed rule rather than a solid card, so a region with no
 
 ### Inputs / Fields
 - **Style:** 1px Rule border on the Surface fill, square, 2rem tall.
-- **Focus:** border shifts to indigo with a 1px indigo ring; no glow.
+- **Focus:** border shifts to petrol with a 1px petrol ring; no glow.
 - **Currency inputs:** right-aligned, tabular figures, with the currency code as a static suffix rather than placeholder text.
 
 ### Navigation
-- **Sidebar:** Surface-adjacent tonal fill, 1px right rule, 15rem wide. Items are 1.75rem tall with a 16px icon and Body text at 400 weight, rising to 500 when active. Active items take the Ledger Indigo Wash fill with indigo text; hover takes the neutral accent fill. Group headings use the Label role.
+- **Sidebar:** Surface-adjacent tonal fill, 1px right rule, 15rem wide. Items are 1.75rem tall with a 16px icon and Body text at 400 weight, rising to 500 when active. Active items take the Ledger Petrol Wash fill with petrol text; hover takes the neutral accent fill. Group headings use the Label role.
 - **Top bar:** 3.5rem, 1px bottom rule, transparent over the canvas.
 - **Mobile:** below `lg` the sidebar becomes a horizontally scrollable strip under the top bar, carrying all seven destinations with the same active fill. Only the group headings are lost, and they were orientation rather than information.
 
@@ -243,14 +247,14 @@ The signature component. Column headers use the Label role over the canvas fill 
 The table scrolls inside its own wrapper rather than moving the page. When it measures as actually overflowing, that wrapper becomes a labelled, focusable scroll region with a focus ring — a scroller with no focusable content is reachable by pointer only, and on a narrow screen the column hidden off the right edge is usually the balance. The measurement is what keeps it honest: an unconditional tab stop in front of every table that fits is its own defect. The overflow is never masked by a fade, because a half-faded figure is a misreading waiting to happen.
 
 ### Command Palette
-Opens on `⌘K` / `Ctrl+K` over a dialog backdrop, 32rem wide, anchored above center. This is the system's one authored motion moment: the panel arrives with an exponential ease-out over 180ms, scaling from 98% with the backdrop fading in behind it, and leaves in half that. Results group under Label headings; the highlighted row takes the Indigo Wash fill; arrow keys move, Enter commits, Escape closes. An unmatched query says so in Quiet Ink rather than showing an empty box.
+Opens on `⌘K` / `Ctrl+K` over a dialog backdrop, 32rem wide, anchored above center. This is the system's one authored motion moment: the panel arrives with an exponential ease-out over 180ms, scaling from 98% with the backdrop fading in behind it, and leaves in half that. Results group under Label headings; the highlighted row takes the Petrol Wash fill; arrow keys move, Enter commits, Escape closes. An unmatched query says so in Quiet Ink rather than showing an empty box.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** render every comparable number in tabular figures, right-aligned (`The Column Rule`).
 - **Do** convey depth with tonal steps and 1px rules; reserve shadows for elements that actually float.
-- **Do** spend indigo on exactly two things per screen: where you are, and the one primary action.
+- **Do** spend petrol on exactly two things per screen: where you are, and the one primary action.
 - **Do** keep controls compact — 1.75–2rem tall — and let row count rather than padding fill the screen.
 - **Do** pair every colored fill with its matched foreground token so contrast holds in both themes.
 - **Do** state the sandbox nature of the environment plainly in the chrome; it is product truth, not a disclaimer to hide.
@@ -262,4 +266,5 @@ Opens on `⌘K` / `Ctrl+K` over a dialog backdrop, 32rem wide, anchored above ce
 - **Don't** build a page whose structure is a grid of same-size metric tiles.
 - **Don't** use a colored left border above 1px to mark state on rows, cards, or alerts.
 - **Don't** add a gradient, a glass blur, or a sparkline that stands in for real data.
+- **Don't** write a color literal in a component — no `text-indigo-600`, no hex. Every color comes from a token, or the next re-hue misses it.
 - **Don't** render a screen for a capability the ledger does not have — no trial balance, income statement, or journal-entry editor exists behind this API.

@@ -5,8 +5,8 @@ import { Badge } from "@fintech-ledger-sandbox/ui/components/badge";
  *
  * Not a disclaimer to tuck away: "fake money, real correctness" is the
  * product's own framing (`PRODUCT.md`), and an operator looking at a balance
- * should never have to wonder whether it represents real funds. Amber rather
- * than red — this is expected-and-notable, not an error.
+ * should never have to wonder whether it represents real funds. Signal Orange
+ * rather than red — this is expected-and-notable, not an error.
  *
  * Deliberately not a tooltip trigger. The qualification is the point of the
  * badge, and a hover-only tooltip on a non-focusable element is unreachable by
