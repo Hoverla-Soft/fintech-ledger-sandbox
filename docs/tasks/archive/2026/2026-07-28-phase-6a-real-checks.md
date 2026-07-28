@@ -10,7 +10,7 @@ Closes open questions **#10** (no CI), **#11** (`pnpm lint` documented but does 
 
 ## Status
 
-In Progress
+Done
 
 Human review waived by the user for Phase 6 (carried forward from Phase 5, reconfirmed 2026-07-28).
 
@@ -84,7 +84,9 @@ Biome is a single monorepo-aware binary — `biome check .` covers all 219 files
 
 **D5 — `apps/web` extends `tsconfig.base.json`; the deferral reason on record is wrong and gets corrected.** Open question #14 deferred `noUncheckedIndexedAccess` to the end of Phase 5 on the grounds that "cursor stacks, posting arrays, and paginated lists all index", implying a wide diff. Measured 2026-07-28: enabling it across `apps/web` produces **0 errors over 67 source files**, and the full `extends` form (with `lib`, `types`, `jsx`, `rootDirs`, `paths` overridden) also produces **0 errors**. The probe was confirmed live by planting `const b: string = a[0]` and observing `TS2322`. `apps/web` is the only one of eight workspaces not extending the shared base. So this is a config change with no code churn, and #14's stated reason is retired rather than left on the record as if it had been true.
 
-**D6 — CI runs Postgres as a service container.** The `packages/db` and `packages/api` suites drive `@testcontainers/postgresql` and need a reachable Docker daemon; GitHub-hosted runners provide one. Without it those 260 tests would silently not run, which is D2's failure mode wearing a different hat.
+**D6 — CI needs a Docker *daemon*, not a Postgres service container — correcting this task's own draft.** The draft specified `services: postgres:`. That is wrong, and shipping it would have added a container that nothing connects to. `packages/db/src/test/setup.ts` uses `PostgreSqlContainer` from `@testcontainers/postgresql`, which **starts and migrates its own `postgres:18` container** per suite. What the 260 db/api tests require is therefore a reachable Docker daemon, which `ubuntu-latest` provides natively. The workflow asserts `docker info` succeeds before running anything, so an absent daemon fails loudly instead of letting those suites be skipped — which would be D2's failure mode wearing a different hat.
+
+**D7 — CI sets throwaway env values explicitly rather than using `SKIP_ENV_VALIDATION`.** `apps/server/.env` and `apps/web/.env` are gitignored, so a CI checkout has neither, and `packages/env` validates at import time with Zod (`BETTER_AUTH_SECRET` min 32 chars, three URLs, `DATABASE_URL`). Verified locally that `pnpm build` only passes because those untracked files exist. `SKIP_ENV_VALIDATION=1` would have been one line, but it disables the check wholesale — a genuinely missing or malformed variable would then pass CI unnoticed, which is the same defect class as a lint script that checks nothing. The workflow therefore supplies schema-satisfying dummy values, keeping the validation path exercised. They are not secrets and the workflow uses none.
 
 ## Happy path
 
@@ -124,7 +126,25 @@ node .claude/scripts/migration-integrity-guard.js --check
 
 Baseline to beat, measured after 5h: `check-types` 6/6, `test` 576 passed (73 core + 243 web + 28 db + 232 api), `build` 2/2, guard PASS. `pnpm lint` did not exist.
 
-**Result:** _(filled in on completion)_
+**Result, verified 2026-07-28:** `lint` **exit 0, 219 files checked** (9 warnings, 17 infos outstanding — recorded as open question #16 rather than left to read as clean) · `check-types` **6/6 green** · `test` **576 passed** (73 core + 243 web + 28 db + 232 api — identical to the pre-sweep baseline, which is the evidence that a 118-file reformat changed no behaviour) · `build` **2/2 green** · migration guard **PASS**.
+
+**Deliberate-failure probes, all three run and reverted:**
+
+| Probe | Expected | Observed |
+|---|---|---|
+| `const b: string = a[0]` in `apps/web/src` | `noUncheckedIndexedAccess` rejects it | `TS2322: Type 'string \| undefined' is not assignable to type 'string'` |
+| `probeVar == "1"` in `.claude/scripts/glob-match.js` | `pnpm lint` reaches files owned by no package | `glob-match.js:20:14 lint/suspicious/noDoubleEquals`, `pnpm lint` exit 1 → exit 0 after byte-exact restore |
+| Commented `biome.json` vs `biome.jsonc` | config is actually being read | 551 files vs 219 — see D3a |
+
+**Three things this slice got wrong in its own draft and corrected on measurement.** Recorded because each was stated confidently before being checked:
+
+1. **#14's deferral reason was false.** "Cursor stacks, posting arrays, and paginated lists all index" predicted a wide diff; the real cost was 0 errors across 67 files. A phase-long deferral bought nothing.
+2. **`services: postgres:` would have been dead weight** (D6). Testcontainers starts its own database; the requirement is a Docker daemon.
+3. **A Turborepo fan-out would have left the guards unlinted** (D4a). There are 9 workspaces, not 8, and `.claude/scripts/*.js` belong to none of them.
+
+**One real defect found by the linter**, fixed as a mechanical type annotation: `transactions.ts:275` declared `let after;` — implicitly `any` — so the pagination cursor crossed into `listTransactions` untyped. Now `TransactionCursor | undefined`. No runtime change; the annotation restores the type the repository boundary already assumed.
+
+**One process finding for next time:** a single `biome check --write .` pass did **not** leave the repo clean. `packages/db/src/test/fixtures.ts` came out of the sweep still unformatted and the following read-only `biome check` failed on it. Always re-run `biome check` after a bulk `--write` — the write pass is not self-verifying. CI would have caught this on its first run, which is a fair demonstration of the slice's own premise.
 
 ## Retention
 

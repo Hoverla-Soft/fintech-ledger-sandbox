@@ -10,7 +10,7 @@ This project was scaffolded with **Better-T-Stack** (`create-better-t-stack`, se
 |---|---|
 | Package manager | pnpm (workspaces + catalog) |
 | Monorepo tool | Turborepo |
-| Language | TypeScript (strict; `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`) |
+| Language | TypeScript (strict; `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedModules`). All **8** workspaces extend `packages/config/tsconfig.base.json` as of Phase 6a — `apps/web` was the last holdout and overrides only `lib`/`types`/`jsx`/`rootDirs`/`paths`, since the base targets Node and web is the sole browser workspace |
 | Frontend framework | React 19 + Vite |
 | Backend framework | Hono |
 | Database | PostgreSQL (local via Docker Compose — `packages/db/docker-compose.yml`) |

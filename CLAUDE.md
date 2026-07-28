@@ -19,7 +19,7 @@ Infrastructure, deployment, recovery, and operational ownership are declared in 
 ## Commands
 
 - Install: `pnpm install`
-- Lint: `pnpm lint` *(linter not wired yet — Biome/oxlint planned; do not claim lint passes until it exists)*
+- Lint: `pnpm lint` (Biome — lint + format check, one root-level pass over ~219 files) · `pnpm lint:fix` (apply safe fixes) · `pnpm format` (format only)
 - Typecheck: `pnpm check-types`
 - Test: `pnpm test` *(Vitest added with the domain core in Phase 2; e2e via Playwright later)*
 - Build: `pnpm build`
