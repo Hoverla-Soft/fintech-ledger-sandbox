@@ -369,4 +369,20 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - **Warns but does not block.** The API does not deduplicate reversals, so the console must not pretend to — reversing again still fires exactly one mutation
 - The pre-existing *"reversals are not deduplicated"* assertion is **kept**, not deleted: `reversedBy` removed the blindness but changed nothing about the API
 
+### `apps/web/e2e/` — end-to-end (Phase 6c, Playwright)
+
+Run with `pnpm test:e2e`. Requires Postgres up (`pnpm db:start`) and migrated; Playwright starts the API and web servers itself. Chromium only. Each spec creates a uniquely-named user and org, so files are order-independent and no database reset is needed — **verified by running the suite twice in a row against the same database, 3/3 both times.**
+
+- `onboarding.e2e.ts` — an unauthenticated visitor hitting `/accounts` lands on `/login`, not a half-rendered console. A new user signs up, is routed to `/organization` (a session with no active org is a *normal* state per `roles-and-permissions/ledger.md`, not an error), creates one, and reaches the console with org-scoped nav present. The intermediate redirect is asserted, not waited out, so a change that dropped the user elsewhere fails loudly
+- `accounts.e2e.ts` — a new org's accounts screen shows the **empty** state and *not* the error state. On a ledger these mean opposite things: one invites you to create an account, the other means the figures on screen may be nothing at all
+
+**What e2e does NOT cover — stated plainly, because partial coverage reported as complete is worse than none:**
+
+- **Account creation, transfer, and reversal through the browser.** Specs for all three were written and run during 6c, then **removed**. The account-type and account pickers are Base UI `Select` components whose listbox stays mounted after selection; the resulting specs passed on one run and failed on the next against unchanged code. A test that gives different answers for identical code teaches people to re-run until green, which is worse than an honest gap. These flows stay covered by the `apps/web` component suite (mocked client) and the `packages/api` integration suite (real database) — what is missing is browser-level proof that the two halves meet
+- **Viewer-role behaviour.** Every spec acts as an org admin
+- **Reconciliation, sandbox, and audit screens**
+- **CI.** There is no e2e job. It has only ever been proven locally, and adding CI config that has never run in CI is the sort of unverified check Phase 6a existed to remove
+
+The numbered **manual demo scripts** in the archived Phase 5 task files are therefore *not* retired — they remain the record for everything above.
+
 <!-- add one block per test file, keep in sync with what actually exists -->

@@ -59,3 +59,9 @@ coverage
 .cache
 tmp
 temp
+
+# Playwright (Phase 6c)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

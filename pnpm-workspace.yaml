@@ -41,3 +41,6 @@ catalog:
   # packages resolve the identical version — a formatter that differs by package
   # would rewrite the same file two ways depending on who ran it last.
   "@biomejs/biome": ^2.5.6
+  # End-to-end (Phase 6c). Lives in `apps/web`; replaces the manual demo
+  # scripts every Phase 5 slice carried as acceptance criteria.
+  "@playwright/test": ^1.62.0

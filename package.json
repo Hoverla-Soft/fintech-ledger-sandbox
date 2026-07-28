@@ -24,7 +24,9 @@
     "db:start": "turbo run db:start -F @fintech-ledger-sandbox/db",
     "db:watch": "turbo run db:watch -F @fintech-ledger-sandbox/db",
     "db:stop": "turbo run db:stop -F @fintech-ledger-sandbox/db",
-    "db:down": "turbo run db:down -F @fintech-ledger-sandbox/db"
+    "db:down": "turbo run db:down -F @fintech-ledger-sandbox/db",
+    "test:e2e": "pnpm --filter web exec playwright test",
+    "test:e2e:ui": "pnpm --filter web exec playwright test --ui"
   },
   "dependencies": {
     "@fintech-ledger-sandbox/env": "workspace:*",
