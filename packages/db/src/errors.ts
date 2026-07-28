@@ -43,7 +43,43 @@ export interface IdempotencyConflict {
   readonly idempotencyKey: string;
 }
 
-export type PersistenceError = AccountNotFound | TransactionNotFound | IdempotencyConflict;
+/**
+ * An account exists for this org under the requested name. `(org_id, name)`
+ * is unique in the schema, and `createAccount` previously let that constraint
+ * surface as a raw `DrizzleQueryError` — an unhandled 500 at the API boundary.
+ * Typed here rather than sniffed for SQLSTATE `23505` in `packages/api`,
+ * because the `cause`-chain unwrap that requires is module-private to
+ * `posting/reserve-key.ts` and is already recorded in ADR 0004 as fragile
+ * against a drizzle-orm upgrade; duplicating it would double that blast
+ * radius across two packages.
+ */
+export interface AccountAlreadyExists {
+  readonly kind: "AccountAlreadyExists";
+  readonly name: string;
+}
+
+/**
+ * A posting targeted a deactivated account (`ledger.md` line 56).
+ *
+ * Deliberately *not* collapsed into `AccountNotFound`. The
+ * indistinguishability rule above exists to stop a caller learning that a row
+ * exists in **another tenant**; within the caller's own org there is nothing
+ * to hide, and the read surface already exposes `active` on every account —
+ * so reporting a 404 here would contradict what `accounts.list` just told the
+ * same caller. Detected inside `lockAccounts`, under the row lock, because a
+ * check in the caller would be racy against a concurrent deactivation.
+ */
+export interface AccountInactive {
+  readonly kind: "AccountInactive";
+  readonly accountId: string;
+}
+
+export type PersistenceError =
+  | AccountNotFound
+  | AccountInactive
+  | AccountAlreadyExists
+  | TransactionNotFound
+  | IdempotencyConflict;
 
 export function isPersistenceError(candidate: unknown, kind: PersistenceError["kind"]): candidate is PersistenceError {
   return (

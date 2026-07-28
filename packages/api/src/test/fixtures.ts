@@ -77,6 +77,20 @@ export async function seedTenant(
   return { orgId, userId };
 }
 
+/**
+ * Adds a second user to an **existing** organization.
+ *
+ * Needed to test anything about org-wide behaviour that is not also per-user —
+ * most importantly the org rate limit, which cannot be reached by one actor
+ * without their own per-user limit tripping first.
+ */
+export async function seedMemberIn(db: Db, orgId: string, betterAuthRole: string): Promise<string> {
+  const userId = randomUUID();
+  await db.insert(user).values({ id: userId, name: "Co-member", email: `${userId}@example.com` });
+  await db.insert(member).values({ id: randomUUID(), organizationId: orgId, userId, role: betterAuthRole });
+  return userId;
+}
+
 /** Creates a user with no `member` row anywhere — for the `403 not_a_member` path. */
 export async function seedOrphanUser(db: Db): Promise<string> {
   const userId = randomUUID();
@@ -105,8 +119,10 @@ export async function seedAccount(
   name: string,
   currency: Currency = "USD",
 ): Promise<string> {
-  const account = await createAccount(db, { orgId, name, currency, type });
-  return account.id;
+  // `createAccount` returns a `Result` as of Phase 4b — a duplicate
+  // `(org_id, name)` is now a typed `AccountAlreadyExists` rather than a raw
+  // driver error. A fixture colliding is a bug in the test, so unwrap loudly.
+  return unwrap(await createAccount(db, { orgId, name, currency, type })).id;
 }
 
 export function money(decimal: string, currency: Currency = "USD"): Money {

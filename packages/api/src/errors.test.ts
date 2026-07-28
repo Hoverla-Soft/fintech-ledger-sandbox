@@ -30,6 +30,18 @@ const CASES: ReadonlyArray<{
     reason: "account_not_found",
   },
   {
+    error: { kind: "AccountInactive", accountId: "acc-1" },
+    code: "UNPROCESSABLE_CONTENT",
+    status: 422,
+    reason: "account_inactive",
+  },
+  {
+    error: { kind: "AccountAlreadyExists", name: "Payroll" },
+    code: "CONFLICT",
+    status: 409,
+    reason: "account_name_taken",
+  },
+  {
     error: { kind: "TransactionNotFound", transactionId: "txn-1" },
     code: "NOT_FOUND",
     status: 404,
@@ -106,7 +118,7 @@ describe("toORPCError", () => {
     // time; this catches an *untested* one at run time.
     const covered = new Set(CASES.map((testCase) => testCase.error.kind));
     expect(covered.size).toBe(CASES.length);
-    expect(covered.size).toBe(10);
+    expect(covered.size).toBe(12);
   });
 
   describe("messages leak nothing", () => {

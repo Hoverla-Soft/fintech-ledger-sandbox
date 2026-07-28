@@ -17,8 +17,9 @@ import {
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { Db } from "../index";
-import type { AccountNotFound, IdempotencyConflict } from "../errors";
+import type { AccountInactive, AccountNotFound, IdempotencyConflict } from "../errors";
 import { toCurrency, toMoney } from "../internal/money";
+import { recordRejection } from "../repositories/audit";
 import { ledgerAccount, ledgerAuditEntry, ledgerIdempotencyKey, ledgerPosting, ledgerTransaction } from "../schema/ledger";
 import { lockAccounts } from "./lock-accounts";
 import { reserveIdempotencyKey } from "./reserve-key";
@@ -59,10 +60,10 @@ export interface PostTransactionInput {
 }
 
 /** Everything `postTransaction` can fail with: this package's own persistence errors, unioned with core's domain error union. */
-export type PostTransactionError = AccountNotFound | IdempotencyConflict | LedgerError;
+export type PostTransactionError = AccountNotFound | AccountInactive | IdempotencyConflict | LedgerError;
 
 /** The subset of domain errors that can actually surface from *inside* the locked section of the routine below. */
-type DomainRejectionReason = AccountNotFound | CurrencyMismatch | InsufficientFunds;
+type DomainRejectionReason = AccountNotFound | AccountInactive | CurrencyMismatch | InsufficientFunds;
 
 /**
  * Thrown from inside the `db.transaction(...)` callback to force a full
@@ -245,6 +246,23 @@ export async function postTransaction(
   }
 
   if (outcome.kind === "conflict") {
+    // `ledger.md` line 54 requires every rejection to be recorded, and a
+    // reused key with a changed payload is a rejection like any other. This
+    // branch previously returned without auditing, so the one failure a
+    // client is most likely to retry into left no trace at all.
+    await auditBestEffort(db, {
+      orgId: input.orgId,
+      actorUserId: input.actorId,
+      action: "post_transaction",
+      reason: "idempotency_conflict",
+      // Deliberately NOT the caller's raw key. `reserveIdempotencyKey` reports
+      // back the string it was given, and this column is `jsonb` — a key
+      // containing an unpaired surrogate serializes to invalid JSON and
+      // Postgres rejects the insert with 22P02. Recording the key's shape
+      // rather than its bytes keeps a client-supplied string out of a jsonb
+      // document entirely.
+      metadata: { kind: outcome.error.kind, keyLength: outcome.error.idempotencyKey.length },
+    });
     return err(outcome.error);
   }
 
@@ -260,6 +278,8 @@ function rejectionReasonCode(reason: DomainRejectionReason): string {
   switch (reason.kind) {
     case "AccountNotFound":
       return "account_not_found";
+    case "AccountInactive":
+      return "account_inactive";
     case "CurrencyMismatch":
       return "currency_mismatch";
     case "InsufficientFunds":
@@ -271,6 +291,7 @@ function rejectionReasonCode(reason: DomainRejectionReason): string {
 function serializeRejectionMetadata(reason: DomainRejectionReason): Record<string, unknown> {
   switch (reason.kind) {
     case "AccountNotFound":
+    case "AccountInactive":
       return { kind: reason.kind, accountId: reason.accountId };
     case "CurrencyMismatch":
       return { kind: reason.kind, expected: reason.expected, actual: reason.actual };
@@ -290,15 +311,47 @@ function serializeRejectionMetadata(reason: DomainRejectionReason): Record<strin
  * "Rejection handling" note on `postTransaction` above for why this
  * cannot run inside the transaction that just rolled back.
  */
+/**
+ * Records a rejection discovered inside the locked section, after the failing
+ * transaction has already rolled back.
+ *
+ * Delegates to `repositories/audit.ts`'s `recordRejection` rather than
+ * inserting directly, so this package has exactly one implementation of "write
+ * a rejection audit row". Phase 4b added the other two callers — the
+ * pre-persistence validation failures in `packages/api`, which never reach
+ * this function at all, and the idempotency conflict below.
+ */
+/**
+ * Writes a rejection audit row **best-effort**.
+ *
+ * The caller is, in every case, already returning a correct and specific 4xx
+ * for the real problem. Letting a failure of the *recording* escape would
+ * replace that with a 500 — destroying the accurate error and writing no audit
+ * row either, so the rejection is lost twice. Worse, 500 is the canonical
+ * "unknown outcome, retry me" signal, so an auto-retrying client would loop on
+ * a conflict it can never be told about.
+ *
+ * This mirrors the policy `packages/api`'s `recordDomainRejection` already
+ * applies to the pre-persistence rejections it records. The failure is logged
+ * so the gap is visible rather than silent.
+ */
+async function auditBestEffort(db: Db, entry: Parameters<typeof recordRejection>[1]): Promise<void> {
+  try {
+    await recordRejection(db, entry);
+  } catch (auditError) {
+    console.error(
+      { event: "rejection_audit.failed", action: entry.action, reason: entry.reason },
+      auditError,
+    );
+  }
+}
+
 async function writeRejectionAudit(db: Db, input: PostTransactionInput, reason: DomainRejectionReason): Promise<void> {
-  await db.insert(ledgerAuditEntry).values({
-    id: randomUUID(),
+  await auditBestEffort(db, {
     orgId: input.orgId,
     actorUserId: input.actorId,
     action: "post_transaction",
-    outcome: "rejected",
     reason: rejectionReasonCode(reason),
-    transactionId: null,
     metadata: serializeRejectionMetadata(reason),
   });
 }

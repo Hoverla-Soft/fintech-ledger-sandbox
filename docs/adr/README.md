@@ -13,9 +13,11 @@ Format: numbered `NNNN-kebab-title.md`, with **Context / Decision / Consequences
 | [0003](0003-balance-and-concurrency.md) | Balance & concurrency: materialized balances + ordered `SELECT … FOR UPDATE` + trigger-enforced immutability, reconciliation as a continuously-asserted invariant | Accepted |
 | [0004](0004-idempotency.md) | Idempotency: client-supplied keys, DB-uniqueness-enforced via a blocking plain `INSERT` (not `ON CONFLICT DO NOTHING`) | Accepted |
 | [0005](0005-tenant-isolation.md) | Tenant isolation at the API boundary: the acting org is derived from a verified `member` row, never accepted as input; category-based `403`/`404` so neither orgs nor resources are enumerable | Accepted |
+| [0006](0006-write-endpoint-contract.md) | Write endpoint contract: raw N-leg postings over a transfer shape, body-carried idempotency key, request hash over sorted canonical legs, every pre-persistence rejection audited | Accepted |
+| [0007](0007-rate-limiting.md) | Rate limiting on `adminProcedure` (the write set by construction), keyed by the verified `orgId` with a secondary per-user limit, wrapped so the `429` carries `data.reason` | Accepted |
 
 ## Planned (the remaining load-bearing ledger decisions)
 
 These are drafted as their phases land, so the reasoning is captured at decision time:
 
-- *(none outstanding — the next ADR is written when the next load-bearing decision is made. Phase 4b's rate-limiting strategy and Phase 4c's seed/reset access model are the likely candidates.)*
+- *(none outstanding — Phase 4b's rate-limiting strategy is no longer a candidate; it landed as ADR 0007, alongside 0006 for the write contract itself. The next ADR is written when the next load-bearing decision is made; Phase 4c's seed/reset access model is the likely candidate.)*

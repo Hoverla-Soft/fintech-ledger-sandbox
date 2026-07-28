@@ -1,9 +1,10 @@
-import { getAccountById, listAccounts } from "@fintech-ledger-sandbox/db/repositories";
+import { parseCurrency } from "@fintech-ledger-sandbox/core";
+import { createAccount, getAccountById, listAccounts } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
 import { accountSchema, toWireAccount } from "../contracts/wire";
 import { toORPCError } from "../errors";
-import { orgProcedure } from "../procedures";
+import { adminProcedure, orgProcedure } from "../procedures";
 
 /**
  * Account reads. Both procedures sit on `orgProcedure`, so `orgId` arrives
@@ -12,6 +13,41 @@ import { orgProcedure } from "../procedures";
  */
 
 export const accountsRouter = {
+  /**
+   * Admin-only. A duplicate `(org_id, name)` returns `409 account_name_taken`
+   * rather than the unhandled 500 it produced before Phase 4b — the schema's
+   * unique constraint stays the arbiter (a check-then-insert would be racy),
+   * but `packages/db` now translates its violation into a typed error.
+   */
+  create: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(120),
+        currency: z.string().min(1).max(10),
+        type: z.enum(["normal", "external"]),
+      }),
+    )
+    .output(accountSchema)
+    .handler(async ({ context, input }) => {
+      const currency = parseCurrency(input.currency);
+      if (!currency.ok) {
+        throw toORPCError(currency.error);
+      }
+
+      const created = await createAccount(context.db, {
+        orgId: context.orgId,
+        name: input.name,
+        currency: currency.value,
+        type: input.type,
+      });
+
+      if (!created.ok) {
+        throw toORPCError(created.error);
+      }
+
+      return toWireAccount(created.value);
+    }),
+
   list: orgProcedure
     .output(z.object({ accounts: z.array(accountSchema) }))
     .handler(async ({ context }) => {

@@ -8,7 +8,9 @@ This is the first of three Phase 4 slices. It deliberately ships **no write endp
 
 ## Status
 
-Human Review
+Done
+
+Human review completed and shipped in commit `dd17988` ("feat(api): enhance API boundary with tenant isolation and error handling").
 
 Verified 2026-07-27: `check-types` 6/6, `test` 204 passed (68 core + 108 api + 28 db), `build` 2/2, migration integrity guard PASS. Lint is `N/A` — no linter is wired in this repo yet.
 

@@ -1,4 +1,10 @@
-import { Money } from "@fintech-ledger-sandbox/core";
+import {
+  err,
+  Money,
+  type InvalidAmount,
+  type Result,
+  type UnsupportedCurrency,
+} from "@fintech-ledger-sandbox/core";
 import { z } from "zod";
 
 /**
@@ -57,6 +63,52 @@ export const decimalAmountSchema = z
   .string()
   .min(1)
   .max(MAX_DECIMAL_AMOUNT_LENGTH, `Amount must be at most ${MAX_DECIMAL_AMOUNT_LENGTH} characters.`);
+
+/**
+ * The largest magnitude a minor-unit value can take and still be storable.
+ *
+ * `ledger_account.balance` and `ledger_posting.amount` are Postgres `bigint`
+ * (int8), whose range is ±(2^63 − 1). `Money` itself is backed by a JavaScript
+ * `bigint` and is happily unbounded, so `MAX_DECIMAL_AMOUNT_LENGTH` alone does
+ * not protect the columns: a perfectly well-formed 30-character amount like
+ * `"9".repeat(30)` parses into a 32-digit minor-unit value that no `int8`
+ * column can hold. Postgres would reject the insert with `22003`
+ * (numeric_value_out_of_range) — a raw driver error, so the caller would get an
+ * unaudited 500 rather than a typed 422.
+ *
+ * The two bounds guard different things and both are needed: the length cap
+ * bounds *parsing cost* before `BigInt` sees the string, this bounds
+ * *storability* after it.
+ */
+export const MAX_MINOR_UNITS = 9_223_372_036_854_775_807n;
+
+/**
+ * Parses a decimal amount and rejects anything the ledger's columns cannot
+ * store, as a typed error rather than a database fault.
+ *
+ * The out-of-range case is reported as `InvalidAmount` with reason
+ * `"malformed-decimal"`. That reason is an imperfect fit — `packages/core`'s
+ * `InvalidAmountReason` has no "out of range" member, and adding one is a
+ * change to the domain package, which this phase deliberately does not touch.
+ * The distinction is not client-visible: every `InvalidAmount` maps to the same
+ * public `422 invalid_amount`.
+ */
+export function parseBoundedAmount(
+  decimal: string,
+  currency: string,
+): Result<Money, UnsupportedCurrency | InvalidAmount> {
+  const parsed = Money.parse(decimal, currency);
+  if (!parsed.ok) {
+    return parsed;
+  }
+
+  const magnitude = parsed.value.minorUnits < 0n ? -parsed.value.minorUnits : parsed.value.minorUnits;
+  if (magnitude > MAX_MINOR_UNITS) {
+    return err({ kind: "InvalidAmount", reason: "malformed-decimal", input: decimal });
+  }
+
+  return parsed;
+}
 
 /** Encodes a domain `Money` for transport. */
 export function toWireMoney(money: Money): WireMoney {

@@ -40,6 +40,7 @@ Filled from actual decisions for this project (see the grilling record and `docs
 | Error monitoring | none (sandbox) |
 | Metrics / tracing | none (sandbox) |
 | Security headers middleware | Hono middleware (CORS configured; security headers added in the API hardening phase) |
+| Rate limiting | **`@orpc/experimental-ratelimit`** — attached at the oRPC layer to `adminProcedure`, not at the Hono layer. Every oRPC call is a `POST` to one mounted path, so a framework-layer limiter could not tell a write from a read without a path allowlist duplicating the procedure ladder; `adminProcedure` *is* the write set by construction. Keyed by `orgId` (server-derived and membership-verified), with a secondary per-user limit. Wrapped so its `TOO_MANY_REQUESTS` carries a `data.reason`, which the library omits. See ADR 0007 |
 
 ## Migration workflow
 

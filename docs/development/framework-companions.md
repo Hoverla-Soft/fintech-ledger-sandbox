@@ -44,6 +44,7 @@ Ask, don't assume:
 - **Identity methods and protocols**: password / magic link / passkeys (WebAuthn) / OAuth 2.0 + OpenID Connect / SAML. Record which methods are enabled, not only the library name.
 - **OAuth/OIDC providers**: Google / GitHub / Microsoft / Apple / other required providers. Provider choice is separate from choosing the auth framework.
 - **Security headers middleware**: `secureHeaders` (Hono) / `helmet` (Express) / `@fastify/helmet` (Fastify) / manual header-setting
+- **Rate limiting**: framework-layer middleware (`hono-rate-limiter`, `express-rate-limit`, `@fastify/rate-limit`) / API-layer middleware attached to the procedure or route group being protected (`@orpc/experimental-ratelimit` when the API layer is oRPC) / a durable store-backed limiter (`rate-limiter-flexible`) / hand-rolled. Decide the **layer** before the library: if the API layer multiplexes every call onto one HTTP path — as oRPC and tRPC both do — a framework-layer limiter cannot distinguish a read from a write without a path allowlist that duplicates the authorization structure, and the limit belongs at the API layer instead. Decide the **key** separately from the library: tenant/organization, authenticated user, API key, or IP. Prefer a key the server derived and verified over one the client can influence.
 
 ## If backend framework = NestJS
 

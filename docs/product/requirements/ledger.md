@@ -45,6 +45,7 @@ Roles come from Better Auth (org-scoped): `admin` (all writes + reads within its
 ## Happy path (post a transfer)
 
 1. Admin submits a transfer (source, destination, amount, currency, idempotency key; optional extra legs for fees/splits).
+   - *API contract note (Phase 4b):* the line above describes the user-facing submission, which the console (Phase 5) composes. The API itself takes a **balanced postings array** plus an idempotency key, not a transfer shape — it maps 1:1 onto `Transaction.create`, and a `{source, destination, amount}` shape would make the published `too_few_postings` and `unbalanced_transaction` rejections structurally unreachable. See `docs/adr/0006-write-endpoint-contract.md`.
 2. Domain builds a balanced `Transaction` — rejects at construction if legs don't net to zero or currencies differ.
 3. In one DB transaction: lock the involved accounts (ordered), check funds on `normal` sources, insert postings, update balances, persist the idempotency key + an audit entry.
 4. Return the created transaction with resulting balances.

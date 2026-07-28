@@ -19,6 +19,9 @@ catalog:
   react-dom: ^19.2.7
   sonner: ^2.0.7
   "@orpc/client": ^1.14.6
+  # Versioned in lockstep with @orpc/server (same 1.14.x release train), so it
+  # cannot drift from the server it plugs into. See ADR 0007.
+  "@orpc/experimental-ratelimit": ^1.14.12
   "@types/react": ^19.2.17
   "@types/react-dom": ^19.2.3
   tailwindcss: ^4.3.2

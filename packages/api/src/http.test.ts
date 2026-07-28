@@ -9,6 +9,7 @@ import type { Db } from "@fintech-ledger-sandbox/db";
 
 import type { Context, LedgerSession } from "./context";
 import { appRouter } from "./routers/index";
+import { resetRateLimitersForTesting } from "./rate-limit";
 import { seedAccount, seedOrphanUser, seedTenant, sessionFor, type SeededTenant } from "./test/fixtures";
 
 /**
@@ -40,6 +41,7 @@ beforeAll(() => {
 
 beforeEach(async () => {
   await reset();
+  resetRateLimitersForTesting();
 });
 
 /**
@@ -152,6 +154,71 @@ describe("status codes on the wire", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  it("returns 409 on the wire for a duplicate account name", async () => {
+    // Phase 4a verified 409/422 mapping by unit-testing `toORPCError` and by
+    // reading oRPC's status table. These three cases are the first time those
+    // statuses are observed on an actual HTTP response.
+    const tenant = await seedTenant(db, "Http", "admin");
+    const app = appWithSession(sessionFor(tenant));
+
+    await post(app, "/accounts/create", { name: "Dup", currency: "USD", type: "normal" });
+    const response = await post(app, "/accounts/create", { name: "Dup", currency: "USD", type: "normal" });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ data: { reason: "account_name_taken" } });
+  });
+
+  it("returns 422 on the wire for an unbalanced transaction", async () => {
+    const tenant = await seedTenant(db, "Http", "admin");
+    const app = appWithSession(sessionFor(tenant));
+    const a = await seedAccount(db, tenant.orgId, "external", "A");
+    const b = await seedAccount(db, tenant.orgId, "normal", "B");
+
+    const response = await post(app, "/transactions/create", {
+      idempotencyKey: randomUUID(),
+      postings: [
+        { accountId: b, direction: "debit", amount: "100.00", currency: "USD" },
+        { accountId: a, direction: "credit", amount: "99.00", currency: "USD" },
+      ],
+    });
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ data: { reason: "unbalanced_transaction" } });
+  });
+
+  it("returns 429 on the wire once the write limit is exhausted", async () => {
+    const tenant = await seedTenant(db, "Limited", "admin");
+    const app = appWithSession(sessionFor(tenant));
+
+    let limited: Response | undefined;
+    for (let i = 0; i < 70; i += 1) {
+      const response = await post(app, "/accounts/create", {
+        name: `Acct ${i}`,
+        currency: "USD",
+        type: "normal",
+      });
+      if (response.status === 429) {
+        limited = response;
+        break;
+      }
+    }
+
+    expect(limited).toBeDefined();
+    await expect(limited?.json()).resolves.toMatchObject({ data: { reason: "rate_limited" } });
+  });
+
+  it("returns 403 on the wire when a viewer attempts a write", async () => {
+    const viewer = await seedTenant(db, "Viewer", "member");
+    const response = await post(appWithSession(sessionFor(viewer)), "/accounts/create", {
+      name: "Nope",
+      currency: "USD",
+      type: "normal",
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ data: { reason: "insufficient_role" } });
   });
 
   it("serves the public health check without a session", async () => {

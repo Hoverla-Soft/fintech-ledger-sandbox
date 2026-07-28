@@ -20,6 +20,7 @@
     "@fintech-ledger-sandbox/db": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
     "@orpc/client": "catalog:",
+    "@orpc/experimental-ratelimit": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",

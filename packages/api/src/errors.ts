@@ -37,6 +37,8 @@ export type LedgerApiError = LedgerError | PersistenceError;
  */
 export type LedgerErrorReason =
   | "account_not_found"
+  | "account_inactive"
+  | "account_name_taken"
   | "transaction_not_found"
   | "idempotency_conflict"
   | "insufficient_funds"
@@ -59,6 +61,8 @@ export type LedgerErrorReason =
  */
 const MESSAGES: Record<LedgerErrorReason, string> = {
   account_not_found: "Account not found.",
+  account_inactive: "That account is inactive and cannot be posted to.",
+  account_name_taken: "An account with that name already exists in this organization.",
   transaction_not_found: "Transaction not found.",
   idempotency_conflict: "This idempotency key was already used with a different request payload.",
   insufficient_funds: "The source account has insufficient funds for this transfer.",
@@ -85,6 +89,16 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
   switch (error.kind) {
     case "AccountNotFound":
       return { code: "NOT_FOUND", reason: "account_not_found" };
+    // Not a 404. The indistinguishability rule protects against *cross-tenant*
+    // existence leaks; within the caller's own org there is nothing to hide,
+    // and `accounts.list` already reports `active` on every account — so a 404
+    // here would contradict what the same caller was just told.
+    case "AccountInactive":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "account_inactive" };
+    // 409, matching the system's only other uniqueness conflict: a taken name
+    // is a collision with existing state, not a malformed request.
+    case "AccountAlreadyExists":
+      return { code: "CONFLICT", reason: "account_name_taken" };
     case "TransactionNotFound":
       return { code: "NOT_FOUND", reason: "transaction_not_found" };
     case "IdempotencyConflict":
@@ -110,6 +124,17 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
       return unhandled;
     }
   }
+}
+
+/**
+ * The stable public reason for an error, without building an `ORPCError`.
+ *
+ * Used when a rejection must be *recorded* as well as returned, so the audit
+ * log and the HTTP response name the same cause with the same string. Deriving
+ * both from `classify` means the two can never drift.
+ */
+export function reasonFor(error: LedgerApiError): LedgerErrorReason {
+  return classify(error).reason;
 }
 
 /** Translates a typed ledger error into the `ORPCError` to throw from a handler. */

@@ -1,3 +1,4 @@
+import type { Money } from "@fintech-ledger-sandbox/core";
 import type {
   AccountReconciliation,
   AuditEntryRow,
@@ -78,6 +79,39 @@ export const auditEntrySchema = z.object({
   metadata: z.unknown(),
   createdAt: z.string(),
 });
+
+/**
+ * A successful write's response: the transaction, its postings, and the
+ * resulting balance of every account it touched (`ledger.md` line 50).
+ *
+ * `balances` is **current as of this response**, not an as-of-posting
+ * snapshot. The distinction only shows up on an idempotent replay: a fresh
+ * post computes balances inside its own transaction, whereas a replay re-reads
+ * `ledger_account.balance` live, so a retry can legitimately return the same
+ * `transactionId` and the same immutable postings alongside *different*
+ * balances if other transfers landed in between. Documented here rather than
+ * left for the Phase 5 console to discover.
+ */
+export const postedTransactionSchema = transactionWithPostingsSchema.extend({
+  balances: z
+    .array(z.object({ accountId: z.string(), balance: moneySchema }))
+    .describe(
+      "Resulting balance per touched account, current as of this response — on an idempotent replay this reflects the account's balance now, not at the time of the original posting.",
+    ),
+});
+
+export function toWirePostedTransaction(
+  transaction: LedgerTransactionWithPostings,
+  balances: ReadonlyMap<string, Money>,
+): z.infer<typeof postedTransactionSchema> {
+  return {
+    ...toWireTransactionWithPostings(transaction),
+    balances: [...balances].map(([accountId, balance]) => ({
+      accountId,
+      balance: toWireMoney(balance),
+    })),
+  };
+}
 
 export function toWireAccount(row: LedgerAccountRow): z.infer<typeof accountSchema> {
   return {

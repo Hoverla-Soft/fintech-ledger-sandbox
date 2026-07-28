@@ -24,6 +24,8 @@ Produced by `toORPCError` (`packages/api/src/errors.ts`), the single translation
 | `data.reason` | Origin | oRPC `code` | HTTP status |
 |---|---|---|---|
 | `account_not_found` | `AccountNotFound` (`packages/db`) | `NOT_FOUND` | 404 |
+| `account_inactive` | `AccountInactive` (`packages/db`) | `UNPROCESSABLE_CONTENT` | 422 |
+| `account_name_taken` | `AccountAlreadyExists` (`packages/db`) | `CONFLICT` | 409 |
 | `transaction_not_found` | `TransactionNotFound` (`packages/db`) | `NOT_FOUND` | 404 |
 | `idempotency_conflict` | `IdempotencyConflict` (`packages/db`) | `CONFLICT` | 409 |
 | `insufficient_funds` | `InsufficientFunds` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
@@ -34,7 +36,7 @@ Produced by `toORPCError` (`packages/api/src/errors.ts`), the single translation
 | `too_few_postings` | `TooFewPostings` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
 | `unbalanced_transaction` | `UnbalancedTransaction` (`packages/core`) | `UNPROCESSABLE_CONTENT` | 422 |
 
-Emitted by middleware rather than by the error map (see ADR 0005):
+Emitted by middleware rather than by the error map (see ADR 0005 for the tenancy and role reasons, ADR 0007 for `rate_limited`):
 
 | `data.reason` | Meaning | oRPC `code` | HTTP status |
 |---|---|---|---|
@@ -43,6 +45,9 @@ Emitted by middleware rather than by the error map (see ADR 0005):
 | `not_a_member` | The session names an organization the user has no `member` row for — **or one that does not exist** | `FORBIDDEN` | 403 |
 | `insufficient_role` | Ledger role is `viewer`, action requires `admin` | `FORBIDDEN` | 403 |
 | `invalid_cursor` | Malformed pagination cursor | `BAD_REQUEST` | 400 |
+| `rate_limited` | The write rate limit for this organization or user is exhausted | `TOO_MANY_REQUESTS` | 429 |
+
+`rate_limited` is the one reason whose `data` carries more than `reason`. `enforceLimit` (`packages/api/src/rate-limit.ts`) adds `scope` (`"organization" | "user"` — which of the two limits tripped), `limit` (that limit's ceiling), and `retryAfterSeconds` (floored at 1, since a client told to wait zero seconds retries immediately and trips the limit again). The extra fields are additive; a client that switches only on `reason` keeps working.
 
 Zod contract-validation failures produce oRPC's standard `BAD_REQUEST` (400) with its own issue details.
 
@@ -54,7 +59,10 @@ This is a correctness rule, not a style preference. If "exists but forbidden" we
 - **403** — you may not act in this organization, or your role is insufficient. Never a signal that a resource exists. Naming a nonexistent organization also returns 403, with the same body as naming a real one you do not belong to.
 - **401** — no session at all.
 - **422** — the request was understood and authorized, but violates a ledger invariant.
-- **409** — an idempotency key was reused with a different payload.
+- **409** — a conflict with state that already exists: an idempotency key reused with a different payload, or an account name already taken in this organization.
+- **429** — the caller's write budget is exhausted. Applied only to `adminProcedure` and only *after* the role check, so a rejected `viewer` cannot spend an organization's quota.
+
+**Why `account_inactive` is 422 and not 404.** The no-enumeration rule above is aimed at *cross-tenant* existence leaks. An inactive account belongs to the caller's own organization, where there is nothing to hide — `accountSchema` already exposes `active` on the read surface, so a 404 here would contradict what `accounts.list` just told the same caller. Order of checks is what keeps the rule intact: `lockAccounts` tests every id for existence before it tests any id for activity, so another org's id always produces `account_not_found` and never `account_inactive`.
 
 ## Conventions
 

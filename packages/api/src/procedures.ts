@@ -3,6 +3,7 @@ import { ORPCError, os } from "@orpc/server";
 import { resolveMembership } from "./auth/membership";
 import { canWrite, type LedgerRole } from "./auth/roles";
 import type { Context } from "./context";
+import { enforceLimit, orgWriteLimiter, userWriteLimiter } from "./rate-limit";
 
 /**
  * The procedure ladder. Every router builds on one of these four rungs, and
@@ -114,4 +115,26 @@ const requireWrite = os
     return next();
   });
 
-export const adminProcedure = orgProcedure.use(requireWrite);
+/**
+ * Rate limiting, applied **after** the role check.
+ *
+ * Order is deliberate: a caller who is not permitted to write should get
+ * `403` regardless of anyone's rate budget, and — more importantly — a
+ * rejected viewer must not be able to consume the organization's write quota.
+ * Running the limiter first would hand any authenticated org member a trivial
+ * denial-of-service against that org's admins.
+ */
+const applyWriteRateLimit = os
+  .$context<Context & { orgId: string; actorId: string }>()
+  .middleware(async ({ context, next }) => {
+    // The per-user limit is charged FIRST, and the order is load-bearing.
+    // `limit()` consumes a token as it checks, so charging the org first would
+    // spend an org token on a request the user limit is about to reject —
+    // letting one admin burn the whole organization's budget with writes that
+    // never happened, and lock out every co-admin after their own 30.
+    await enforceLimit(userWriteLimiter, context.actorId, "user");
+    await enforceLimit(orgWriteLimiter, context.orgId, "organization");
+    return next();
+  });
+
+export const adminProcedure = orgProcedure.use(requireWrite).use(applyWriteRateLimit);
