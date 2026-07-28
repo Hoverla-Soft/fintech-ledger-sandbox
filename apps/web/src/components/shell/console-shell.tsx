@@ -14,7 +14,10 @@ import { OrgSwitcher } from "./org-switcher";
  * later slice is reachable by clicking rather than by typing a URL. 5c–5g each
  * add their own entry as they land; the list is short on purpose until then.
  */
-const NAV_LINKS = [{ to: "/dashboard", label: "Overview" }] as const;
+const NAV_LINKS = [
+  { to: "/dashboard", label: "Overview" },
+  { to: "/accounts", label: "Accounts" },
+] as const;
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
   return (

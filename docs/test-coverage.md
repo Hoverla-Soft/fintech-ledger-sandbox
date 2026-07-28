@@ -264,4 +264,16 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The loading state carries `aria-busy` and a visually-hidden label rather than rendering silent boxes
 - The empty state always carries a next action (the prop is required, not optional)
 
+### `apps/web/src/features/accounts/account-display.test.tsx` (Phase 5c)
+- Balances render **the wire string exactly**, at whatever scale the server sent — JPY as `1250` (not `1250.00`), BHD at three decimals, USD at two. The server has already formatted these with `Money.format()`; re-deriving client-side would create a second formatting path that could disagree
+- **A negative `external` balance renders plainly, not as an error** — external accounts are expected to go negative, since that is what makes them the boundary money enters the sandbox through. A negative `normal` balance, which invariant #6 makes impossible, is flagged instead
+- `isSuspenseAccount` recognises the accounts `sandbox.reset` opens on its own (`ADR 0008`) and does not mistake `Sandbox Funding`, or any `normal` account, for one
+
+### `apps/web/src/features/accounts/field-errors.test.ts` (Phase 5c)
+- **`409 account_name_taken` lands on the name field**, and `keepsFormOpen` is true — the case the create dialog is shaped around, since it is fixable by typing a different name and must not become a toast over a closed form
+- `422 unsupported_currency` lands on the currency field; `400 {issues}` maps each issue's `path[0]` to its own field; issue paths that are not fields on this form (e.g. `orgId`) are ignored rather than rendered nowhere
+- **Failures the form cannot fix attach to no field** — `insufficient_role` and `not_a_member` return `{}` and close the form; pinning them to an input would tell the user to edit their way out of a permissions problem
+- A throttled submit attaches to no field but **keeps the form open**, carrying `retryAfterSeconds` from the body
+- No branch surfaces the server's raw `message`
+
 <!-- add one block per test file, keep in sync with what actually exists -->

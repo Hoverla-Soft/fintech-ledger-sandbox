@@ -10,7 +10,9 @@ It also ships the loading/empty/error trio `docs/product/requirements/ledger.md:
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28; Phase 5c started immediately after.
 
 ## Scope (allowed paths)
 
