@@ -1,33 +1,33 @@
 import {
+  type Currency,
   createPosting,
   Money,
+  type Posting,
   reverse,
   Transaction,
-  type Currency,
-  type Posting,
 } from "@fintech-ledger-sandbox/core";
 import type { Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
 import {
   createAccount,
   getTransactionById,
+  type LedgerAccountRow,
   listAccounts,
   recordRejection,
-  type LedgerAccountRow,
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
 import { computeRequestHash } from "../contracts/request-hash";
 import { accountSchema, toWireAccount } from "../contracts/wire";
-import { reasonFor, toORPCError, type LedgerApiError } from "../errors";
+import { type LedgerApiError, reasonFor, toORPCError } from "../errors";
 import { adminProcedure } from "../procedures";
 import { countNonZero, planResetChunk, type ResetBalance } from "../sandbox/reset-plan";
 import {
   SEED_ACCOUNTS,
   SEED_SCENARIOS,
-  scenarioKeys,
   type SeedAccountSpec,
   type SeedScenario,
+  scenarioKeys,
 } from "../sandbox/scenarios";
 
 /**
@@ -194,7 +194,9 @@ function buildScenarioTransaction(
 
     const amount = Money.parse(leg.amount, account.currency);
     if (!amount.ok) {
-      throw new Error(`seed scenario "${scenario.id}" carries an unparseable amount "${leg.amount}"`);
+      throw new Error(
+        `seed scenario "${scenario.id}" carries an unparseable amount "${leg.amount}"`,
+      );
     }
 
     return unwrapPosting(createPosting(account.id, leg.direction, amount.value));
@@ -204,7 +206,9 @@ function buildScenarioTransaction(
   if (!built.ok) {
     // `scenarios.test.ts` proves every scenario balances, so reaching this
     // means the seed set was edited without its test being run.
-    throw new Error(`seed scenario "${scenario.id}" is not a valid transaction: ${built.error.kind}`);
+    throw new Error(
+      `seed scenario "${scenario.id}" is not a valid transaction: ${built.error.kind}`,
+    );
   }
   return built.value;
 }
@@ -222,7 +226,9 @@ async function buildReversal(context: SandboxContext, transactionId: string): Pr
     ),
   );
   if (!rebuilt.ok) {
-    throw new Error(`persisted transaction "${transactionId}" is not a valid transaction: ${rebuilt.error.kind}`);
+    throw new Error(
+      `persisted transaction "${transactionId}" is not a valid transaction: ${rebuilt.error.kind}`,
+    );
   }
 
   return reverse(rebuilt.value);
@@ -236,7 +242,10 @@ const scenarioOutcomeSchema = z.object({
       "A replayed scenario reports `posted` with the original transaction id — `PostedTransaction` carries no replay flag (ADR 0006).",
     ),
   transactionId: z.string().nullable(),
-  reason: z.string().nullable().describe("The rejection reason, for an expected refusal such as insufficient funds."),
+  reason: z
+    .string()
+    .nullable()
+    .describe("The rejection reason, for an expected refusal such as insufficient funds."),
 });
 
 export const sandboxRouter = {
@@ -364,7 +373,11 @@ export const sandboxRouter = {
     .output(
       z.object({
         accountsZeroed: z.int(),
-        remaining: z.int().describe("Accounts still holding a non-zero balance, across every currency. Call again until this is 0."),
+        remaining: z
+          .int()
+          .describe(
+            "Accounts still holding a non-zero balance, across every currency. Call again until this is 0.",
+          ),
         transactionIds: z.array(z.string()),
       }),
     )
@@ -385,7 +398,11 @@ export const sandboxRouter = {
 
       const postings: Posting[] = chunk.legs.map((leg) =>
         unwrapPosting(
-          createPosting(leg.accountId, leg.direction, moneyOfMinorUnits(leg.minorUnits, chunk.currency)),
+          createPosting(
+            leg.accountId,
+            leg.direction,
+            moneyOfMinorUnits(leg.minorUnits, chunk.currency),
+          ),
         ),
       );
 

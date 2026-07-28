@@ -54,7 +54,10 @@ function decompose(decimal: string): { negative: boolean; integer: string; fract
   return { negative: sign === "-", integer, fraction };
 }
 
-function toScaled(part: { negative: boolean; integer: string; fraction: string }, width: number): bigint {
+function toScaled(
+  part: { negative: boolean; integer: string; fraction: string },
+  width: number,
+): bigint {
   const magnitude = BigInt(`${part.integer}${part.fraction.padEnd(width, "0")}`);
   return part.negative ? -magnitude : magnitude;
 }

@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-import { err, ok, type AccountType, type Currency, type Result } from "@fintech-ledger-sandbox/core";
+import {
+  type AccountType,
+  type Currency,
+  err,
+  ok,
+  type Result,
+} from "@fintech-ledger-sandbox/core";
 import { and, asc, eq } from "drizzle-orm";
 
 import type { AccountAlreadyExists, AccountNotFound } from "../errors";
+import type { Db } from "../index";
 import { toCurrency } from "../internal/money";
 import { getPostgresErrorCode, POSTGRES_UNIQUE_VIOLATION } from "../internal/pg-errors";
-import type { Db } from "../index";
 import { ledgerAccount } from "../schema/ledger";
 
 export interface LedgerAccountRow {
@@ -74,7 +80,11 @@ export async function createAccount(
 
 /** Every account for `orgId`, ordered by name. Org-scoped — never reads across tenants. */
 export async function listAccounts(db: Db, orgId: string): Promise<readonly LedgerAccountRow[]> {
-  const rows = await db.select().from(ledgerAccount).where(eq(ledgerAccount.orgId, orgId)).orderBy(asc(ledgerAccount.name));
+  const rows = await db
+    .select()
+    .from(ledgerAccount)
+    .where(eq(ledgerAccount.orgId, orgId))
+    .orderBy(asc(ledgerAccount.name));
   return rows.map(toAccountRow);
 }
 
@@ -83,7 +93,11 @@ export async function listAccounts(db: Db, orgId: string): Promise<readonly Ledg
  * genuinely missing id both report the same `AccountNotFound` — see
  * `errors.ts`.
  */
-export async function getAccountById(db: Db, orgId: string, accountId: string): Promise<Result<LedgerAccountRow, AccountNotFound>> {
+export async function getAccountById(
+  db: Db,
+  orgId: string,
+  accountId: string,
+): Promise<Result<LedgerAccountRow, AccountNotFound>> {
   const [row] = await db
     .select()
     .from(ledgerAccount)

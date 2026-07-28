@@ -1,7 +1,13 @@
 import { Money, type Result } from "@fintech-ledger-sandbox/core";
 import { describe, expect, it } from "vitest";
 
-import { SEED_ACCOUNTS, SEED_CURRENCY, SEED_SCENARIOS, scenarioKeys, type SeedScenario } from "./scenarios";
+import {
+  SEED_ACCOUNTS,
+  SEED_CURRENCY,
+  SEED_SCENARIOS,
+  type SeedScenario,
+  scenarioKeys,
+} from "./scenarios";
 
 /**
  * The seed set, checked as data.
@@ -99,10 +105,12 @@ describe("seed scenarios", () => {
   });
 
   it("drives Employee A below zero in the rejected scenario, which is why it is refused", () => {
-    const payrollCredit = SEED_SCENARIOS.find((scenario) => scenario.id === "payroll")
-      ?.legs.find((leg) => leg.accountName === "Employee A");
-    const attempt = SEED_SCENARIOS.find((scenario) => scenario.id === "insufficient_funds")
-      ?.legs.find((leg) => leg.accountName === "Employee A");
+    const payrollCredit = SEED_SCENARIOS.find((scenario) => scenario.id === "payroll")?.legs.find(
+      (leg) => leg.accountName === "Employee A",
+    );
+    const attempt = SEED_SCENARIOS.find(
+      (scenario) => scenario.id === "insufficient_funds",
+    )?.legs.find((leg) => leg.accountName === "Employee A");
 
     expect(payrollCredit?.direction).toBe("debit");
     expect(attempt?.direction).toBe("credit");

@@ -9,7 +9,12 @@ import {
 } from "@fintech-ledger-sandbox/ui/components/table";
 import { Link } from "@tanstack/react-router";
 
-import { actionLabel, formatMetadata, isExpectedRefusal, type WireAuditEntry } from "./entry-display";
+import {
+  actionLabel,
+  formatMetadata,
+  isExpectedRefusal,
+  type WireAuditEntry,
+} from "./entry-display";
 
 export function AuditTable({ entries }: { entries: readonly WireAuditEntry[] }) {
   return (

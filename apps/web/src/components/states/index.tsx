@@ -111,7 +111,13 @@ export function QueryState<T>({
   children,
   loadingRows,
 }: {
-  query: { isPending: boolean; isError: boolean; error: unknown; data: T | undefined; refetch: () => unknown };
+  query: {
+    isPending: boolean;
+    isError: boolean;
+    error: unknown;
+    data: T | undefined;
+    refetch: () => unknown;
+  };
   empty?: { isEmpty: (data: T) => boolean; render: ReactNode };
   children: (data: T) => ReactNode;
   loadingRows?: number;

@@ -56,7 +56,11 @@ function AuditRoute() {
                 <EmptyState
                   title="Nothing recorded yet"
                   description="Posting or refusing a transaction writes an entry here."
-                  action={<span className="text-sm text-muted-foreground">Post a transfer to see it appear.</span>}
+                  action={
+                    <span className="text-sm text-muted-foreground">
+                      Post a transfer to see it appear.
+                    </span>
+                  }
                 />
               ),
             }}
@@ -80,7 +84,11 @@ function AuditRoute() {
                 <EmptyState
                   title="Nothing has been refused"
                   description="No transaction in this organization has been rejected. That is good news."
-                  action={<span className="text-sm text-muted-foreground">Refusals appear here automatically.</span>}
+                  action={
+                    <span className="text-sm text-muted-foreground">
+                      Refusals appear here automatically.
+                    </span>
+                  }
                 />
               ),
             }}
@@ -89,8 +97,8 @@ function AuditRoute() {
               <div className="space-y-3">
                 <AuditTable entries={data.entries} />
                 <p className="text-xs text-muted-foreground">
-                  Repeated identical refusals are expected — re-running the sandbox scenarios appends
-                  another rejection entry each time.
+                  Repeated identical refusals are expected — re-running the sandbox scenarios
+                  appends another rejection entry each time.
                 </p>
                 <Caveats count={data.entries.length} />
               </div>
@@ -122,7 +130,9 @@ function Caveats({ count }: { count: number }) {
           exist but cannot be paged to yet.
         </p>
       ) : (
-        <p>Showing all {count} {count === 1 ? "entry" : "entries"} (maximum {LIMIT}).</p>
+        <p>
+          Showing all {count} {count === 1 ? "entry" : "entries"} (maximum {LIMIT}).
+        </p>
       )}
       <p>Creating an account is not recorded here — only transactions and refusals are.</p>
     </div>

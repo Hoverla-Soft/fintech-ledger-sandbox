@@ -165,16 +165,31 @@ describe("composeTransfer", () => {
 
   it("rejects a non-positive amount", () => {
     expect(
-      composeTransfer({ sourceAccountId: "a", destinationAccountId: "b", minorUnits: 0n, currency: "USD" }),
+      composeTransfer({
+        sourceAccountId: "a",
+        destinationAccountId: "b",
+        minorUnits: 0n,
+        currency: "USD",
+      }),
     ).toEqual({ ok: false, problem: "non_positive_amount" });
     expect(
-      composeTransfer({ sourceAccountId: "a", destinationAccountId: "b", minorUnits: -1n, currency: "USD" }),
+      composeTransfer({
+        sourceAccountId: "a",
+        destinationAccountId: "b",
+        minorUnits: -1n,
+        currency: "USD",
+      }),
     ).toEqual({ ok: false, problem: "non_positive_amount" });
   });
 
   it("rejects a transfer to the same account, which would net to zero against itself", () => {
     expect(
-      composeTransfer({ sourceAccountId: "a", destinationAccountId: "a", minorUnits: 100n, currency: "USD" }),
+      composeTransfer({
+        sourceAccountId: "a",
+        destinationAccountId: "a",
+        minorUnits: 100n,
+        currency: "USD",
+      }),
     ).toEqual({ ok: false, problem: "same_account" });
   });
 
@@ -239,7 +254,10 @@ describe("composeLegs", () => {
     };
 
     expect(composeLegs(build(MAX_POSTINGS), "USD").ok).toBe(true);
-    expect(composeLegs(build(MAX_POSTINGS + 1), "USD")).toEqual({ ok: false, problem: "too_many_postings" });
+    expect(composeLegs(build(MAX_POSTINGS + 1), "USD")).toEqual({
+      ok: false,
+      problem: "too_many_postings",
+    });
   });
 
   it("rejects an unknown currency before formatting any leg", () => {
@@ -275,7 +293,10 @@ describe("composeLegs", () => {
         minorUnits: BigInt(nextInt(100_000)),
       }));
       const total = debits.reduce((sum, leg) => sum + leg.minorUnits, 0n);
-      const legs: LegIntent[] = [...debits, { accountId: "credit", direction: "credit", minorUnits: total }];
+      const legs: LegIntent[] = [
+        ...debits,
+        { accountId: "credit", direction: "credit", minorUnits: total },
+      ];
 
       const composed = composeLegs(legs, "USD");
       expect(composed.ok).toBe(true);
@@ -296,22 +317,24 @@ describe("assertBalanced — the last line before a send", () => {
   ): PostingInput => ({ accountId, direction, amount, currency });
 
   it("throws on an unbalanced array", () => {
-    expect(() => assertBalanced([posting("a", "debit", "1.00"), posting("b", "credit", "0.99")])).toThrow(
-      /unbalanced/i,
-    );
+    expect(() =>
+      assertBalanced([posting("a", "debit", "1.00"), posting("b", "credit", "0.99")]),
+    ).toThrow(/unbalanced/i);
   });
 
   it("throws when two legs are scaled differently — the false-pass case", () => {
     // "1.0" and "10" both reduce to the digits `10`. A check that ignored
     // scale would cancel them and wave through a transfer that moves nine
     // units of real money.
-    expect(() => assertBalanced([posting("a", "debit", "1.0"), posting("b", "credit", "10")])).toThrow(
-      /unbalanced/i,
-    );
+    expect(() =>
+      assertBalanced([posting("a", "debit", "1.0"), posting("b", "credit", "10")]),
+    ).toThrow(/unbalanced/i);
   });
 
   it("accepts legs written at different widths when they genuinely agree", () => {
-    expect(assertBalanced([posting("a", "debit", "1.0"), posting("b", "credit", "1.00")])).toBe(true);
+    expect(assertBalanced([posting("a", "debit", "1.0"), posting("b", "credit", "1.00")])).toBe(
+      true,
+    );
   });
 
   it("throws on fewer than two legs or more than MAX_POSTINGS", () => {
@@ -330,8 +353,8 @@ describe("assertBalanced — the last line before a send", () => {
   });
 
   it("throws rather than silently accepting an amount that is not a decimal string", () => {
-    expect(() => assertBalanced([posting("a", "debit", "abc"), posting("b", "credit", "abc")])).toThrow(
-      /decimal string/i,
-    );
+    expect(() =>
+      assertBalanced([posting("a", "debit", "abc"), posting("b", "credit", "abc")]),
+    ).toThrow(/decimal string/i);
   });
 });

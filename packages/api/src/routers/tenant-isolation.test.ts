@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
-
+import type { Db } from "@fintech-ledger-sandbox/db";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { ORPCError } from "@orpc/server";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
-import type { Db } from "@fintech-ledger-sandbox/db";
-
-import { clientFor, postTransfer, seedAccount, seedTenant, sessionFor, type SeededTenant } from "../test/fixtures";
+import {
+  clientFor,
+  postTransfer,
+  type SeededTenant,
+  seedAccount,
+  seedTenant,
+  sessionFor,
+} from "../test/fixtures";
 
 /**
  * Invariant #5 — no read ever crosses an org boundary — asserted at the API
@@ -153,8 +158,12 @@ describe("transactions.get", () => {
   });
 
   it("reports another org's transaction as 404, identical to a missing one", async () => {
-    const crossOrg = await captureError(() => asOrgA().transactions.get({ transactionId: orgBTransactionId }));
-    const missing = await captureError(() => asOrgA().transactions.get({ transactionId: randomUUID() }));
+    const crossOrg = await captureError(() =>
+      asOrgA().transactions.get({ transactionId: orgBTransactionId }),
+    );
+    const missing = await captureError(() =>
+      asOrgA().transactions.get({ transactionId: randomUUID() }),
+    );
 
     expect(crossOrg.status).toBe(404);
     expect(crossOrg.code).toBe(missing.code);

@@ -1,6 +1,5 @@
-import { and, eq, inArray } from "drizzle-orm";
-
 import { err, ok, type Result } from "@fintech-ledger-sandbox/core";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { AccountInactive, AccountNotFound } from "../errors";
 import { ledgerAccount } from "../schema/ledger";

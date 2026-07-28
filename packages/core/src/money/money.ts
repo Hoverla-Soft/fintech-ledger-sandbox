@@ -21,7 +21,12 @@ function describeUnknownAmount(candidate: unknown): string {
   if (typeof candidate === "string") {
     return candidate;
   }
-  if (candidate === null || candidate === undefined || typeof candidate === "number" || typeof candidate === "boolean") {
+  if (
+    candidate === null ||
+    candidate === undefined ||
+    typeof candidate === "number" ||
+    typeof candidate === "boolean"
+  ) {
     return String(candidate);
   }
   return Object.prototype.toString.call(candidate);
@@ -56,7 +61,10 @@ export class Money {
    * `number` (including an integral one), `NaN`, or a float being coerced
    * into an amount.
    */
-  static ofMinorUnits(minorUnits: bigint, currency: string): Result<Money, UnsupportedCurrency | InvalidAmount> {
+  static ofMinorUnits(
+    minorUnits: bigint,
+    currency: string,
+  ): Result<Money, UnsupportedCurrency | InvalidAmount> {
     if (typeof minorUnits !== "bigint") {
       return err({
         kind: "InvalidAmount",
@@ -79,7 +87,10 @@ export class Money {
    * fraction digits than the currency's exponent permits is rejected with
    * `"excess-precision"` rather than truncated or rounded.
    */
-  static parse(decimal: string, currency: string): Result<Money, UnsupportedCurrency | InvalidAmount> {
+  static parse(
+    decimal: string,
+    currency: string,
+  ): Result<Money, UnsupportedCurrency | InvalidAmount> {
     const currencyResult = parseCurrency(currency);
     if (!currencyResult.ok) {
       return currencyResult;

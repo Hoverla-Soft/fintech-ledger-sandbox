@@ -98,9 +98,9 @@ function OrganizationRoute() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      void switchOrganization(candidate.id, queryClient, () => router.invalidate()).then(
-                        () => navigate({ to: "/dashboard" }),
-                      );
+                      void switchOrganization(candidate.id, queryClient, () =>
+                        router.invalidate(),
+                      ).then(() => navigate({ to: "/dashboard" }));
                     }}
                   >
                     Switch to

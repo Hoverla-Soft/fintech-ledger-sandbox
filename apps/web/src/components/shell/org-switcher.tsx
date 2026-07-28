@@ -15,8 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { describeFailure } from "@/lib/ledger/errors";
-import { switchOrganization } from "@/lib/org/session";
-import { useOrganizations, useOrgContext } from "@/lib/org/session";
+import { switchOrganization, useOrganizations, useOrgContext } from "@/lib/org/session";
 
 /**
  * Switches the acting organization.
@@ -78,7 +77,9 @@ export function OrgSwitcher() {
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link to="/organization" />}>Manage organizations</DropdownMenuItem>
+          <DropdownMenuItem render={<Link to="/organization" />}>
+            Manage organizations
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

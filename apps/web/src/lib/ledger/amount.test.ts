@@ -1,5 +1,8 @@
 import { CURRENCIES, minorUnitExponent } from "@fintech-ledger-sandbox/api/contracts/currencies";
-import { MAX_DECIMAL_AMOUNT_LENGTH, MAX_MINOR_UNITS } from "@fintech-ledger-sandbox/api/contracts/money";
+import {
+  MAX_DECIMAL_AMOUNT_LENGTH,
+  MAX_MINOR_UNITS,
+} from "@fintech-ledger-sandbox/api/contracts/money";
 import { describe, expect, it } from "vitest";
 
 import { asCurrency, formatAmountWithCurrency, formatMinorUnits, parseAmount } from "./amount";

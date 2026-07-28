@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import { createPosting, Money, Transaction, type AccountType, type Currency, type Result } from "@fintech-ledger-sandbox/core";
+import {
+  type AccountType,
+  type Currency,
+  createPosting,
+  Money,
+  type Result,
+  Transaction,
+} from "@fintech-ledger-sandbox/core";
 
 import type { Db } from "../index";
 import { user } from "../schema/auth";
@@ -36,8 +43,14 @@ export async function seedTenant(db: Db, namePrefix = "Acceptance"): Promise<See
   const orgId = randomUUID();
   const actorId = randomUUID();
 
-  await db.insert(organization).values({ id: orgId, name: `${namePrefix} Org ${orgId}`, slug: `${namePrefix.toLowerCase()}-${orgId}` });
-  await db.insert(user).values({ id: actorId, name: `${namePrefix} Actor`, email: `${actorId}@example.com` });
+  await db.insert(organization).values({
+    id: orgId,
+    name: `${namePrefix} Org ${orgId}`,
+    slug: `${namePrefix.toLowerCase()}-${orgId}`,
+  });
+  await db
+    .insert(user)
+    .values({ id: actorId, name: `${namePrefix} Actor`, email: `${actorId}@example.com` });
 
   return { orgId, actorId };
 }
@@ -65,7 +78,12 @@ export function money(decimal: string, currency: Currency = "USD"): Money {
  * (credited — its balance decreases) to `toAccountId` (debited — its
  * balance increases). Mirrors the smoke test's posting convention.
  */
-export function buildTransfer(fromAccountId: string, toAccountId: string, amountDecimal: string, currency: Currency = "USD"): Transaction {
+export function buildTransfer(
+  fromAccountId: string,
+  toAccountId: string,
+  amountDecimal: string,
+  currency: Currency = "USD",
+): Transaction {
   const amount = money(amountDecimal, currency);
   return unwrap(
     Transaction.create([

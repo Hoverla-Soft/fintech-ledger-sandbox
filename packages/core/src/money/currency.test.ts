@@ -9,7 +9,18 @@ import { CURRENCIES, type Currency, minorUnitExponent, parseCurrency } from "./c
  * currency from the implementation would delete it from the test too and
  * everything would still pass. This literal is the independent witness.
  */
-const KNOWN_CURRENCIES = ["USD", "EUR", "GBP", "UAH", "CHF", "PLN", "JPY", "ISK", "BHD", "KWD"] as const;
+const KNOWN_CURRENCIES = [
+  "USD",
+  "EUR",
+  "GBP",
+  "UAH",
+  "CHF",
+  "PLN",
+  "JPY",
+  "ISK",
+  "BHD",
+  "KWD",
+] as const;
 
 describe("parseCurrency", () => {
   it("accepts every currency on the known-exponent allowlist", () => {
@@ -88,7 +99,18 @@ describe("CURRENCIES", () => {
   });
 
   it("is grouped by exponent — the order a picker should render", () => {
-    expect([...CURRENCIES]).toEqual(["USD", "EUR", "GBP", "UAH", "CHF", "PLN", "JPY", "ISK", "BHD", "KWD"]);
+    expect([...CURRENCIES]).toEqual([
+      "USD",
+      "EUR",
+      "GBP",
+      "UAH",
+      "CHF",
+      "PLN",
+      "JPY",
+      "ISK",
+      "BHD",
+      "KWD",
+    ]);
   });
 
   it("is frozen, so a consumer cannot mutate the shared allowlist", () => {

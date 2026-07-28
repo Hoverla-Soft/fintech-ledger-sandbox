@@ -91,7 +91,10 @@ describe("confirmation friction", () => {
     expect(screen.getByRole("button", { name: "Post reversal" })).toBeDisabled();
 
     await user.clear(screen.getByLabelText(`Type ${CONFIRMATION_WORD} to confirm`));
-    await user.type(screen.getByLabelText(`Type ${CONFIRMATION_WORD} to confirm`), CONFIRMATION_WORD);
+    await user.type(
+      screen.getByLabelText(`Type ${CONFIRMATION_WORD} to confirm`),
+      CONFIRMATION_WORD,
+    );
     expect(screen.getByRole("button", { name: "Post reversal" })).toBeEnabled();
   });
 
@@ -99,7 +102,10 @@ describe("confirmation friction", () => {
     renderDialog();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Reverse" }));
-    await user.type(screen.getByLabelText(`Type ${CONFIRMATION_WORD} to confirm`), CONFIRMATION_WORD);
+    await user.type(
+      screen.getByLabelText(`Type ${CONFIRMATION_WORD} to confirm`),
+      CONFIRMATION_WORD,
+    );
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(reverseTransaction).not.toHaveBeenCalled();

@@ -28,7 +28,11 @@ export interface ScenarioOutcome {
 const EXPECTED_REJECTIONS = new Set(["insufficient_funds"]);
 
 export function isExpectedRejection(outcome: ScenarioOutcome): boolean {
-  return outcome.outcome === "rejected" && outcome.reason !== null && EXPECTED_REJECTIONS.has(outcome.reason);
+  return (
+    outcome.outcome === "rejected" &&
+    outcome.reason !== null &&
+    EXPECTED_REJECTIONS.has(outcome.reason)
+  );
 }
 
 export function ScenarioOutcomes({ outcomes }: { outcomes: readonly ScenarioOutcome[] }) {

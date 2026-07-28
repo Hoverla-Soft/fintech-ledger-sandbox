@@ -3,9 +3,8 @@ import { randomUUID } from "node:crypto";
 import { reverse } from "@fintech-ledger-sandbox/core";
 import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-
-import { getTransactionById } from "../repositories/transactions";
 import { postTransaction } from "../posting/post-transaction";
+import { getTransactionById } from "../repositories/transactions";
 import { buildTransfer, getRootCauseMessage, seedAccount, seedTenant } from "../test/fixtures";
 import { connectTestDatabase } from "../test/setup";
 import { ledgerPosting } from "./ledger";
@@ -51,7 +50,14 @@ describe("ledger_posting immutability (invariant #8)", () => {
     if (postingRow === undefined) {
       throw new Error("fixture setup produced no postings");
     }
-    return { orgId, actorId, funding, destination, transactionId: posted.value.transactionId, postingRow };
+    return {
+      orgId,
+      actorId,
+      funding,
+      destination,
+      transactionId: posted.value.transactionId,
+      postingRow,
+    };
   }
 
   it("a direct UPDATE on ledger_posting is rejected by the database, leaving the row unchanged", async () => {
@@ -59,14 +65,19 @@ describe("ledger_posting immutability (invariant #8)", () => {
 
     let caught: unknown;
     try {
-      await database.db.execute(sql`UPDATE ledger_posting SET amount = 999999 WHERE id = ${postingRow.id}`);
+      await database.db.execute(
+        sql`UPDATE ledger_posting SET amount = 999999 WHERE id = ${postingRow.id}`,
+      );
     } catch (error) {
       caught = error;
     }
     expect(caught).toBeDefined();
     expect(getRootCauseMessage(caught)).toContain("append-only");
 
-    const [rowAfter] = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.id, postingRow.id));
+    const [rowAfter] = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.id, postingRow.id));
     expect(rowAfter?.amount).toBe(postingRow.amount.minorUnits);
   });
 
@@ -82,7 +93,10 @@ describe("ledger_posting immutability (invariant #8)", () => {
     expect(caught).toBeDefined();
     expect(getRootCauseMessage(caught)).toContain("append-only");
 
-    const [rowAfter] = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.id, postingRow.id));
+    const [rowAfter] = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.id, postingRow.id));
     expect(rowAfter).toBeDefined();
   });
 
@@ -98,14 +112,20 @@ describe("ledger_posting immutability (invariant #8)", () => {
     expect(caught).toBeDefined();
     expect(getRootCauseMessage(caught)).toContain("append-only");
 
-    const rowsAfter = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+    const rowsAfter = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.orgId, orgId));
     expect(rowsAfter.length).toBeGreaterThan(0);
   });
 
   it("correction is only via a reversing transaction linked by reverses_transaction_id, and never mutates the original posting rows", async () => {
     const { orgId, actorId, funding, destination, transactionId } = await seedOnePosting();
 
-    const originalPostingsBefore = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.transactionId, transactionId));
+    const originalPostingsBefore = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.transactionId, transactionId));
     expect(originalPostingsBefore).toHaveLength(2);
 
     const originalDomainTransaction = buildTransfer(funding, destination, "42.00");
@@ -124,7 +144,11 @@ describe("ledger_posting immutability (invariant #8)", () => {
       return;
     }
 
-    const reversalRow = await getTransactionById(database.db, orgId, reversalResult.value.transactionId);
+    const reversalRow = await getTransactionById(
+      database.db,
+      orgId,
+      reversalResult.value.transactionId,
+    );
     expect(reversalRow.ok).toBe(true);
     if (reversalRow.ok) {
       expect(reversalRow.value.reversesTransactionId).toBe(transactionId);
@@ -132,7 +156,10 @@ describe("ledger_posting immutability (invariant #8)", () => {
 
     // The original posting rows are byte-identical to before the reversal —
     // correction is additive, never a mutation of history.
-    const originalPostingsAfter = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.transactionId, transactionId));
+    const originalPostingsAfter = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.transactionId, transactionId));
     expect(originalPostingsAfter).toEqual(originalPostingsBefore);
   });
 });

@@ -1,4 +1,9 @@
-import type { CurrencyMismatch, NonPositiveAmount, TooFewPostings, UnbalancedTransaction } from "../errors";
+import type {
+  CurrencyMismatch,
+  NonPositiveAmount,
+  TooFewPostings,
+  UnbalancedTransaction,
+} from "../errors";
 import type { Currency } from "../money/currency";
 import { Money } from "../money/money";
 import { err, ok, type Result, unwrapInvariant } from "../result";
@@ -49,7 +54,10 @@ export class Transaction {
    */
   static create(
     postings: readonly Posting[],
-  ): Result<Transaction, TooFewPostings | CurrencyMismatch | NonPositiveAmount | UnbalancedTransaction> {
+  ): Result<
+    Transaction,
+    TooFewPostings | CurrencyMismatch | NonPositiveAmount | UnbalancedTransaction
+  > {
     if (postings.length < MINIMUM_POSTING_COUNT) {
       return err({ kind: "TooFewPostings", count: postings.length });
     }
@@ -62,7 +70,11 @@ export class Transaction {
 
     for (const posting of postings) {
       if (posting.amount.currency !== currency) {
-        return err({ kind: "CurrencyMismatch", expected: currency, actual: posting.amount.currency });
+        return err({
+          kind: "CurrencyMismatch",
+          expected: currency,
+          actual: posting.amount.currency,
+        });
       }
     }
 
@@ -123,5 +135,8 @@ export function reverse(transaction: Transaction): Transaction {
     amount: posting.amount,
   }));
 
-  return unwrapInvariant(Transaction.create(reversedPostings), "reversing a valid transaction must remain balanced");
+  return unwrapInvariant(
+    Transaction.create(reversedPostings),
+    "reversing a valid transaction must remain balanced",
+  );
 }

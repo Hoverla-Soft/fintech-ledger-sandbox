@@ -47,10 +47,26 @@ describe("cursor codec", () => {
       ["JSON but not an object", Buffer.from("42", "utf8").toString("base64url")],
       ["JSON null", Buffer.from("null", "utf8").toString("base64url")],
       ["JSON array", Buffer.from("[]", "utf8").toString("base64url")],
-      ["missing id", Buffer.from(JSON.stringify({ c: "2026-07-27T00:00:00.000Z" }), "utf8").toString("base64url")],
-      ["missing createdAt", Buffer.from(JSON.stringify({ i: "abc" }), "utf8").toString("base64url")],
-      ["empty id", Buffer.from(JSON.stringify({ c: "2026-07-27T00:00:00.000Z", i: "" }), "utf8").toString("base64url")],
-      ["wrong field types", Buffer.from(JSON.stringify({ c: 1, i: 2 }), "utf8").toString("base64url")],
+      [
+        "missing id",
+        Buffer.from(JSON.stringify({ c: "2026-07-27T00:00:00.000Z" }), "utf8").toString(
+          "base64url",
+        ),
+      ],
+      [
+        "missing createdAt",
+        Buffer.from(JSON.stringify({ i: "abc" }), "utf8").toString("base64url"),
+      ],
+      [
+        "empty id",
+        Buffer.from(JSON.stringify({ c: "2026-07-27T00:00:00.000Z", i: "" }), "utf8").toString(
+          "base64url",
+        ),
+      ],
+      [
+        "wrong field types",
+        Buffer.from(JSON.stringify({ c: 1, i: 2 }), "utf8").toString("base64url"),
+      ],
       ["empty string", ""],
     ];
 
@@ -63,7 +79,9 @@ describe("cursor codec", () => {
       // yields an Invalid Date, which Drizzle would render as SQL NULL,
       // silently matching zero rows and returning an empty page instead of
       // signalling a bad request.
-      const token = Buffer.from(JSON.stringify({ c: "nonsense", i: "abc" }), "utf8").toString("base64url");
+      const token = Buffer.from(JSON.stringify({ c: "nonsense", i: "abc" }), "utf8").toString(
+        "base64url",
+      );
       const decoded = decodeCursor(token);
 
       expect(decoded).toBeNull();

@@ -1,13 +1,18 @@
 import { randomUUID } from "node:crypto";
-
+import type { Db } from "@fintech-ledger-sandbox/db";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { ORPCError } from "@orpc/server";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
-import type { Db } from "@fintech-ledger-sandbox/db";
-
 import { resetRateLimitersForTesting } from "../rate-limit";
-import { clientFor, seedAccount, seedMemberIn, seedTenant, sessionFor, type SeededTenant } from "../test/fixtures";
+import {
+  clientFor,
+  type SeededTenant,
+  seedAccount,
+  seedMemberIn,
+  seedTenant,
+  sessionFor,
+} from "../test/fixtures";
 
 /**
  * The write surface: `accounts.create`, `transactions.create`,
@@ -124,14 +129,22 @@ describe("authorization", () => {
   it("admits an owner, which maps to the admin ledger role", async () => {
     const owner = await seedTenant(db, "Owner", "owner");
     await expect(
-      clientFor(db, sessionFor(owner)).accounts.create({ name: "Ok", currency: "USD", type: "normal" }),
+      clientFor(db, sessionFor(owner)).accounts.create({
+        name: "Ok",
+        currency: "USD",
+        type: "normal",
+      }),
     ).resolves.toMatchObject({ name: "Ok" });
   });
 });
 
 describe("accounts.create", () => {
   it("creates an account with a zero balance", async () => {
-    const account = await asAdmin().accounts.create({ name: "Payroll", currency: "USD", type: "normal" });
+    const account = await asAdmin().accounts.create({
+      name: "Payroll",
+      currency: "USD",
+      type: "normal",
+    });
 
     expect(account.name).toBe("Payroll");
     expect(account.balance).toEqual({ amount: "0.00", currency: "USD" });
@@ -158,7 +171,11 @@ describe("accounts.create", () => {
     const other = await seedTenant(db, "Other", "admin");
 
     await expect(
-      clientFor(db, sessionFor(other)).accounts.create({ name: "Shared", currency: "USD", type: "normal" }),
+      clientFor(db, sessionFor(other)).accounts.create({
+        name: "Shared",
+        currency: "USD",
+        type: "normal",
+      }),
     ).resolves.toMatchObject({ name: "Shared" });
   });
 
@@ -181,7 +198,9 @@ describe("transactions.create", () => {
     expect(posted.postings).toHaveLength(2);
     expect(posted.reversesTransactionId).toBeNull();
 
-    const balances = Object.fromEntries(posted.balances.map((b) => [b.accountId, b.balance.amount]));
+    const balances = Object.fromEntries(
+      posted.balances.map((b) => [b.accountId, b.balance.amount]),
+    );
     expect(balances[wallet]).toBe("100.00");
     expect(balances[funding]).toBe("-100.00");
   });
@@ -199,7 +218,9 @@ describe("transactions.create", () => {
     });
 
     expect(posted.postings).toHaveLength(3);
-    const balances = Object.fromEntries(posted.balances.map((b) => [b.accountId, b.balance.amount]));
+    const balances = Object.fromEntries(
+      posted.balances.map((b) => [b.accountId, b.balance.amount]),
+    );
     expect(balances[wallet]).toBe("95.00");
     expect(balances[fee]).toBe("5.00");
   });
@@ -274,7 +295,9 @@ describe("transactions.create", () => {
       // `Money` — but `ledger_posting.amount` is Postgres int8, so the insert
       // would fail with 22003 and surface as an unaudited 500. The bound is
       // enforced at the contract, so this is a typed 422 instead.
-      const error = await captureError(() => asAdmin().transactions.create(transfer("9".repeat(30))));
+      const error = await captureError(() =>
+        asAdmin().transactions.create(transfer("9".repeat(30))),
+      );
 
       expect(error.status).toBe(422);
       expect(error.data).toEqual({ reason: "invalid_amount" });
@@ -289,7 +312,9 @@ describe("transactions.create", () => {
       // It posts. `wallet` is debited (increasing) and `funding` is external,
       // so nothing else rejects it — the bound admits exactly the values the
       // column can hold, and one minor unit more is refused by the test above.
-      const balances = Object.fromEntries(posted.balances.map((b) => [b.accountId, b.balance.amount]));
+      const balances = Object.fromEntries(
+        posted.balances.map((b) => [b.accountId, b.balance.amount]),
+      );
       expect(balances[wallet]).toBe("92233720368547758.07");
     });
 
@@ -403,7 +428,9 @@ describe("transactions.create", () => {
     it("returns 409 for the same key with a genuinely different payload", async () => {
       const key = randomUUID();
       await asAdmin().transactions.create(transfer("100.00", key));
-      const error = await captureError(() => asAdmin().transactions.create(transfer("250.00", key)));
+      const error = await captureError(() =>
+        asAdmin().transactions.create(transfer("250.00", key)),
+      );
 
       expect(error.status).toBe(409);
       expect(error.data).toEqual({ reason: "idempotency_conflict" });
@@ -421,7 +448,9 @@ describe("transactions.create", () => {
       const fulfilled = results.filter((r) => r.status === "fulfilled");
       expect(fulfilled.length).toBeGreaterThan(0);
 
-      const ids = new Set(fulfilled.map((r) => (r as PromiseFulfilledResult<{ id: string }>).value.id));
+      const ids = new Set(
+        fulfilled.map((r) => (r as PromiseFulfilledResult<{ id: string }>).value.id),
+      );
       expect(ids.size).toBe(1);
 
       const { transactions } = await asAdmin().transactions.list({});
@@ -442,7 +471,9 @@ describe("transactions.reverse", () => {
     expect(reversal.id).not.toBe(original.id);
     expect(reversal.reversesTransactionId).toBe(original.id);
 
-    const balances = Object.fromEntries(reversal.balances.map((b) => [b.accountId, b.balance.amount]));
+    const balances = Object.fromEntries(
+      reversal.balances.map((b) => [b.accountId, b.balance.amount]),
+    );
     expect(balances[wallet]).toBe("0.00");
     expect(balances[funding]).toBe("0.00");
   });
@@ -451,7 +482,10 @@ describe("transactions.reverse", () => {
     const original = await asAdmin().transactions.create(transfer("100.00"));
     const before = await asAdmin().transactions.get({ transactionId: original.id });
 
-    await asAdmin().transactions.reverse({ idempotencyKey: randomUUID(), transactionId: original.id });
+    await asAdmin().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.id,
+    });
 
     const after = await asAdmin().transactions.get({ transactionId: original.id });
     expect(after).toEqual(before);
@@ -470,7 +504,9 @@ describe("transactions.reverse", () => {
     });
 
     expect(reReversal.reversesTransactionId).toBe(reversal.id);
-    const balances = Object.fromEntries(reReversal.balances.map((b) => [b.accountId, b.balance.amount]));
+    const balances = Object.fromEntries(
+      reReversal.balances.map((b) => [b.accountId, b.balance.amount]),
+    );
     expect(balances[wallet]).toBe("100.00");
   });
 
@@ -571,7 +607,11 @@ describe("rate limiting", () => {
 
     const other = await seedTenant(db, "Unaffected", "admin");
     await expect(
-      clientFor(db, sessionFor(other)).accounts.create({ name: "Fine", currency: "USD", type: "normal" }),
+      clientFor(db, sessionFor(other)).accounts.create({
+        name: "Fine",
+        currency: "USD",
+        type: "normal",
+      }),
     ).resolves.toMatchObject({ name: "Fine" });
   });
 

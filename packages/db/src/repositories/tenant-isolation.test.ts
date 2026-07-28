@@ -56,7 +56,9 @@ describe("tenant isolation (invariant #5)", () => {
         // Same error shape for a real-but-foreign id and a genuinely
         // missing one — only the echoed input id differs, never any
         // indication one exists and the other doesn't.
-        expect(Object.keys(crossOrgResult.error).sort()).toEqual(Object.keys(missingResult.error).sort());
+        expect(Object.keys(crossOrgResult.error).sort()).toEqual(
+          Object.keys(missingResult.error).sort(),
+        );
       }
     });
 
@@ -90,7 +92,11 @@ describe("tenant isolation (invariant #5)", () => {
         return;
       }
 
-      const crossOrgResult = await getTransactionById(database.db, orgAId, posted.value.transactionId);
+      const crossOrgResult = await getTransactionById(
+        database.db,
+        orgAId,
+        posted.value.transactionId,
+      );
       const missingResult = await getTransactionById(database.db, orgAId, randomUUID());
 
       expect(crossOrgResult.ok).toBe(false);
@@ -98,7 +104,9 @@ describe("tenant isolation (invariant #5)", () => {
       if (!crossOrgResult.ok && !missingResult.ok) {
         expect(crossOrgResult.error.kind).toBe("TransactionNotFound");
         expect(missingResult.error.kind).toBe("TransactionNotFound");
-        expect(Object.keys(crossOrgResult.error).sort()).toEqual(Object.keys(missingResult.error).sort());
+        expect(Object.keys(crossOrgResult.error).sort()).toEqual(
+          Object.keys(missingResult.error).sort(),
+        );
       }
     });
 
@@ -161,7 +169,9 @@ describe("tenant isolation (invariant #5)", () => {
       });
 
       const reconciliation = await reconcileAccounts(database.db, orgAId);
-      expect(reconciliation.map((row) => row.accountId).sort()).toEqual([orgAFunding, orgANormal].sort());
+      expect(reconciliation.map((row) => row.accountId).sort()).toEqual(
+        [orgAFunding, orgANormal].sort(),
+      );
       for (const row of reconciliation) {
         expect(row.reconciled).toBe(true);
       }

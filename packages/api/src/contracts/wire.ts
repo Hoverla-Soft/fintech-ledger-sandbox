@@ -154,7 +154,9 @@ export function toWireTransactionWithPostings(
   };
 }
 
-export function toWireReconciliation(row: AccountReconciliation): z.infer<typeof reconciliationSchema> {
+export function toWireReconciliation(
+  row: AccountReconciliation,
+): z.infer<typeof reconciliationSchema> {
   return {
     accountId: row.accountId,
     accountName: row.accountName,

@@ -1,7 +1,7 @@
 import {
   err,
-  Money,
   type InvalidAmount,
+  Money,
   type Result,
   type UnsupportedCurrency,
 } from "@fintech-ledger-sandbox/core";
@@ -42,7 +42,7 @@ export const MAX_DECIMAL_AMOUNT_LENGTH = 30;
 /** The response shape for any monetary value. */
 export const moneySchema = z.object({
   amount: z.string().describe("Decimal string, exact. Never a JSON number."),
-  currency: z.string().describe("ISO-4217 code, e.g. \"USD\"."),
+  currency: z.string().describe('ISO-4217 code, e.g. "USD".'),
 });
 
 export type WireMoney = z.infer<typeof moneySchema>;
@@ -62,7 +62,10 @@ export type WireMoney = z.infer<typeof moneySchema>;
 export const decimalAmountSchema = z
   .string()
   .min(1)
-  .max(MAX_DECIMAL_AMOUNT_LENGTH, `Amount must be at most ${MAX_DECIMAL_AMOUNT_LENGTH} characters.`);
+  .max(
+    MAX_DECIMAL_AMOUNT_LENGTH,
+    `Amount must be at most ${MAX_DECIMAL_AMOUNT_LENGTH} characters.`,
+  );
 
 /**
  * The largest magnitude a minor-unit value can take and still be storable.
@@ -102,7 +105,8 @@ export function parseBoundedAmount(
     return parsed;
   }
 
-  const magnitude = parsed.value.minorUnits < 0n ? -parsed.value.minorUnits : parsed.value.minorUnits;
+  const magnitude =
+    parsed.value.minorUnits < 0n ? -parsed.value.minorUnits : parsed.value.minorUnits;
   if (magnitude > MAX_MINOR_UNITS) {
     return err({ kind: "InvalidAmount", reason: "malformed-decimal", input: decimal });
   }
@@ -133,7 +137,9 @@ export function toWireMoney(money: Money): WireMoney {
 export function toWireMoneyFromMinorUnits(minorUnits: bigint, currency: string): WireMoney {
   const result = Money.ofMinorUnits(minorUnits, currency);
   if (!result.ok) {
-    throw new Error(`persisted balance ${minorUnits} in "${currency}" is not a representable amount`);
+    throw new Error(
+      `persisted balance ${minorUnits} in "${currency}" is not a representable amount`,
+    );
   }
   return toWireMoney(result.value);
 }

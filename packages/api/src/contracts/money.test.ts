@@ -1,7 +1,12 @@
 import { Money } from "@fintech-ledger-sandbox/core";
 import { describe, expect, it } from "vitest";
 
-import { decimalAmountSchema, MAX_DECIMAL_AMOUNT_LENGTH, toWireMoney, toWireMoneyFromMinorUnits } from "./money";
+import {
+  decimalAmountSchema,
+  MAX_DECIMAL_AMOUNT_LENGTH,
+  toWireMoney,
+  toWireMoneyFromMinorUnits,
+} from "./money";
 
 function money(decimal: string, currency = "USD"): Money {
   const result = Money.parse(decimal, currency);
@@ -90,6 +95,8 @@ describe("decimalAmountSchema", () => {
 
   it("accepts a value exactly at the cap and rejects one character more", () => {
     expect(decimalAmountSchema.safeParse("9".repeat(MAX_DECIMAL_AMOUNT_LENGTH)).success).toBe(true);
-    expect(decimalAmountSchema.safeParse("9".repeat(MAX_DECIMAL_AMOUNT_LENGTH + 1)).success).toBe(false);
+    expect(decimalAmountSchema.safeParse("9".repeat(MAX_DECIMAL_AMOUNT_LENGTH + 1)).success).toBe(
+      false,
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { Money } from "@fintech-ledger-sandbox/core";
 import { describe, expect, it } from "vitest";
 
-import { toORPCError, type LedgerApiError, type LedgerErrorReason } from "./errors";
+import { type LedgerApiError, type LedgerErrorReason, toORPCError } from "./errors";
 
 function money(decimal: string): Money {
   const result = Money.parse(decimal, "USD");

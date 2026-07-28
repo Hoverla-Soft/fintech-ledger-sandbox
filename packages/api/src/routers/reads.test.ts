@@ -1,19 +1,17 @@
 import { randomUUID } from "node:crypto";
-
+import type { Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-
-import type { Db } from "@fintech-ledger-sandbox/db";
 
 import {
   buildTransfer,
   clientFor,
   postTransfer,
+  type SeededTenant,
   seedAccount,
   seedTenant,
   sessionFor,
-  type SeededTenant,
 } from "../test/fixtures";
 
 /**
@@ -136,14 +134,18 @@ describe("transactions.list pagination", () => {
   });
 
   it("rejects a malformed cursor as 400 rather than returning an empty page", async () => {
-    await expect(client().transactions.list({ cursor: "not-a-real-cursor" })).rejects.toMatchObject({
-      status: 400,
-      code: "BAD_REQUEST",
-    });
+    await expect(client().transactions.list({ cursor: "not-a-real-cursor" })).rejects.toMatchObject(
+      {
+        status: 400,
+        code: "BAD_REQUEST",
+      },
+    );
   });
 
   it("rejects an out-of-range limit at the contract boundary", async () => {
-    await expect(client().transactions.list({ limit: 10_000 })).rejects.toMatchObject({ status: 400 });
+    await expect(client().transactions.list({ limit: 10_000 })).rejects.toMatchObject({
+      status: 400,
+    });
     await expect(client().transactions.list({ limit: 0 })).rejects.toMatchObject({ status: 400 });
   });
 });

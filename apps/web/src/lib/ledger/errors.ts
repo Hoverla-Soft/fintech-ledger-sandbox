@@ -83,7 +83,8 @@ export interface FailureCopy {
 const COPY = {
   account_inactive: {
     title: "That account is closed",
-    detail: "It can still be read, but it cannot take part in a new transaction. Pick an active account.",
+    detail:
+      "It can still be read, but it cannot take part in a new transaction. Pick an active account.",
     disposition: "fix_input",
   },
   account_name_taken: {
@@ -137,7 +138,8 @@ const COPY = {
   },
   non_positive_amount: {
     title: "Amount has to be greater than zero",
-    detail: "Every leg of a transaction moves a positive amount. Direction is what decides which way money goes.",
+    detail:
+      "Every leg of a transaction moves a positive amount. Direction is what decides which way money goes.",
     disposition: "fix_input",
   },
   not_a_member: {
@@ -211,7 +213,10 @@ export interface DescribedFailure extends FailureCopy {
   /** `null` when the server sent no reason — a bare 401, a Zod rejection, or an unmapped 500. */
   readonly reason: LedgerReason | null;
   /** Field-level issues from an oRPC `BAD_REQUEST`, for a form to attach to inputs. */
-  readonly issues: readonly { readonly path: readonly (string | number)[]; readonly message: string }[];
+  readonly issues: readonly {
+    readonly path: readonly (string | number)[];
+    readonly message: string;
+  }[];
   readonly rateLimit: RateLimitDetail | null;
 }
 
@@ -228,8 +233,12 @@ function isReason(candidate: unknown): candidate is LedgerReason {
  * would throw inside the error handler.
  */
 export function describeFailure(error: unknown): DescribedFailure {
-  const record = typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
-  const data = typeof record.data === "object" && record.data !== null ? (record.data as Record<string, unknown>) : {};
+  const record =
+    typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
+  const data =
+    typeof record.data === "object" && record.data !== null
+      ? (record.data as Record<string, unknown>)
+      : {};
   const status = typeof record.status === "number" ? record.status : null;
   const code = typeof record.code === "string" ? record.code : null;
 
@@ -261,7 +270,8 @@ function readRateLimit(data: Record<string, unknown>): RateLimitDetail {
   return {
     scope: typeof data.scope === "string" ? data.scope : undefined,
     limit: typeof data.limit === "number" ? data.limit : undefined,
-    retryAfterSeconds: typeof data.retryAfterSeconds === "number" ? data.retryAfterSeconds : undefined,
+    retryAfterSeconds:
+      typeof data.retryAfterSeconds === "number" ? data.retryAfterSeconds : undefined,
   };
 }
 
@@ -280,7 +290,10 @@ function readIssues(data: Record<string, unknown>): DescribedFailure["issues"] {
       return [];
     }
     const path = Array.isArray(entry.path)
-      ? entry.path.filter((segment): segment is string | number => typeof segment === "string" || typeof segment === "number")
+      ? entry.path.filter(
+          (segment): segment is string | number =>
+            typeof segment === "string" || typeof segment === "number",
+        )
       : [];
     return [{ path, message }];
   });

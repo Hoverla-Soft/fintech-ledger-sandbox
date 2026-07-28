@@ -57,7 +57,11 @@ function HomeComponent() {
               }`}
             />
             <span className="text-sm text-muted-foreground">
-              {healthCheck.isPending ? "Checking…" : healthCheck.data ? "Connected" : "Disconnected"}
+              {healthCheck.isPending
+                ? "Checking…"
+                : healthCheck.data
+                  ? "Connected"
+                  : "Disconnected"}
             </span>
           </div>
         </section>

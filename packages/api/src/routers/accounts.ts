@@ -1,5 +1,9 @@
 import { parseCurrency } from "@fintech-ledger-sandbox/core";
-import { createAccount, getAccountById, listAccounts } from "@fintech-ledger-sandbox/db/repositories";
+import {
+  createAccount,
+  getAccountById,
+  listAccounts,
+} from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
 import { accountSchema, toWireAccount } from "../contracts/wire";

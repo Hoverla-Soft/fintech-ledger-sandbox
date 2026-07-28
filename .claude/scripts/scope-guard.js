@@ -59,7 +59,7 @@ function main() {
     process.stderr.write(
       `Blocked: this Claude session (${sessionId || "unknown"}) has no registered team Scope.\n` +
         `Create .claude/.active-task-scope.<session_id>.json for every lead/teammate before parallel edits.\n` +
-        `Do not fall back to another teammate's Scope.`
+        `Do not fall back to another teammate's Scope.`,
     );
     process.exit(2);
   } else {
@@ -94,7 +94,7 @@ function main() {
     process.stderr.write(
       `Blocked: "${relativePath}" is outside the active task's declared Scope (${scopeData.taskFile || "unknown task"}).\n` +
         `Allowed paths:\n${scope.map((s) => "  - " + s).join("\n")}\n\n` +
-        `If this file genuinely needs to change, stop and update the Scope section in ${scopeData.taskFile || "the task file"} first, then continue — don't just retry the same edit.`
+        `If this file genuinely needs to change, stop and update the Scope section in ${scopeData.taskFile || "the task file"} first, then continue — don't just retry the same edit.`,
     );
     process.exit(2);
   }

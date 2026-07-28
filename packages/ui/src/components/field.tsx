@@ -25,10 +25,7 @@ function Field({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="field" className={cn("space-y-2", className)} {...props} />;
 }
 
-function FieldLabel({
-  className,
-  ...props
-}: React.ComponentProps<"label"> & { htmlFor: string }) {
+function FieldLabel({ className, ...props }: React.ComponentProps<"label"> & { htmlFor: string }) {
   return (
     <label
       data-slot="field-label"
@@ -100,4 +97,4 @@ function fieldControlProps({
   } as const;
 }
 
-export { Field, FieldLabel, FieldError, FieldDescription, fieldControlProps };
+export { Field, FieldDescription, FieldError, FieldLabel, fieldControlProps };

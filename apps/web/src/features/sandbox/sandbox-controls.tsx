@@ -15,7 +15,7 @@ import {
 } from "@/lib/ledger/idempotency";
 import { client, orpc } from "@/utils/orpc";
 
-import { runResetLoop, type ResetProgress } from "./reset-loop";
+import { type ResetProgress, runResetLoop } from "./reset-loop";
 import { type ScenarioOutcome, ScenarioOutcomes } from "./scenario-outcomes";
 
 /**
@@ -188,7 +188,12 @@ export function SandboxControls() {
             <AlertTitle>Reconciliation alarm</AlertTitle>
             <AlertDescription>
               <p>{alarm}</p>
-              <Button variant="outline" size="sm" className="mt-2" render={<Link to="/reconciliation" />}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                render={<Link to="/reconciliation" />}
+              >
                 Check reconciliation
               </Button>
             </AlertDescription>

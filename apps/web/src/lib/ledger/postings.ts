@@ -106,7 +106,12 @@ export function composeTransfer(intent: TransferIntent): Composition {
   return {
     ok: true,
     postings: [
-      { accountId: intent.destinationAccountId, direction: "debit", amount, currency: intent.currency },
+      {
+        accountId: intent.destinationAccountId,
+        direction: "debit",
+        amount,
+        currency: intent.currency,
+      },
       { accountId: intent.sourceAccountId, direction: "credit", amount, currency: intent.currency },
     ],
   };
@@ -159,7 +164,10 @@ export function composeLegs(legs: readonly LegIntent[], currency: string): Compo
 
 /** Debit positive, credit negative — the convention `packages/core` materializes balances with. */
 function signedSum(legs: readonly LegIntent[]): bigint {
-  return legs.reduce((total, leg) => total + (leg.direction === "debit" ? leg.minorUnits : -leg.minorUnits), 0n);
+  return legs.reduce(
+    (total, leg) => total + (leg.direction === "debit" ? leg.minorUnits : -leg.minorUnits),
+    0n,
+  );
 }
 
 /**
@@ -177,15 +185,21 @@ function signedSum(legs: readonly LegIntent[]): bigint {
  */
 export function assertBalanced(postings: readonly PostingInput[]): true {
   if (postings.length < MIN_POSTINGS) {
-    throw new Error(`Refusing to send ${postings.length} postings; a transaction needs at least ${MIN_POSTINGS}.`);
+    throw new Error(
+      `Refusing to send ${postings.length} postings; a transaction needs at least ${MIN_POSTINGS}.`,
+    );
   }
   if (postings.length > MAX_POSTINGS) {
-    throw new Error(`Refusing to send ${postings.length} postings; the API accepts at most ${MAX_POSTINGS}.`);
+    throw new Error(
+      `Refusing to send ${postings.length} postings; the API accepts at most ${MAX_POSTINGS}.`,
+    );
   }
 
   const currencies = new Set(postings.map((posting) => posting.currency));
   if (currencies.size > 1) {
-    throw new Error(`Refusing to send postings spanning ${currencies.size} currencies; a transaction is single-currency.`);
+    throw new Error(
+      `Refusing to send postings spanning ${currencies.size} currencies; a transaction is single-currency.`,
+    );
   }
 
   // Every leg is rescaled to one common fraction width before summing.
@@ -207,7 +221,9 @@ export function assertBalanced(postings: readonly PostingInput[]): true {
   }, 0n);
 
   if (total !== 0n) {
-    throw new Error(`Refusing to send an unbalanced transaction; debits minus credits is ${total}, not 0.`);
+    throw new Error(
+      `Refusing to send an unbalanced transaction; debits minus credits is ${total}, not 0.`,
+    );
   }
 
   return true;
@@ -221,7 +237,9 @@ function decomposeDecimal(decimal: string): {
 } {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(decimal);
   if (match === null) {
-    throw new Error(`Refusing to send a posting whose amount is not a decimal string: ${JSON.stringify(decimal)}`);
+    throw new Error(
+      `Refusing to send a posting whose amount is not a decimal string: ${JSON.stringify(decimal)}`,
+    );
   }
   const [, sign = "", integerDigits = "", fractionDigits = ""] = match;
   return { negative: sign === "-", integerDigits, fractionDigits };

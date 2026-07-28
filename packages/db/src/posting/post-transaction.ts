@@ -1,26 +1,31 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  applyDelta,
-  err,
-  Money,
-  ok,
   type Account,
-  type CurrencyMismatch,
+  applyDelta,
   type Currency,
+  type CurrencyMismatch,
+  err,
   type InsufficientFunds,
   type LedgerError,
+  type Money,
+  ok,
   type PostingDirection,
   type Result,
   type Transaction,
 } from "@fintech-ledger-sandbox/core";
 import { and, eq, inArray } from "drizzle-orm";
-
-import type { Db } from "../index";
 import type { AccountInactive, AccountNotFound, IdempotencyConflict } from "../errors";
+import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
 import { recordRejection } from "../repositories/audit";
-import { ledgerAccount, ledgerAuditEntry, ledgerIdempotencyKey, ledgerPosting, ledgerTransaction } from "../schema/ledger";
+import {
+  ledgerAccount,
+  ledgerAuditEntry,
+  ledgerIdempotencyKey,
+  ledgerPosting,
+  ledgerTransaction,
+} from "../schema/ledger";
 import { lockAccounts } from "./lock-accounts";
 import { reserveIdempotencyKey } from "./reserve-key";
 
@@ -60,10 +65,18 @@ export interface PostTransactionInput {
 }
 
 /** Everything `postTransaction` can fail with: this package's own persistence errors, unioned with core's domain error union. */
-export type PostTransactionError = AccountNotFound | AccountInactive | IdempotencyConflict | LedgerError;
+export type PostTransactionError =
+  | AccountNotFound
+  | AccountInactive
+  | IdempotencyConflict
+  | LedgerError;
 
 /** The subset of domain errors that can actually surface from *inside* the locked section of the routine below. */
-type DomainRejectionReason = AccountNotFound | AccountInactive | CurrencyMismatch | InsufficientFunds;
+type DomainRejectionReason =
+  | AccountNotFound
+  | AccountInactive
+  | CurrencyMismatch
+  | InsufficientFunds;
 
 /**
  * Thrown from inside the `db.transaction(...)` callback to force a full
@@ -151,7 +164,9 @@ export async function postTransaction(
       for (const [accountId, delta] of input.transaction.deltas()) {
         const row = lockedAccounts.get(accountId);
         if (row === undefined) {
-          throw new Error(`locked account "${accountId}" missing after lockAccounts reported every id present`);
+          throw new Error(
+            `locked account "${accountId}" missing after lockAccounts reported every id present`,
+          );
         }
 
         const account: Account = {
@@ -208,7 +223,10 @@ export async function postTransaction(
           .where(and(eq(ledgerAccount.id, accountId), eq(ledgerAccount.orgId, input.orgId)));
       }
 
-      await tx.update(ledgerIdempotencyKey).set({ transactionId }).where(eq(ledgerIdempotencyKey.id, reservation.value.id));
+      await tx
+        .update(ledgerIdempotencyKey)
+        .set({ transactionId })
+        .where(eq(ledgerIdempotencyKey.id, reservation.value.id));
 
       await tx.insert(ledgerAuditEntry).values({
         id: randomUUID(),
@@ -335,7 +353,10 @@ function serializeRejectionMetadata(reason: DomainRejectionReason): Record<strin
  * applies to the pre-persistence rejections it records. The failure is logged
  * so the gap is visible rather than silent.
  */
-async function auditBestEffort(db: Db, entry: Parameters<typeof recordRejection>[1]): Promise<void> {
+async function auditBestEffort(
+  db: Db,
+  entry: Parameters<typeof recordRejection>[1],
+): Promise<void> {
   try {
     await recordRejection(db, entry);
   } catch (auditError) {
@@ -346,7 +367,11 @@ async function auditBestEffort(db: Db, entry: Parameters<typeof recordRejection>
   }
 }
 
-async function writeRejectionAudit(db: Db, input: PostTransactionInput, reason: DomainRejectionReason): Promise<void> {
+async function writeRejectionAudit(
+  db: Db,
+  input: PostTransactionInput,
+  reason: DomainRejectionReason,
+): Promise<void> {
   await auditBestEffort(db, {
     orgId: input.orgId,
     actorUserId: input.actorId,
@@ -357,14 +382,20 @@ async function writeRejectionAudit(db: Db, input: PostTransactionInput, reason: 
 }
 
 /** Reconstructs the original `PostedTransaction` for an idempotency replay — the caller gets back the same result as the original successful call, never a second posting. */
-async function loadPostedTransaction(db: Db, orgId: string, transactionId: string): Promise<PostedTransaction> {
+async function loadPostedTransaction(
+  db: Db,
+  orgId: string,
+  transactionId: string,
+): Promise<PostedTransaction> {
   const [transactionRow] = await db
     .select()
     .from(ledgerTransaction)
     .where(and(eq(ledgerTransaction.id, transactionId), eq(ledgerTransaction.orgId, orgId)));
 
   if (transactionRow === undefined) {
-    throw new Error(`idempotency replay pointed at missing ledger_transaction "${transactionId}" for org "${orgId}"`);
+    throw new Error(
+      `idempotency replay pointed at missing ledger_transaction "${transactionId}" for org "${orgId}"`,
+    );
   }
 
   const postingRows = await db

@@ -102,7 +102,10 @@ describe("PostingsTable", () => {
   it("renders account names rather than ids when it can", () => {
     render(
       <PostingsTable
-        postings={[posting({ id: "a", accountId: "acc-1" }), posting({ id: "b", accountId: "acc-2", direction: "credit" })]}
+        postings={[
+          posting({ id: "a", accountId: "acc-1" }),
+          posting({ id: "b", accountId: "acc-2", direction: "credit" }),
+        ]}
         accountNames={names}
       />,
     );

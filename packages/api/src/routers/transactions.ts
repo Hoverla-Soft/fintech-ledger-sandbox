@@ -2,14 +2,19 @@ import {
   createPosting,
   err,
   ok,
-  reverse,
-  Transaction,
   type Posting,
   type Result,
+  reverse,
+  Transaction,
 } from "@fintech-ledger-sandbox/core";
 import type { Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
-import { getTransactionById, listTransactions, recordRejection } from "@fintech-ledger-sandbox/db/repositories";
+import {
+  getTransactionById,
+  listTransactions,
+  recordRejection,
+  type TransactionCursor,
+} from "@fintech-ledger-sandbox/db/repositories";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
@@ -18,13 +23,13 @@ import { decimalAmountSchema, parseBoundedAmount } from "../contracts/money";
 import { computeRequestHash } from "../contracts/request-hash";
 import {
   postedTransactionSchema,
-  transactionSchema,
-  transactionWithPostingsSchema,
   toWirePostedTransaction,
   toWireTransaction,
   toWireTransactionWithPostings,
+  transactionSchema,
+  transactionWithPostingsSchema,
 } from "../contracts/wire";
-import { reasonFor, toORPCError, type LedgerApiError } from "../errors";
+import { type LedgerApiError, reasonFor, toORPCError } from "../errors";
 import { adminProcedure, orgProcedure } from "../procedures";
 
 /**
@@ -66,7 +71,12 @@ function unwrapPosting(result: ReturnType<typeof createPosting>): Posting {
  * in `Transaction.create`.
  */
 function buildTransaction(
-  postings: ReadonlyArray<{ accountId: string; direction: "debit" | "credit"; amount: string; currency: string }>,
+  postings: ReadonlyArray<{
+    accountId: string;
+    direction: "debit" | "credit";
+    amount: string;
+    currency: string;
+  }>,
 ): Result<Transaction, LedgerApiError> {
   const built: Posting[] = [];
 
@@ -139,7 +149,9 @@ async function postAndLoad(
     idempotencyKey: input.idempotencyKey,
     requestHash: computeRequestHash(input.transaction, input.reversesTransactionId),
     transaction: input.transaction,
-    ...(input.reversesTransactionId === null ? {} : { reversesTransactionId: input.reversesTransactionId }),
+    ...(input.reversesTransactionId === null
+      ? {}
+      : { reversesTransactionId: input.reversesTransactionId }),
   });
 
   if (!posted.ok) {
@@ -272,7 +284,7 @@ export const transactionsRouter = {
       // server fault. Decoding before the query also keeps an Invalid Date
       // from reaching Drizzle, where it would become SQL NULL and silently
       // return an empty page instead of an error.
-      let after;
+      let after: TransactionCursor | undefined;
       if (input.cursor !== undefined) {
         const decoded = decodeCursor(input.cursor);
         if (decoded === null) {

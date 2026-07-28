@@ -56,19 +56,28 @@ describe("applyDelta — normal account funds rule", () => {
 
 describe("applyDelta — external account", () => {
   it("accepts the same negative-driving delta a normal account would reject", () => {
-    const result = unwrapOk(applyDelta(account("external"), usd(50n), usd(-60n)), "external below zero");
+    const result = unwrapOk(
+      applyDelta(account("external"), usd(50n), usd(-60n)),
+      "external below zero",
+    );
     expect(result.minorUnits).toBe(-10n);
   });
 });
 
 describe("applyDelta — currency check runs before the funds rule", () => {
   it("returns CurrencyMismatch, not InsufficientFunds, when the balance currency disagrees with the account", () => {
-    const error = unwrapErr(applyDelta(account("normal"), eur(5n), usd(-1000n)), "balance currency mismatch");
+    const error = unwrapErr(
+      applyDelta(account("normal"), eur(5n), usd(-1000n)),
+      "balance currency mismatch",
+    );
     expect(error).toEqual({ kind: "CurrencyMismatch", expected: "USD", actual: "EUR" });
   });
 
   it("returns CurrencyMismatch, not InsufficientFunds, when the delta currency disagrees with the account", () => {
-    const error = unwrapErr(applyDelta(account("normal"), usd(5n), eur(-1000n)), "delta currency mismatch");
+    const error = unwrapErr(
+      applyDelta(account("normal"), usd(5n), eur(-1000n)),
+      "delta currency mismatch",
+    );
     expect(error).toEqual({ kind: "CurrencyMismatch", expected: "USD", actual: "EUR" });
   });
 });

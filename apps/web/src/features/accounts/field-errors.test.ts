@@ -77,7 +77,11 @@ describe("toFieldErrors", () => {
   });
 
   it("never surfaces the server's raw message on any branch", () => {
-    for (const reason of ["account_name_taken", "unsupported_currency", "insufficient_role"] as LedgerReason[]) {
+    for (const reason of [
+      "account_name_taken",
+      "unsupported_currency",
+      "insufficient_role",
+    ] as LedgerReason[]) {
       const failure = describeFailure(orpcError("CONFLICT", 409, { reason }));
       const errors = toFieldErrors(failure);
       for (const value of Object.values(errors)) {

@@ -81,7 +81,10 @@ export type PersistenceError =
   | TransactionNotFound
   | IdempotencyConflict;
 
-export function isPersistenceError(candidate: unknown, kind: PersistenceError["kind"]): candidate is PersistenceError {
+export function isPersistenceError(
+  candidate: unknown,
+  kind: PersistenceError["kind"],
+): candidate is PersistenceError {
   return (
     typeof candidate === "object" &&
     candidate !== null &&

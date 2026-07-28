@@ -1,5 +1,5 @@
 import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
-import * as React from "react";
+import type * as React from "react";
 
 function Card({
   className,
@@ -81,4 +81,4 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };
+export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };

@@ -22,7 +22,7 @@ test("accepts a contiguous journal with matching SQL files", (t) => {
       { idx: 0, tag: "0000_first", when: 1000 },
       { idx: 1, tag: "0001_second", when: 2000 },
     ],
-    ["0000_first", "0001_second"]
+    ["0000_first", "0001_second"],
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   assert.deepEqual(checkProject(root), []);
@@ -42,7 +42,7 @@ test("rejects gaps and timestamps that go backwards", (t) => {
       { idx: 0, tag: "0000_first", when: 2000 },
       { idx: 2, tag: "0002_third", when: 1000 },
     ],
-    ["0000_first", "0002_third"]
+    ["0000_first", "0002_third"],
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const issues = checkProject(root)[0].issues.join("\n");

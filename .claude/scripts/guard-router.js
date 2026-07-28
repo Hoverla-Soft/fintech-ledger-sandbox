@@ -66,7 +66,7 @@ function main() {
         hookEventName: "PostToolUse",
         additionalContext: message,
       },
-    })
+    }),
   );
   process.exit(0);
 }

@@ -28,15 +28,21 @@ describe("isExpectedRejection", () => {
     // Rendering it as a failure would report the suite as broken when it is
     // behaving exactly as designed.
     expect(
-      isExpectedRejection(outcome({ outcome: "rejected", reason: "insufficient_funds", transactionId: null })),
+      isExpectedRejection(
+        outcome({ outcome: "rejected", reason: "insufficient_funds", transactionId: null }),
+      ),
     ).toBe(true);
   });
 
   it("does not treat an unexpected rejection as expected", () => {
     expect(
-      isExpectedRejection(outcome({ outcome: "rejected", reason: "currency_mismatch", transactionId: null })),
+      isExpectedRejection(
+        outcome({ outcome: "rejected", reason: "currency_mismatch", transactionId: null }),
+      ),
     ).toBe(false);
-    expect(isExpectedRejection(outcome({ outcome: "rejected", reason: null, transactionId: null }))).toBe(false);
+    expect(
+      isExpectedRejection(outcome({ outcome: "rejected", reason: null, transactionId: null })),
+    ).toBe(false);
   });
 
   it("does not treat a posted scenario as a rejection", () => {

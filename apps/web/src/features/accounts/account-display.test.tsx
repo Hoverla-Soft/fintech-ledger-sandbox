@@ -21,7 +21,9 @@ describe("AccountBalance", () => {
     // The server has already formatted this with Money.format() at the
     // currency's own exponent. Re-deriving it client-side would create a
     // second formatting path that could disagree.
-    render(<AccountBalance account={account({ balance: { amount: "1234.50", currency: "USD" } })} />);
+    render(
+      <AccountBalance account={account({ balance: { amount: "1234.50", currency: "USD" } })} />,
+    );
     expect(screen.getByText("1234.50 USD")).toBeInTheDocument();
   });
 
@@ -68,12 +70,16 @@ describe("AccountBalance", () => {
 
 describe("isSuspenseAccount", () => {
   it("recognises the accounts sandbox reset opens on its own", () => {
-    expect(isSuspenseAccount(account({ type: "external", name: "Sandbox Suspense USD" }))).toBe(true);
+    expect(isSuspenseAccount(account({ type: "external", name: "Sandbox Suspense USD" }))).toBe(
+      true,
+    );
   });
 
   it("does not mistake a user-named account for one", () => {
     expect(isSuspenseAccount(account({ type: "external", name: "Sandbox Funding" }))).toBe(false);
     // A `normal` account can never be a suspense account regardless of name.
-    expect(isSuspenseAccount(account({ type: "normal", name: "Sandbox Suspense USD" }))).toBe(false);
+    expect(isSuspenseAccount(account({ type: "normal", name: "Sandbox Suspense USD" }))).toBe(
+      false,
+    );
   });
 });

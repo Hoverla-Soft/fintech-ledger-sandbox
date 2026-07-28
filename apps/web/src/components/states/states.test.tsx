@@ -31,7 +31,11 @@ describe("LoadingRows", () => {
 
 describe("ErrorState", () => {
   it("renders the mapped copy and never the server's message", () => {
-    render(<ErrorState error={orpcError("UNPROCESSABLE_CONTENT", 422, { reason: "insufficient_funds" })} />);
+    render(
+      <ErrorState
+        error={orpcError("UNPROCESSABLE_CONTENT", 422, { reason: "insufficient_funds" })}
+      />,
+    );
     expect(screen.getByText("Not enough funds")).toBeInTheDocument();
     expect(screen.queryByText(/fixed server string/)).not.toBeInTheDocument();
   });
@@ -46,7 +50,10 @@ describe("ErrorState", () => {
   it("surfaces the retry-after window from a throttled response body", () => {
     render(
       <ErrorState
-        error={orpcError("TOO_MANY_REQUESTS", 429, { reason: "rate_limited", retryAfterSeconds: 12 })}
+        error={orpcError("TOO_MANY_REQUESTS", 429, {
+          reason: "rate_limited",
+          retryAfterSeconds: 12,
+        })}
       />,
     );
     expect(screen.getByText(/about 12 seconds/)).toBeInTheDocument();
@@ -128,7 +135,11 @@ describe("QueryState precedence", () => {
 describe("EmptyState", () => {
   it("always carries a next action", () => {
     render(
-      <EmptyState title="No accounts yet" description="Create one." action={<button>Create</button>} />,
+      <EmptyState
+        title="No accounts yet"
+        description="Create one."
+        action={<button type="button">Create</button>}
+      />,
     );
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
@@ -136,7 +147,11 @@ describe("EmptyState", () => {
 
   it("is visually distinguishable from the error state by test id and role", () => {
     const { unmount } = render(
-      <EmptyState title="No accounts yet" description="Create one." action={<button>Create</button>} />,
+      <EmptyState
+        title="No accounts yet"
+        description="Create one."
+        action={<button type="button">Create</button>}
+      />,
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     unmount();

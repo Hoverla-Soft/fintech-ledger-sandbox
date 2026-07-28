@@ -26,6 +26,7 @@
 
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -37,7 +38,6 @@ import {
   text,
   timestamp,
   unique,
-  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";

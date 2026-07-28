@@ -41,25 +41,42 @@ describe("postTransaction under real concurrency", () => {
       const CONCURRENCY = 6;
       const results = await Promise.all(
         Array.from({ length: CONCURRENCY }, () =>
-          postTransaction(database.db, { orgId, actorId, idempotencyKey, requestHash, transaction }),
+          postTransaction(database.db, {
+            orgId,
+            actorId,
+            idempotencyKey,
+            requestHash,
+            transaction,
+          }),
         ),
       );
 
       for (const result of results) {
         expect(result.ok).toBe(true);
       }
-      const transactionIds = new Set(results.map((result) => (result.ok ? result.value.transactionId : undefined)));
+      const transactionIds = new Set(
+        results.map((result) => (result.ok ? result.value.transactionId : undefined)),
+      );
       expect(transactionIds.size).toBe(1);
 
-      const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+      const transactionRows = await database.db
+        .select()
+        .from(ledgerTransaction)
+        .where(eq(ledgerTransaction.orgId, orgId));
       expect(transactionRows).toHaveLength(1);
 
-      const postingRows = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+      const postingRows = await database.db
+        .select()
+        .from(ledgerPosting)
+        .where(eq(ledgerPosting.orgId, orgId));
       expect(postingRows).toHaveLength(2);
 
       // Proves only ONE transfer applied despite `CONCURRENCY` callers —
       // 1000n (one $10.00 transfer), never 6 x 1000n.
-      const [destinationRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, destination));
+      const [destinationRow] = await database.db
+        .select()
+        .from(ledgerAccount)
+        .where(eq(ledgerAccount.id, destination));
       expect(destinationRow?.balance).toBe(1000n);
     });
 
@@ -71,17 +88,35 @@ describe("postTransaction under real concurrency", () => {
       const idempotencyKey = randomUUID();
       const requestHash = "replay-hash";
 
-      const first = await postTransaction(database.db, { orgId, actorId, idempotencyKey, requestHash, transaction });
+      const first = await postTransaction(database.db, {
+        orgId,
+        actorId,
+        idempotencyKey,
+        requestHash,
+        transaction,
+      });
       expect(first.ok).toBe(true);
-      const second = await postTransaction(database.db, { orgId, actorId, idempotencyKey, requestHash, transaction });
+      const second = await postTransaction(database.db, {
+        orgId,
+        actorId,
+        idempotencyKey,
+        requestHash,
+        transaction,
+      });
       expect(second.ok).toBe(true);
       if (first.ok && second.ok) {
         expect(second.value.transactionId).toBe(first.value.transactionId);
       }
 
-      const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+      const transactionRows = await database.db
+        .select()
+        .from(ledgerTransaction)
+        .where(eq(ledgerTransaction.orgId, orgId));
       expect(transactionRows).toHaveLength(1);
-      const postingRows = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+      const postingRows = await database.db
+        .select()
+        .from(ledgerPosting)
+        .where(eq(ledgerPosting.orgId, orgId));
       expect(postingRows).toHaveLength(2);
     });
 
@@ -115,9 +150,15 @@ describe("postTransaction under real concurrency", () => {
         }
       }
 
-      const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+      const transactionRows = await database.db
+        .select()
+        .from(ledgerTransaction)
+        .where(eq(ledgerTransaction.orgId, orgId));
       expect(transactionRows).toHaveLength(1);
-      const [destinationRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, destination));
+      const [destinationRow] = await database.db
+        .select()
+        .from(ledgerAccount)
+        .where(eq(ledgerAccount.id, destination));
       expect(destinationRow?.balance).toBe(2000n);
     });
 
@@ -156,10 +197,14 @@ describe("postTransaction under real concurrency", () => {
       );
 
       const okResults = results.filter((result) => result.ok);
-      const errResults = results.filter((result): result is Extract<(typeof results)[number], { ok: false }> => !result.ok);
+      const errResults = results.filter(
+        (result): result is Extract<(typeof results)[number], { ok: false }> => !result.ok,
+      );
 
       expect(okResults.length).toBeGreaterThan(0);
-      const transactionIds = new Set(okResults.map((result) => (result.ok ? result.value.transactionId : undefined)));
+      const transactionIds = new Set(
+        okResults.map((result) => (result.ok ? result.value.transactionId : undefined)),
+      );
       expect(transactionIds.size).toBe(1);
 
       for (const errResult of errResults) {
@@ -169,9 +214,15 @@ describe("postTransaction under real concurrency", () => {
         }
       }
 
-      const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+      const transactionRows = await database.db
+        .select()
+        .from(ledgerTransaction)
+        .where(eq(ledgerTransaction.orgId, orgId));
       expect(transactionRows).toHaveLength(1);
-      const postingRows = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+      const postingRows = await database.db
+        .select()
+        .from(ledgerPosting)
+        .where(eq(ledgerPosting.orgId, orgId));
       expect(postingRows).toHaveLength(2);
     });
   });
@@ -209,18 +260,26 @@ describe("postTransaction under real concurrency", () => {
       );
 
       const succeeded = results.filter((result) => result.ok);
-      const rejected = results.filter((result): result is Extract<(typeof results)[number], { ok: false }> => !result.ok);
+      const rejected = results.filter(
+        (result): result is Extract<(typeof results)[number], { ok: false }> => !result.ok,
+      );
       expect(succeeded).toHaveLength(3);
       expect(rejected).toHaveLength(2);
       for (const result of rejected) {
         expect(result.error.kind).toBe("InsufficientFunds");
       }
 
-      const [walletRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, wallet));
+      const [walletRow] = await database.db
+        .select()
+        .from(ledgerAccount)
+        .where(eq(ledgerAccount.id, wallet));
       expect(walletRow?.balance).toBe(1000n); // $10.00 remains
       expect(walletRow !== undefined && walletRow.balance >= 0n).toBe(true);
 
-      const [fundingRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, funding));
+      const [fundingRow] = await database.db
+        .select()
+        .from(ledgerAccount)
+        .where(eq(ledgerAccount.id, funding));
       expect(fundingRow?.balance).toBe(-1000n); // -$10.00: external may go negative
       expect(fundingRow !== undefined && fundingRow.balance < 0n).toBe(true);
 

@@ -9,5 +9,11 @@
  * (its input/output/error shapes), not the internals, so they travel with
  * it.
  */
+
+export type {
+  PostedPosting,
+  PostedTransaction,
+  PostTransactionError,
+  PostTransactionInput,
+} from "./post-transaction";
 export { postTransaction } from "./post-transaction";
-export type { PostedPosting, PostedTransaction, PostTransactionError, PostTransactionInput } from "./post-transaction";

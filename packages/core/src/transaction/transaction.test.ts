@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Money } from "../money/money";
 import type { Result } from "../result";
-import { createPosting } from "./posting";
 import type { Posting } from "./posting";
+import { createPosting } from "./posting";
 import { reverse, Transaction } from "./transaction";
 
 function unwrapOk<T, E>(result: Result<T, E>, label: string): T {
@@ -28,11 +28,17 @@ function eur(minorUnits: bigint): Money {
 }
 
 function debit(accountId: string, minorUnits: bigint): Posting {
-  return unwrapOk(createPosting(accountId, "debit", usd(minorUnits)), `debit ${accountId} ${minorUnits}`);
+  return unwrapOk(
+    createPosting(accountId, "debit", usd(minorUnits)),
+    `debit ${accountId} ${minorUnits}`,
+  );
 }
 
 function credit(accountId: string, minorUnits: bigint): Posting {
-  return unwrapOk(createPosting(accountId, "credit", usd(minorUnits)), `credit ${accountId} ${minorUnits}`);
+  return unwrapOk(
+    createPosting(accountId, "credit", usd(minorUnits)),
+    `credit ${accountId} ${minorUnits}`,
+  );
 }
 
 describe("Transaction.create — leg count", () => {
@@ -68,7 +74,10 @@ describe("Transaction.create — balance", () => {
 
 describe("Transaction.create — happy paths", () => {
   it("accepts a balanced 2-leg transfer", () => {
-    const txn = unwrapOk(Transaction.create([debit("a", 100n), credit("b", 100n)]), "2-leg transfer");
+    const txn = unwrapOk(
+      Transaction.create([debit("a", 100n), credit("b", 100n)]),
+      "2-leg transfer",
+    );
     expect(txn.postings.length).toBe(2);
     expect(txn.currency).toBe("USD");
   });
@@ -84,7 +93,11 @@ describe("Transaction.create — happy paths", () => {
 
 describe("Transaction.create — validation order (leg count -> currency -> positivity -> balance)", () => {
   it("reports CurrencyMismatch before NonPositiveAmount when a posting violates both", () => {
-    const currencyAndSignViolator: Posting = { accountId: "b", direction: "credit", amount: eur(-10n) };
+    const currencyAndSignViolator: Posting = {
+      accountId: "b",
+      direction: "credit",
+      amount: eur(-10n),
+    };
     const error = unwrapErr(
       Transaction.create([debit("a", 100n), currencyAndSignViolator]),
       "currency + sign violation",

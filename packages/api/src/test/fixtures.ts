@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  createPosting,
-  Money,
-  Transaction,
   type AccountType,
   type Currency,
+  createPosting,
+  Money,
   type Result,
+  Transaction,
 } from "@fintech-ledger-sandbox/core";
 import { createDb, type Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
@@ -87,7 +87,9 @@ export async function seedTenant(
 export async function seedMemberIn(db: Db, orgId: string, betterAuthRole: string): Promise<string> {
   const userId = randomUUID();
   await db.insert(user).values({ id: userId, name: "Co-member", email: `${userId}@example.com` });
-  await db.insert(member).values({ id: randomUUID(), organizationId: orgId, userId, role: betterAuthRole });
+  await db
+    .insert(member)
+    .values({ id: randomUUID(), organizationId: orgId, userId, role: betterAuthRole });
   return userId;
 }
 

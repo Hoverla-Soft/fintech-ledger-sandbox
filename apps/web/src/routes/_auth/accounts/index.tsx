@@ -51,9 +51,7 @@ function AccountsRoute() {
         loadingRows={5}
         empty={{
           isEmpty: (data) => data.accounts.length === 0,
-          render: (
-            <EmptyAccounts canWrite={canWrite} />
-          ),
+          render: <EmptyAccounts canWrite={canWrite} />,
         }}
       >
         {(data) => (

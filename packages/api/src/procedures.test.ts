@@ -1,8 +1,7 @@
+import type { Db } from "@fintech-ledger-sandbox/db";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { createRouterClient, ORPCError } from "@orpc/server";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-
-import type { Db } from "@fintech-ledger-sandbox/db";
 
 import { protectedProcedure } from "./procedures";
 import { clientFor, contextFor, seedOrphanUser, seedTenant, sessionFor } from "./test/fixtures";
@@ -121,7 +120,10 @@ describe("orgProcedure", () => {
     const realTenant = await seedTenant(db, "Real");
 
     const nonexistentOrg = await captureError(() =>
-      clientFor(db, { userId: orphanId, activeOrganizationId: "00000000-0000-0000-0000-000000000000" }).accounts.list({}),
+      clientFor(db, {
+        userId: orphanId,
+        activeOrganizationId: "00000000-0000-0000-0000-000000000000",
+      }).accounts.list({}),
     );
     const realButForeignOrg = await captureError(() =>
       clientFor(db, { userId: orphanId, activeOrganizationId: realTenant.orgId }).accounts.list({}),
@@ -137,7 +139,9 @@ describe("orgProcedure", () => {
 
   it("admits a genuine member and scopes the read to their org", async () => {
     const tenant = await seedTenant(db, "Member");
-    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({ accounts: [] });
+    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
+      accounts: [],
+    });
   });
 });
 
@@ -147,11 +151,15 @@ describe("role mapping through the middleware", () => {
   // it, rather than being read from somewhere else or defaulted.
   it("admits a viewer to the read surface", async () => {
     const tenant = await seedTenant(db, "Viewer", "member");
-    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({ accounts: [] });
+    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
+      accounts: [],
+    });
   });
 
   it("admits an admin to the read surface", async () => {
     const tenant = await seedTenant(db, "Admin", "admin");
-    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({ accounts: [] });
+    await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
+      accounts: [],
+    });
   });
 });

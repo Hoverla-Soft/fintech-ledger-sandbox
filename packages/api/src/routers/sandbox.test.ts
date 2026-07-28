@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { createPosting, Money, Transaction, type Currency, type Posting } from "@fintech-ledger-sandbox/core";
+import {
+  type Currency,
+  createPosting,
+  Money,
+  type Posting,
+  Transaction,
+} from "@fintech-ledger-sandbox/core";
 import type { Db } from "@fintech-ledger-sandbox/db";
 import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
@@ -13,12 +19,12 @@ import { SEED_ACCOUNTS } from "../sandbox/scenarios";
 import {
   clientFor,
   money,
+  type SeededTenant,
   seedAccount,
   seedMemberIn,
   seedTenant,
   sessionFor,
   unwrap,
-  type SeededTenant,
 } from "../test/fixtures";
 
 /**
@@ -94,7 +100,9 @@ async function balancesOf(tenant: SeededTenant = admin): Promise<Record<string, 
 }
 
 async function transactionCount(tenant: SeededTenant = admin): Promise<number> {
-  const { transactions } = await clientFor(db, sessionFor(tenant)).transactions.list({ limit: 200 });
+  const { transactions } = await clientFor(db, sessionFor(tenant)).transactions.list({
+    limit: 200,
+  });
   return transactions.length;
 }
 
@@ -289,7 +297,13 @@ describe("sandbox.reset — beyond one chunk", () => {
    * a past-the-chunk-size ledger in one write instead of a hundred.
    */
   async function fundManyAccounts(count: number, currency: Currency = "USD"): Promise<void> {
-    const source = await seedAccount(db, admin.orgId, "external", `Bulk Funding ${currency}`, currency);
+    const source = await seedAccount(
+      db,
+      admin.orgId,
+      "external",
+      `Bulk Funding ${currency}`,
+      currency,
+    );
     const postings: Posting[] = [];
     let total = 0n;
 
@@ -306,7 +320,9 @@ describe("sandbox.reset — beyond one chunk", () => {
       total += amount.minorUnits;
     }
 
-    postings.push(unwrap(createPosting(source, "credit", unwrap(Money.ofMinorUnits(total, currency)))));
+    postings.push(
+      unwrap(createPosting(source, "credit", unwrap(Money.ofMinorUnits(total, currency)))),
+    );
 
     unwrap(
       await postTransaction(db, {
@@ -385,8 +401,12 @@ describe("sandbox permissions and tenancy", () => {
     const viewerId = await seedMemberIn(db, admin.orgId, "member");
     const viewer = clientFor(db, { userId: viewerId, activeOrganizationId: admin.orgId });
 
-    const seedError = await captureError(() => viewer.sandbox.seed({ idempotencyKey: randomUUID() }));
-    const resetError = await captureError(() => viewer.sandbox.reset({ idempotencyKey: randomUUID() }));
+    const seedError = await captureError(() =>
+      viewer.sandbox.seed({ idempotencyKey: randomUUID() }),
+    );
+    const resetError = await captureError(() =>
+      viewer.sandbox.reset({ idempotencyKey: randomUUID() }),
+    );
 
     expect(seedError.code).toBe("FORBIDDEN");
     expect(seedError.data.reason).toBe("insufficient_role");

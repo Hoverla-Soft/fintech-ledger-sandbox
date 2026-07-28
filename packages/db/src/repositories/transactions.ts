@@ -1,15 +1,14 @@
 import {
-  err,
-  ok,
   type Currency,
+  err,
   type Money,
+  ok,
   type PostingDirection,
   type Result,
 } from "@fintech-ledger-sandbox/core";
 import { and, asc, eq, gt, or } from "drizzle-orm";
-
-import type { Db } from "../index";
 import type { TransactionNotFound } from "../errors";
+import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
 import { ledgerPosting, ledgerTransaction } from "../schema/ledger";
 
@@ -98,9 +97,7 @@ export async function listTransactions(
   return {
     items: pageRows.map(toTransactionRow),
     nextCursor:
-      hasMore && lastRow !== undefined
-        ? { createdAt: lastRow.createdAt, id: lastRow.id }
-        : null,
+      hasMore && lastRow !== undefined ? { createdAt: lastRow.createdAt, id: lastRow.id } : null,
   };
 }
 
@@ -117,12 +114,7 @@ export async function getTransactionById(
   const [transactionRow] = await db
     .select()
     .from(ledgerTransaction)
-    .where(
-      and(
-        eq(ledgerTransaction.orgId, orgId),
-        eq(ledgerTransaction.id, transactionId),
-      ),
-    );
+    .where(and(eq(ledgerTransaction.orgId, orgId), eq(ledgerTransaction.id, transactionId)));
 
   if (transactionRow === undefined) {
     return err({ kind: "TransactionNotFound", transactionId });
@@ -131,12 +123,7 @@ export async function getTransactionById(
   const postingRows = await db
     .select()
     .from(ledgerPosting)
-    .where(
-      and(
-        eq(ledgerPosting.orgId, orgId),
-        eq(ledgerPosting.transactionId, transactionId),
-      ),
-    )
+    .where(and(eq(ledgerPosting.orgId, orgId), eq(ledgerPosting.transactionId, transactionId)))
     .orderBy(asc(ledgerPosting.createdAt));
 
   return ok({
@@ -152,9 +139,7 @@ function clampPageSize(requested: number | undefined): number {
   return Math.min(Math.max(Math.trunc(requested), 1), MAX_PAGE_SIZE);
 }
 
-function toTransactionRow(
-  row: typeof ledgerTransaction.$inferSelect,
-): LedgerTransactionRow {
+function toTransactionRow(row: typeof ledgerTransaction.$inferSelect): LedgerTransactionRow {
   return {
     id: row.id,
     orgId: row.orgId,
@@ -165,9 +150,7 @@ function toTransactionRow(
   };
 }
 
-function toPostingRow(
-  row: typeof ledgerPosting.$inferSelect,
-): LedgerPostingRow {
+function toPostingRow(row: typeof ledgerPosting.$inferSelect): LedgerPostingRow {
   return {
     id: row.id,
     orgId: row.orgId,

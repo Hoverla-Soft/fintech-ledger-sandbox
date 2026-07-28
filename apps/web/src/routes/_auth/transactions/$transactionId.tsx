@@ -24,9 +24,7 @@ export const Route = createFileRoute("/_auth/transactions/$transactionId")({
  */
 function TransactionDetailRoute() {
   const { transactionId } = Route.useParams();
-  const transaction = useQuery(
-    orpc.transactions.get.queryOptions({ input: { transactionId } }),
-  );
+  const transaction = useQuery(orpc.transactions.get.queryOptions({ input: { transactionId } }));
   // Names, so the legs read as accounts rather than as uuids. A failure here
   // is cosmetic — `PostingsTable` falls back to the id — so it deliberately
   // does not gate the transaction from rendering.

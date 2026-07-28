@@ -1,4 +1,4 @@
-import { Money, parseCurrency, type Currency } from "@fintech-ledger-sandbox/core";
+import { type Currency, Money, parseCurrency } from "@fintech-ledger-sandbox/core";
 
 /**
  * Rebuilds a known `Currency` from a persisted `text` column. Every

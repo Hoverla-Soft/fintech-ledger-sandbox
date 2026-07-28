@@ -31,7 +31,10 @@ function signedSum(chunk: ResetChunk): bigint {
   if (chunk.suspense === null) {
     return legs;
   }
-  return legs + (chunk.suspense.direction === "debit" ? chunk.suspense.minorUnits : -chunk.suspense.minorUnits);
+  return (
+    legs +
+    (chunk.suspense.direction === "debit" ? chunk.suspense.minorUnits : -chunk.suspense.minorUnits)
+  );
 }
 
 /** A conserving set: `count` accounts whose balances sum to zero, as any real ledger's do. */
@@ -66,7 +69,9 @@ function runToCompletion(
     calls += 1;
 
     expect(signedSum(chunk)).toBe(0n);
-    expect(chunk.legs.length + (chunk.suspense === null ? 0 : 1)).toBeLessThanOrEqual(chunkSize + 1);
+    expect(chunk.legs.length + (chunk.suspense === null ? 0 : 1)).toBeLessThanOrEqual(
+      chunkSize + 1,
+    );
 
     for (const leg of chunk.legs) {
       const existing = current.get(leg.accountId);
@@ -81,7 +86,9 @@ function runToCompletion(
       const suspenseId = `suspense-${chunk.suspense.currency}`;
       const existing = current.get(suspenseId) ?? balance(suspenseId, 0n, chunk.suspense.currency);
       const delta =
-        chunk.suspense.direction === "debit" ? chunk.suspense.minorUnits : -chunk.suspense.minorUnits;
+        chunk.suspense.direction === "debit"
+          ? chunk.suspense.minorUnits
+          : -chunk.suspense.minorUnits;
       current.set(suspenseId, { ...existing, minorUnits: existing.minorUnits + delta });
     }
   }
@@ -95,7 +102,13 @@ describe("countNonZero", () => {
   });
 
   it("counts across every currency, not just the one reset would take next", () => {
-    expect(countNonZero([balance("a", 100n, "EUR"), balance("b", -100n, "EUR"), balance("c", 50n, "USD")])).toBe(3);
+    expect(
+      countNonZero([
+        balance("a", 100n, "EUR"),
+        balance("b", -100n, "EUR"),
+        balance("c", 50n, "USD"),
+      ]),
+    ).toBe(3);
   });
 });
 
@@ -164,7 +177,13 @@ describe("planResetChunk — the chunk boundary", () => {
     // first three would leave a fourth at zero — filtered out, so the take
     // would not be partial at all.
     const chunk = planResetChunk(
-      [balance("a", 300n), balance("b", -100n), balance("c", -200n), balance("d", 900n), balance("e", -900n)],
+      [
+        balance("a", 300n),
+        balance("b", -100n),
+        balance("c", -200n),
+        balance("d", 900n),
+        balance("e", -900n),
+      ],
       3,
     );
 
@@ -245,7 +264,9 @@ describe("planResetChunk — chunk hashes", () => {
     const first = planResetChunk(initial);
 
     const afterFirst = initial.map((entry) =>
-      first?.legs.some((leg) => leg.accountId === entry.accountId) ? { ...entry, minorUnits: 0n } : entry,
+      first?.legs.some((leg) => leg.accountId === entry.accountId)
+        ? { ...entry, minorUnits: 0n }
+        : entry,
     );
     const second = planResetChunk(afterFirst);
 

@@ -39,7 +39,10 @@ import type { TestProject } from "vitest/node";
  */
 const POSTGRES_IMAGE = "postgres:18";
 
-const MIGRATIONS_FOLDER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../drizzle");
+const MIGRATIONS_FOLDER = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../drizzle",
+);
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   process.env.SKIP_ENV_VALIDATION = process.env.SKIP_ENV_VALIDATION ?? "1";

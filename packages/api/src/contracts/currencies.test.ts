@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { Money } from "@fintech-ledger-sandbox/core";
+import { describe, expect, it } from "vitest";
 
 import { CURRENCIES, minorUnitExponent } from "./currencies";
 import { parseBoundedAmount } from "./money";

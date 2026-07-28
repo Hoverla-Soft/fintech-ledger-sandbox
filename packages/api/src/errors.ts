@@ -138,7 +138,9 @@ export function reasonFor(error: LedgerApiError): LedgerErrorReason {
 }
 
 /** Translates a typed ledger error into the `ORPCError` to throw from a handler. */
-export function toORPCError(error: LedgerApiError): ORPCError<string, { reason: LedgerErrorReason }> {
+export function toORPCError(
+  error: LedgerApiError,
+): ORPCError<string, { reason: LedgerErrorReason }> {
   const { code, reason } = classify(error);
   return new ORPCError(code, {
     message: MESSAGES[reason],

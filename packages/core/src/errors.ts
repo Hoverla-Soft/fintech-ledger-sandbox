@@ -62,7 +62,10 @@ export type LedgerError =
   | UnbalancedTransaction
   | InsufficientFunds;
 
-export function isLedgerError(candidate: unknown, kind: LedgerError["kind"]): candidate is LedgerError {
+export function isLedgerError(
+  candidate: unknown,
+  kind: LedgerError["kind"],
+): candidate is LedgerError {
   return (
     typeof candidate === "object" &&
     candidate !== null &&

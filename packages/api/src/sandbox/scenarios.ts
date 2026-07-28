@@ -87,7 +87,8 @@ export const SEED_ACCOUNTS: readonly SeedAccountSpec[] = [
 export const SEED_SCENARIOS: readonly SeedScenario[] = [
   {
     id: "funding",
-    description: "Money enters the sandbox: the operating account is funded from the external boundary.",
+    description:
+      "Money enters the sandbox: the operating account is funded from the external boundary.",
     legs: [
       { accountName: "Operating", direction: "debit", amount: "5000.00" },
       { accountName: "Sandbox Funding", direction: "credit", amount: "5000.00" },
@@ -97,7 +98,8 @@ export const SEED_SCENARIOS: readonly SeedScenario[] = [
   },
   {
     id: "payroll",
-    description: "A payroll run: one debit per employee against a single credit to the operating account.",
+    description:
+      "A payroll run: one debit per employee against a single credit to the operating account.",
     legs: [
       { accountName: "Employee A", direction: "debit", amount: "1500.00" },
       { accountName: "Employee B", direction: "debit", amount: "1000.00" },
@@ -108,7 +110,8 @@ export const SEED_SCENARIOS: readonly SeedScenario[] = [
   },
   {
     id: "marketplace_payout",
-    description: "A marketplace payout that splits a fee off to a separate account — the N-leg case.",
+    description:
+      "A marketplace payout that splits a fee off to a separate account — the N-leg case.",
     legs: [
       { accountName: "Marketplace Seller", direction: "debit", amount: "950.00" },
       { accountName: "Platform Fees", direction: "debit", amount: "50.00" },
@@ -130,7 +133,8 @@ export const SEED_SCENARIOS: readonly SeedScenario[] = [
   },
   {
     id: "reversal",
-    description: "A posted transfer and its mirrored reversal — the only sanctioned way to undo (invariant #8).",
+    description:
+      "A posted transfer and its mirrored reversal — the only sanctioned way to undo (invariant #8).",
     legs: [
       { accountName: "Marketplace Seller", direction: "debit", amount: "200.00" },
       { accountName: "Operating", direction: "credit", amount: "200.00" },
@@ -150,12 +154,17 @@ export const SEED_SCENARIOS: readonly SeedScenario[] = [
  * against the seed's own first write — a self-inflicted conflict that no
  * caller could act on.
  */
-export function scenarioKeys(runKey: string, scenario: SeedScenario): {
+export function scenarioKeys(
+  runKey: string,
+  scenario: SeedScenario,
+): {
   readonly post: string;
   readonly reversal: string;
 } {
   return {
-    post: scenario.reverseAfterPost ? `${runKey}:${scenario.id}:original` : `${runKey}:${scenario.id}`,
+    post: scenario.reverseAfterPost
+      ? `${runKey}:${scenario.id}:original`
+      : `${runKey}:${scenario.id}`,
     reversal: `${runKey}:${scenario.id}:reversal`,
   };
 }

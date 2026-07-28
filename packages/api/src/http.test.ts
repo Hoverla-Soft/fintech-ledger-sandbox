@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
-
+import type { Db } from "@fintech-ledger-sandbox/db";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { Hono } from "hono";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
-import type { Db } from "@fintech-ledger-sandbox/db";
-
 import type { Context, LedgerSession } from "./context";
-import { appRouter } from "./routers/index";
 import { resetRateLimitersForTesting } from "./rate-limit";
-import { seedAccount, seedOrphanUser, seedTenant, sessionFor, type SeededTenant } from "./test/fixtures";
+import { appRouter } from "./routers/index";
+import {
+  type SeededTenant,
+  seedAccount,
+  seedOrphanUser,
+  seedTenant,
+  sessionFor,
+} from "./test/fixtures";
 
 /**
  * The thin HTTP slice.
@@ -82,7 +86,9 @@ describe("status codes on the wire", () => {
     const response = await post(appWithSession(sessionFor(tenant)), "/accounts/list", {});
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ accounts: [expect.objectContaining({ name: "Wallet" })] });
+    await expect(response.json()).resolves.toMatchObject({
+      accounts: [expect.objectContaining({ name: "Wallet" })],
+    });
   });
 
   it("returns 401 when there is no session", async () => {
@@ -99,7 +105,9 @@ describe("status codes on the wire", () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ data: { reason: "no_active_organization" } });
+    await expect(response.json()).resolves.toMatchObject({
+      data: { reason: "no_active_organization" },
+    });
   });
 
   it("returns 403 when the user is not a member of the claimed organization", async () => {
@@ -164,10 +172,16 @@ describe("status codes on the wire", () => {
     const app = appWithSession(sessionFor(tenant));
 
     await post(app, "/accounts/create", { name: "Dup", currency: "USD", type: "normal" });
-    const response = await post(app, "/accounts/create", { name: "Dup", currency: "USD", type: "normal" });
+    const response = await post(app, "/accounts/create", {
+      name: "Dup",
+      currency: "USD",
+      type: "normal",
+    });
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toMatchObject({ data: { reason: "account_name_taken" } });
+    await expect(response.json()).resolves.toMatchObject({
+      data: { reason: "account_name_taken" },
+    });
   });
 
   it("returns 422 on the wire for an unbalanced transaction", async () => {
@@ -185,7 +199,9 @@ describe("status codes on the wire", () => {
     });
 
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({ data: { reason: "unbalanced_transaction" } });
+    await expect(response.json()).resolves.toMatchObject({
+      data: { reason: "unbalanced_transaction" },
+    });
   });
 
   it("returns 429 on the wire once the write limit is exhausted", async () => {

@@ -40,7 +40,10 @@ import { createDb, type Db } from "../index";
 /** Same major version as `packages/db/docker-compose.yml`'s local dev database, so behaviour matches what `pnpm db:start` runs against. */
 const POSTGRES_IMAGE = "postgres:18";
 
-const MIGRATIONS_FOLDER = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../drizzle");
+const MIGRATIONS_FOLDER = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../drizzle",
+);
 
 /** Tables truncated between tests. Every table Better Auth's core + organization plugin and the ledger schema define. */
 const ALL_TABLES = [
@@ -110,7 +113,9 @@ export async function startTestDatabase(): Promise<TestDatabase> {
  * above stays the right choice for a file that must own its container's
  * full lifecycle in isolation (this package's original smoke test).
  */
-export function connectTestDatabase(connectionString: string): Pick<TestDatabase, "db" | "connectionString" | "reset"> {
+export function connectTestDatabase(
+  connectionString: string,
+): Pick<TestDatabase, "db" | "connectionString" | "reset"> {
   const db = createDb(connectionString);
   return {
     db,
@@ -128,12 +133,22 @@ export function connectTestDatabase(connectionString: string): Pick<TestDatabase
  * never something application code does.
  */
 async function resetTestDatabase(db: Db): Promise<void> {
-  await db.execute(sql`ALTER TABLE ledger_posting DISABLE TRIGGER ledger_posting_immutability_trigger`);
-  await db.execute(sql`ALTER TABLE ledger_posting DISABLE TRIGGER ledger_posting_immutability_truncate_trigger`);
+  await db.execute(
+    sql`ALTER TABLE ledger_posting DISABLE TRIGGER ledger_posting_immutability_trigger`,
+  );
+  await db.execute(
+    sql`ALTER TABLE ledger_posting DISABLE TRIGGER ledger_posting_immutability_truncate_trigger`,
+  );
   try {
-    await db.execute(sql`TRUNCATE TABLE ${sql.raw(ALL_TABLES.map((table) => `"${table}"`).join(", "))} RESTART IDENTITY CASCADE`);
+    await db.execute(
+      sql`TRUNCATE TABLE ${sql.raw(ALL_TABLES.map((table) => `"${table}"`).join(", "))} RESTART IDENTITY CASCADE`,
+    );
   } finally {
-    await db.execute(sql`ALTER TABLE ledger_posting ENABLE TRIGGER ledger_posting_immutability_trigger`);
-    await db.execute(sql`ALTER TABLE ledger_posting ENABLE TRIGGER ledger_posting_immutability_truncate_trigger`);
+    await db.execute(
+      sql`ALTER TABLE ledger_posting ENABLE TRIGGER ledger_posting_immutability_trigger`,
+    );
+    await db.execute(
+      sql`ALTER TABLE ledger_posting ENABLE TRIGGER ledger_posting_immutability_truncate_trigger`,
+    );
   }
 }

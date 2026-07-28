@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
-
-import { and, eq } from "drizzle-orm";
-
 import { err, ok, type Result } from "@fintech-ledger-sandbox/core";
+import { and, eq } from "drizzle-orm";
 
 import type { IdempotencyConflict } from "../errors";
 import { isUniqueViolation } from "../internal/pg-errors";
@@ -65,7 +63,9 @@ export async function reserveIdempotencyKey(
     const [existing] = await tx
       .select()
       .from(ledgerIdempotencyKey)
-      .where(and(eq(ledgerIdempotencyKey.orgId, params.orgId), eq(ledgerIdempotencyKey.key, params.key)));
+      .where(
+        and(eq(ledgerIdempotencyKey.orgId, params.orgId), eq(ledgerIdempotencyKey.key, params.key)),
+      );
 
     if (existing === undefined) {
       // The row that caused the violation is gone by the time we read it

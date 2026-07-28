@@ -2,7 +2,7 @@ import type { Db } from "@fintech-ledger-sandbox/db";
 import { member } from "@fintech-ledger-sandbox/db/schema/organization";
 import { and, eq } from "drizzle-orm";
 
-import { toLedgerRole, type LedgerRole } from "./roles";
+import { type LedgerRole, toLedgerRole } from "./roles";
 
 export interface Membership {
   readonly orgId: string;

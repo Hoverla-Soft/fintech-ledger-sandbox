@@ -9,16 +9,10 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "noUnusedParameters": true,
-    "types": [
-      "vite/client"
-    ],
-    "rootDirs": [
-      "."
-    ],
+    "types": ["vite/client"],
+    "rootDirs": ["."],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
     "noUnusedLocals": true
   }

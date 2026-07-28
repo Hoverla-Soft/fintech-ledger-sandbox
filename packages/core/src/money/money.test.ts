@@ -24,7 +24,10 @@ describe("Money.ofMinorUnits — never accepts a number for an amount", () => {
   });
 
   it("rejects an integral number cast through an untyped boundary", () => {
-    const error = unwrapErr(Money.ofMinorUnits(1050 as unknown as bigint, "USD"), "integral number");
+    const error = unwrapErr(
+      Money.ofMinorUnits(1050 as unknown as bigint, "USD"),
+      "integral number",
+    );
     expect(error).toEqual({ kind: "InvalidAmount", reason: "not-a-bigint", input: "1050" });
   });
 

@@ -25,7 +25,11 @@ export interface TransferDraft {
 
 export type PreparedTransfer =
   | { readonly ok: true; readonly postings: readonly PostingInput[]; readonly minorUnits: bigint }
-  | { readonly ok: false; readonly field: "amount" | "source" | "destination" | "form"; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly field: "amount" | "source" | "destination" | "form";
+      readonly message: string;
+    };
 
 const AMOUNT_MESSAGES: Record<string, string> = {
   empty: "Enter an amount.",

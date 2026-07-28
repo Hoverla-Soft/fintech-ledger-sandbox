@@ -72,7 +72,8 @@ function validateJournal(journalPath) {
       issues.push(`${label}.idx must be a non-negative integer`);
     } else {
       if (seenIndexes.has(entry.idx)) issues.push(`${label}.idx duplicates ${entry.idx}`);
-      if (entry.idx !== position) issues.push(`${label}.idx is ${entry.idx}; expected contiguous index ${position}`);
+      if (entry.idx !== position)
+        issues.push(`${label}.idx is ${entry.idx}; expected contiguous index ${position}`);
       if (entry.idx <= previousIndex) issues.push(`${label}.idx is not strictly increasing`);
       seenIndexes.add(entry.idx);
       previousIndex = entry.idx;
@@ -90,9 +91,12 @@ function validateJournal(journalPath) {
     if (!Number.isFinite(entry.when)) {
       issues.push(`${label}.when must be a numeric timestamp`);
     } else {
-      if (seenTimestamps.has(entry.when)) issues.push(`${label}.when duplicates timestamp ${entry.when}`);
+      if (seenTimestamps.has(entry.when))
+        issues.push(`${label}.when duplicates timestamp ${entry.when}`);
       if (entry.when <= previousTimestamp) {
-        issues.push(`${label}.when (${entry.when}) must be greater than the previous timestamp (${previousTimestamp})`);
+        issues.push(
+          `${label}.when (${entry.when}) must be greater than the previous timestamp (${previousTimestamp})`,
+        );
       }
       seenTimestamps.add(entry.when);
       previousTimestamp = entry.when;
@@ -128,7 +132,9 @@ function formatFailures(projectDirectory, failures) {
     lines.push(`\n${path.relative(projectDirectory, failure.journalPath)}:`);
     lines.push(...failure.issues.map((issue) => `  - ${issue}`));
   }
-  lines.push("\nDo not rewrite applied history. Restore missing files or add a new corrective migration.");
+  lines.push(
+    "\nDo not rewrite applied history. Restore missing files or add a new corrective migration.",
+  );
   return lines.join("\n");
 }
 

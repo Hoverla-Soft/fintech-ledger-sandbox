@@ -56,11 +56,7 @@ export function AccountBalance({ account }: { account: WireAccount }) {
 }
 
 export function AccountTypeBadge({ type }: { type: WireAccount["type"] }) {
-  return (
-    <Badge variant={type === "external" ? "secondary" : "outline"}>
-      {type}
-    </Badge>
-  );
+  return <Badge variant={type === "external" ? "secondary" : "outline"}>{type}</Badge>;
 }
 
 export function AccountStatusBadge({ active }: { active: boolean }) {

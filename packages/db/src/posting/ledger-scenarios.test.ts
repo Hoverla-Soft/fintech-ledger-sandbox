@@ -30,10 +30,16 @@ describe("ledger.md acceptance scenarios", () => {
   });
 
   /** Fetches an account and asserts its balance, failing loudly (rather than a confusing boolean mismatch) if the lookup itself did not succeed. */
-  async function expectBalance(orgId: string, accountId: string, expectedMinorUnits: bigint): Promise<void> {
+  async function expectBalance(
+    orgId: string,
+    accountId: string,
+    expectedMinorUnits: bigint,
+  ): Promise<void> {
     const result = await getAccountById(database.db, orgId, accountId);
     if (!result.ok) {
-      throw new Error(`expected account "${accountId}" to be found, got: ${JSON.stringify(result.error)}`);
+      throw new Error(
+        `expected account "${accountId}" to be found, got: ${JSON.stringify(result.error)}`,
+      );
     }
     expect(result.value.balance).toBe(expectedMinorUnits);
   }
@@ -189,10 +195,16 @@ describe("ledger.md acceptance scenarios", () => {
       return;
     }
 
-    const reversalTransactionRow = await getTransactionById(database.db, orgId, reversalResult.value.transactionId);
+    const reversalTransactionRow = await getTransactionById(
+      database.db,
+      orgId,
+      reversalResult.value.transactionId,
+    );
     expect(reversalTransactionRow.ok).toBe(true);
     if (reversalTransactionRow.ok) {
-      expect(reversalTransactionRow.value.reversesTransactionId).toBe(originalResult.value.transactionId);
+      expect(reversalTransactionRow.value.reversesTransactionId).toBe(
+        originalResult.value.transactionId,
+      );
     }
 
     await expectBalance(orgId, funding, 0n);

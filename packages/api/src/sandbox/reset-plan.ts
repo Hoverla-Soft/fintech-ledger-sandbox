@@ -199,7 +199,8 @@ export function planResetChunk(
  */
 function hashChunk(currency: Currency, taken: readonly ResetBalance[]): string {
   const parts = taken.map(
-    (balance) => `{"accountId":${JSON.stringify(balance.accountId)},"minorUnits":"${balance.minorUnits}"}`,
+    (balance) =>
+      `{"accountId":${JSON.stringify(balance.accountId)},"minorUnits":"${balance.minorUnits}"}`,
   );
   const canonical = `{"accounts":[${parts.join(",")}],"currency":${JSON.stringify(currency)}}`;
 

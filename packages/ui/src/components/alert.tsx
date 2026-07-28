@@ -41,7 +41,12 @@ function Alert({
   return (
     // `role="alert"` is deliberate: these announce a state change the user did
     // not ask for and needs to know about, so a screen reader should interrupt.
-    <div data-slot="alert" role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
+    <div
+      data-slot="alert"
+      role="alert"
+      className={cn(alertVariants({ variant }), className)}
+      {...props}
+    />
   );
 }
 
@@ -68,4 +73,4 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
   );
 }
 
-export { Alert, AlertTitle, AlertDescription };
+export { Alert, AlertDescription, AlertTitle };

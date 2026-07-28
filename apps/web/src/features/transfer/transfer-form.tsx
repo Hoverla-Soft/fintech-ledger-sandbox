@@ -1,10 +1,10 @@
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
 import {
   Field,
-  fieldControlProps,
   FieldDescription,
   FieldError,
   FieldLabel,
+  fieldControlProps,
 } from "@fintech-ledger-sandbox/ui/components/field";
 import { Input } from "@fintech-ledger-sandbox/ui/components/input";
 import {
@@ -81,10 +81,7 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
     () => sources.find((account) => account.id === sourceId) ?? null,
     [sources, sourceId],
   );
-  const destinations = useMemo(
-    () => eligibleDestinations(accounts, source),
-    [accounts, source],
-  );
+  const destinations = useMemo(() => eligibleDestinations(accounts, source), [accounts, source]);
   const destination = useMemo(
     () => destinations.find((account) => account.id === destinationId) ?? null,
     [destinations, destinationId],

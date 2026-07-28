@@ -104,5 +104,7 @@ export function computeRequestHash(
     }))
     .sort(compareLegs);
 
-  return createHash("sha256").update(canonicalize(legs, reversesTransactionId), "utf8").digest("hex");
+  return createHash("sha256")
+    .update(canonicalize(legs, reversesTransactionId), "utf8")
+    .digest("hex");
 }

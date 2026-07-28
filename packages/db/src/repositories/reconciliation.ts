@@ -27,8 +27,13 @@ export interface AccountReconciliation {
  * result set (its sum is `NULL`, treated as zero) instead of silently
  * dropping it, which an `INNER JOIN` would do.
  */
-export async function reconcileAccounts(db: Db, orgId: string): Promise<readonly AccountReconciliation[]> {
-  const signedSum = sql<string | null>`sum(case when ${ledgerPosting.direction} = 'debit' then ${ledgerPosting.amount} else -${ledgerPosting.amount} end)`;
+export async function reconcileAccounts(
+  db: Db,
+  orgId: string,
+): Promise<readonly AccountReconciliation[]> {
+  const signedSum = sql<
+    string | null
+  >`sum(case when ${ledgerPosting.direction} = 'debit' then ${ledgerPosting.amount} else -${ledgerPosting.amount} end)`;
 
   const rows = await db
     .select({
@@ -39,14 +44,28 @@ export async function reconcileAccounts(db: Db, orgId: string): Promise<readonly
       computedBalance: signedSum.as("computed_balance"),
     })
     .from(ledgerAccount)
-    .leftJoin(ledgerPosting, and(eq(ledgerPosting.accountId, ledgerAccount.id), eq(ledgerPosting.orgId, ledgerAccount.orgId)))
+    .leftJoin(
+      ledgerPosting,
+      and(
+        eq(ledgerPosting.accountId, ledgerAccount.id),
+        eq(ledgerPosting.orgId, ledgerAccount.orgId),
+      ),
+    )
     .where(eq(ledgerAccount.orgId, orgId))
     .groupBy(ledgerAccount.id, ledgerAccount.name, ledgerAccount.currency, ledgerAccount.balance);
 
   return rows.map((row) => {
     const computedMinorUnits = row.computedBalance === null ? 0n : BigInt(row.computedBalance);
-    const recordedBalance = toMoney(row.recordedBalance, row.currency, `ledger_account "${row.accountId}"`);
-    const computedBalance = toMoney(computedMinorUnits, row.currency, `ledger_account "${row.accountId}" posting sum`);
+    const recordedBalance = toMoney(
+      row.recordedBalance,
+      row.currency,
+      `ledger_account "${row.accountId}"`,
+    );
+    const computedBalance = toMoney(
+      computedMinorUnits,
+      row.currency,
+      `ledger_account "${row.accountId}" posting sum`,
+    );
 
     return {
       accountId: row.accountId,

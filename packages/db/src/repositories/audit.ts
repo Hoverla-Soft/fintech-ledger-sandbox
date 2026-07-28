@@ -65,7 +65,11 @@ export async function recordRejection(db: Db, input: RecordRejectionInput): Prom
 }
 
 /** The full audit log for `orgId`, most recent first. */
-export async function listAuditEntries(db: Db, orgId: string, limit?: number): Promise<readonly AuditEntryRow[]> {
+export async function listAuditEntries(
+  db: Db,
+  orgId: string,
+  limit?: number,
+): Promise<readonly AuditEntryRow[]> {
   return db
     .select()
     .from(ledgerAuditEntry)
@@ -78,7 +82,11 @@ export async function listAuditEntries(db: Db, orgId: string, limit?: number): P
  * The "rejections" view — a filtered query against the same audit table,
  * not a second table (`outcome = 'rejected'`).
  */
-export async function listRejections(db: Db, orgId: string, limit?: number): Promise<readonly AuditEntryRow[]> {
+export async function listRejections(
+  db: Db,
+  orgId: string,
+  limit?: number,
+): Promise<readonly AuditEntryRow[]> {
   return db
     .select()
     .from(ledgerAuditEntry)

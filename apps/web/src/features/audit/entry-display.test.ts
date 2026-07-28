@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { actionLabel, formatMetadata, isExpectedRefusal, type WireAuditEntry } from "./entry-display";
+import {
+  actionLabel,
+  formatMetadata,
+  isExpectedRefusal,
+  type WireAuditEntry,
+} from "./entry-display";
 
 function entry(overrides: Partial<WireAuditEntry> = {}): WireAuditEntry {
   return {
@@ -77,15 +82,21 @@ describe("isExpectedRefusal", () => {
   it("recognises the refusal the sandbox intends to produce", () => {
     // Replaying a scenario run appends another identical rejection each time.
     // Without this, five identical refusals look like five bugs.
-    expect(isExpectedRefusal(entry({ outcome: "rejected", reason: "insufficient_funds" }))).toBe(true);
+    expect(isExpectedRefusal(entry({ outcome: "rejected", reason: "insufficient_funds" }))).toBe(
+      true,
+    );
   });
 
   it("does not soften an unexpected refusal", () => {
-    expect(isExpectedRefusal(entry({ outcome: "rejected", reason: "currency_mismatch" }))).toBe(false);
+    expect(isExpectedRefusal(entry({ outcome: "rejected", reason: "currency_mismatch" }))).toBe(
+      false,
+    );
     expect(isExpectedRefusal(entry({ outcome: "rejected", reason: null }))).toBe(false);
   });
 
   it("never treats a posted entry as a refusal", () => {
-    expect(isExpectedRefusal(entry({ outcome: "posted", reason: "insufficient_funds" }))).toBe(false);
+    expect(isExpectedRefusal(entry({ outcome: "posted", reason: "insufficient_funds" }))).toBe(
+      false,
+    );
   });
 });

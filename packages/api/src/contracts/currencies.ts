@@ -1,5 +1,6 @@
 import { CURRENCIES, type Currency, minorUnitExponent } from "@fintech-ledger-sandbox/core";
 
+export type { Currency };
 /**
  * The currency allowlist, re-exported for clients of this package.
  *
@@ -29,4 +30,3 @@ import { CURRENCIES, type Currency, minorUnitExponent } from "@fintech-ledger-sa
  * was required.
  */
 export { CURRENCIES, minorUnitExponent };
-export type { Currency };

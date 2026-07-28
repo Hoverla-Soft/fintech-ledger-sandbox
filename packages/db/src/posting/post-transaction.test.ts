@@ -5,7 +5,12 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { user } from "../schema/auth";
-import { ledgerAccount, ledgerAuditEntry, ledgerPosting, ledgerTransaction } from "../schema/ledger";
+import {
+  ledgerAccount,
+  ledgerAuditEntry,
+  ledgerPosting,
+  ledgerTransaction,
+} from "../schema/ledger";
 import { organization } from "../schema/organization";
 import { startTestDatabase, type TestDatabase } from "../test/setup";
 import { postTransaction } from "./post-transaction";
@@ -28,13 +33,22 @@ async function seedTenant(database: TestDatabase) {
   const orgId = randomUUID();
   const actorId = randomUUID();
 
-  await database.db.insert(organization).values({ id: orgId, name: "Smoke Test Org", slug: `smoke-test-${orgId}` });
-  await database.db.insert(user).values({ id: actorId, name: "Smoke Test Admin", email: `${actorId}@example.com` });
+  await database.db
+    .insert(organization)
+    .values({ id: orgId, name: "Smoke Test Org", slug: `smoke-test-${orgId}` });
+  await database.db
+    .insert(user)
+    .values({ id: actorId, name: "Smoke Test Admin", email: `${actorId}@example.com` });
 
   return { orgId, actorId };
 }
 
-async function seedAccount(database: TestDatabase, orgId: string, type: "normal" | "external", name: string) {
+async function seedAccount(
+  database: TestDatabase,
+  orgId: string,
+  type: "normal" | "external",
+  name: string,
+) {
   const id = randomUUID();
   await database.db.insert(ledgerAccount).values({ id, orgId, name, currency: "USD", type });
   return id;
@@ -100,18 +114,33 @@ describe("postTransaction (Testcontainers integration smoke test)", () => {
     expect(result.value.balances.get(normalAccountId)?.equals(amount)).toBe(true);
     expect(result.value.balances.get(externalAccountId)?.equals(amount.negate())).toBe(true);
 
-    const [normalRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, normalAccountId));
-    const [externalRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, externalAccountId));
+    const [normalRow] = await database.db
+      .select()
+      .from(ledgerAccount)
+      .where(eq(ledgerAccount.id, normalAccountId));
+    const [externalRow] = await database.db
+      .select()
+      .from(ledgerAccount)
+      .where(eq(ledgerAccount.id, externalAccountId));
     expect(normalRow?.balance).toBe(10000n);
     expect(externalRow?.balance).toBe(-10000n);
 
-    const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+    const transactionRows = await database.db
+      .select()
+      .from(ledgerTransaction)
+      .where(eq(ledgerTransaction.orgId, orgId));
     expect(transactionRows).toHaveLength(1);
 
-    const postingRows = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+    const postingRows = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.orgId, orgId));
     expect(postingRows).toHaveLength(2);
 
-    const auditRows = await database.db.select().from(ledgerAuditEntry).where(eq(ledgerAuditEntry.orgId, orgId));
+    const auditRows = await database.db
+      .select()
+      .from(ledgerAuditEntry)
+      .where(eq(ledgerAuditEntry.orgId, orgId));
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0]?.outcome).toBe("posted");
   });
@@ -144,18 +173,33 @@ describe("postTransaction (Testcontainers integration smoke test)", () => {
     }
     expect(result.error.kind).toBe("InsufficientFunds");
 
-    const [sourceRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, sourceAccountId));
-    const [destinationRow] = await database.db.select().from(ledgerAccount).where(eq(ledgerAccount.id, destinationAccountId));
+    const [sourceRow] = await database.db
+      .select()
+      .from(ledgerAccount)
+      .where(eq(ledgerAccount.id, sourceAccountId));
+    const [destinationRow] = await database.db
+      .select()
+      .from(ledgerAccount)
+      .where(eq(ledgerAccount.id, destinationAccountId));
     expect(sourceRow?.balance).toBe(0n);
     expect(destinationRow?.balance).toBe(0n);
 
-    const transactionRows = await database.db.select().from(ledgerTransaction).where(eq(ledgerTransaction.orgId, orgId));
+    const transactionRows = await database.db
+      .select()
+      .from(ledgerTransaction)
+      .where(eq(ledgerTransaction.orgId, orgId));
     expect(transactionRows).toHaveLength(0);
 
-    const postingRows = await database.db.select().from(ledgerPosting).where(eq(ledgerPosting.orgId, orgId));
+    const postingRows = await database.db
+      .select()
+      .from(ledgerPosting)
+      .where(eq(ledgerPosting.orgId, orgId));
     expect(postingRows).toHaveLength(0);
 
-    const auditRows = await database.db.select().from(ledgerAuditEntry).where(eq(ledgerAuditEntry.orgId, orgId));
+    const auditRows = await database.db
+      .select()
+      .from(ledgerAuditEntry)
+      .where(eq(ledgerAuditEntry.orgId, orgId));
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0]?.outcome).toBe("rejected");
     expect(auditRows[0]?.reason).toBe("insufficient_funds");

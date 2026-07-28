@@ -64,7 +64,11 @@ export function formatMetadata(metadata: unknown): string | null {
   if (typeof metadata === "string") {
     return metadata;
   }
-  if (typeof metadata === "number" || typeof metadata === "boolean" || typeof metadata === "bigint") {
+  if (
+    typeof metadata === "number" ||
+    typeof metadata === "boolean" ||
+    typeof metadata === "bigint"
+  ) {
     return String(metadata);
   }
   try {

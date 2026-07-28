@@ -124,10 +124,16 @@ describe("describeFailure — reasoned failures", () => {
       "account_name_taken",
     ];
     for (const reason of fixable) {
-      expect(keepsFormOpen(describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason })))).toBe(true);
+      expect(
+        keepsFormOpen(describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason }))),
+      ).toBe(true);
     }
 
-    const notFixable: LedgerReason[] = ["insufficient_role", "not_a_member", "idempotency_conflict"];
+    const notFixable: LedgerReason[] = [
+      "insufficient_role",
+      "not_a_member",
+      "idempotency_conflict",
+    ];
     for (const reason of notFixable) {
       expect(keepsFormOpen(describeFailure(orpcError("FORBIDDEN", 403, { reason })))).toBe(false);
     }
@@ -137,9 +143,11 @@ describe("describeFailure — reasoned failures", () => {
     // The user did nothing wrong, the operation did not happen, and the
     // condition clears in seconds. Closing the form would throw away
     // everything they typed.
-    expect(keepsFormOpen(describeFailure(orpcError("TOO_MANY_REQUESTS", 429, { reason: "rate_limited" })))).toBe(
-      true,
-    );
+    expect(
+      keepsFormOpen(
+        describeFailure(orpcError("TOO_MANY_REQUESTS", 429, { reason: "rate_limited" })),
+      ),
+    ).toBe(true);
     // And an unmapped failure, which may be a dropped connection mid-submit.
     expect(keepsFormOpen(describeFailure(orpcError("INTERNAL_SERVER_ERROR", 500)))).toBe(true);
   });
@@ -149,13 +157,17 @@ describe("describeFailure — reasoned failures", () => {
     // org is the normal state after sign-up, and the console routes them to
     // org creation rather than treating it as an error.
     for (const reason of ["no_active_organization", "not_a_member"] as const) {
-      expect(describeFailure(orpcError("FORBIDDEN", 403, { reason })).disposition).toBe("reauthenticate");
+      expect(describeFailure(orpcError("FORBIDDEN", 403, { reason })).disposition).toBe(
+        "reauthenticate",
+      );
     }
   });
 
   it("abandons the idempotency key only on a conflict", () => {
     expect(
-      requiresNewIdempotencyKey(describeFailure(orpcError("CONFLICT", 409, { reason: "idempotency_conflict" }))),
+      requiresNewIdempotencyKey(
+        describeFailure(orpcError("CONFLICT", 409, { reason: "idempotency_conflict" })),
+      ),
     ).toBe(true);
 
     // Critically NOT on insufficient_funds: the user fixes the amount and
@@ -167,10 +179,14 @@ describe("describeFailure — reasoned failures", () => {
       ),
     ).toBe(false);
 
-    for (const reason of LEDGER_REASONS.filter((candidate) => candidate !== "idempotency_conflict")) {
-      expect(requiresNewIdempotencyKey(describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason })))).toBe(
-        false,
-      );
+    for (const reason of LEDGER_REASONS.filter(
+      (candidate) => candidate !== "idempotency_conflict",
+    )) {
+      expect(
+        requiresNewIdempotencyKey(
+          describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason })),
+        ),
+      ).toBe(false);
     }
   });
 
@@ -183,12 +199,22 @@ describe("describeFailure — reasoned failures", () => {
         retryAfterSeconds: 12,
       }),
     );
-    expect(described.rateLimit).toEqual({ scope: "organization", limit: 60, retryAfterSeconds: 12 });
+    expect(described.rateLimit).toEqual({
+      scope: "organization",
+      limit: 60,
+      retryAfterSeconds: 12,
+    });
   });
 
   it("tolerates a rate-limit body missing its optional fields", () => {
-    const described = describeFailure(orpcError("TOO_MANY_REQUESTS", 429, { reason: "rate_limited" }));
-    expect(described.rateLimit).toEqual({ scope: undefined, limit: undefined, retryAfterSeconds: undefined });
+    const described = describeFailure(
+      orpcError("TOO_MANY_REQUESTS", 429, { reason: "rate_limited" }),
+    );
+    expect(described.rateLimit).toEqual({
+      scope: undefined,
+      limit: undefined,
+      retryAfterSeconds: undefined,
+    });
   });
 });
 
@@ -225,7 +251,9 @@ describe("describeFailure — the three branches that carry no reason", () => {
 
 describe("describeFailure — hostile and non-oRPC input", () => {
   it("falls back rather than rendering undefined for an unrecognised reason", () => {
-    const described = describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason: "reason_from_the_future" }));
+    const described = describeFailure(
+      orpcError("UNPROCESSABLE_CONTENT", 422, { reason: "reason_from_the_future" }),
+    );
     expect(described.reason).toBeNull();
     expect(described.title).toBe("Something went wrong");
     expect(described.detail).not.toContain("undefined");
@@ -250,7 +278,13 @@ describe("describeFailure — hostile and non-oRPC input", () => {
   it("drops malformed issue entries instead of throwing inside the error handler", () => {
     const described = describeFailure(
       orpcError("BAD_REQUEST", 400, {
-        issues: [null, 7, { message: "kept" }, { path: ["a"], message: "also kept" }, { path: ["b"] }],
+        issues: [
+          null,
+          7,
+          { message: "kept" },
+          { path: ["a"], message: "also kept" },
+          { path: ["b"] },
+        ],
       }),
     );
     expect(described.issues).toEqual([

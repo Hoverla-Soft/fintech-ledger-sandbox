@@ -13,7 +13,11 @@ import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
  */
 function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
   return (
-    <TabsPrimitive.Root data-slot="tabs" className={cn("flex flex-col gap-3", className)} {...props} />
+    <TabsPrimitive.Root
+      data-slot="tabs"
+      className={cn("flex flex-col gap-3", className)}
+      {...props}
+    />
   );
 }
 
@@ -41,7 +45,13 @@ function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
 }
 
 function TabsPanel({ className, ...props }: TabsPrimitive.Panel.Props) {
-  return <TabsPrimitive.Panel data-slot="tabs-panel" className={cn("outline-none", className)} {...props} />;
+  return (
+    <TabsPrimitive.Panel
+      data-slot="tabs-panel"
+      className={cn("outline-none", className)}
+      {...props}
+    />
+  );
 }
 
-export { Tabs, TabsList, TabsTab, TabsPanel };
+export { Tabs, TabsList, TabsPanel, TabsTab };

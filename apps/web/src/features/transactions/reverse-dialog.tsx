@@ -7,7 +7,7 @@ import {
   AlertDialogTitle,
 } from "@fintech-ledger-sandbox/ui/components/alert-dialog";
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
-import { Field, fieldControlProps, FieldLabel } from "@fintech-ledger-sandbox/ui/components/field";
+import { Field, FieldLabel, fieldControlProps } from "@fintech-ledger-sandbox/ui/components/field";
 import { Input } from "@fintech-ledger-sandbox/ui/components/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -141,9 +141,7 @@ export function ReverseDialog({
           </div>
 
           <Field>
-            <FieldLabel htmlFor="reverse-confirm">
-              Type {CONFIRMATION_WORD} to confirm
-            </FieldLabel>
+            <FieldLabel htmlFor="reverse-confirm">Type {CONFIRMATION_WORD} to confirm</FieldLabel>
             <Input
               {...fieldControlProps({
                 id: "reverse-confirm",

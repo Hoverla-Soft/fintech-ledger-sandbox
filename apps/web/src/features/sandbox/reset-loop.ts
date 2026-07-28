@@ -26,7 +26,11 @@ export interface ResetProgress {
 }
 
 export type ResetOutcome =
-  | { readonly status: "complete"; readonly progress: ResetProgress; readonly transactionIds: readonly string[] }
+  | {
+      readonly status: "complete";
+      readonly progress: ResetProgress;
+      readonly transactionIds: readonly string[];
+    }
   /**
    * The compensating entry did not balance. `ADR 0008` has reset *refuse*
    * rather than destroy evidence, so this is a reconciliation alarm — not a
@@ -119,7 +123,9 @@ export async function runResetLoop(options: ResetLoopOptions): Promise<ResetOutc
   return {
     status: "failed",
     progress: { calls, accountsZeroed, remaining: finite(remaining) },
-    error: new Error(`Reset did not finish within ${maxCalls} calls; ${finite(remaining)} accounts still hold a balance.`),
+    error: new Error(
+      `Reset did not finish within ${maxCalls} calls; ${finite(remaining)} accounts still hold a balance.`,
+    ),
   };
 }
 
