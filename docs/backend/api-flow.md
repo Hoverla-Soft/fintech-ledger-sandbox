@@ -55,6 +55,45 @@ adminProcedure                                 packages/api/src/procedures.ts
   → typed response: the transaction, its postings, and the resulting balances
 ```
 
+## Sandbox flow (`sandbox.seed`, `sandbox.reset`)
+
+Both sit on `adminProcedure` alongside the writes above and introduce **no new write path** — every mutation below goes through `postTransaction` and `createAccount`, so ordered locking, the funds rule, idempotency, and the audit trail apply unchanged. See ADR 0008.
+
+```
+sandbox.seed { idempotencyKey }              a RUN key; each scenario derives its own
+  → ensureAccounts                           listAccounts, then createAccount for the missing
+        • matched by NAME, which is what makes seed → reset → seed a loop
+        • a lost AccountAlreadyExists race is treated as "already present"
+  → for each scenario, in order              packages/api/src/sandbox/scenarios.ts
+        key `${runKey}:${scenarioId}`        (two keys when the scenario also reverses)
+        → postTransaction
+             posted   → recorded as posted
+             rejected → if the scenario EXPECTS it (insufficient_funds), recorded as
+                        that scenario's outcome; postTransaction already audited it
+                      → otherwise the run stops; later scenarios assume these balances
+        → if reverseAfterPost: rebuild from the persisted rows, then post the mirror
+  → typed response: the accounts, and a per-scenario outcome
+
+sandbox.reset { idempotencyKey }             a RUN key; each chunk derives its own
+  → listAccounts → filter balance ≠ 0 → group by currency
+  → planResetChunk                           packages/api/src/sandbox/reset-plan.ts
+        • ≤ 99 accounts   one transaction, a leg opposite each balance, no suspense
+        • > 99            chunks of 99 + one leg against `Sandbox Suspense <CUR>`;
+                          the final chunk clears the suspense account itself
+        • a suspense leg is emitted ONLY on a partial chunk — see below
+  → Transaction.create                       → 422 unbalanced_transaction
+        ↳ on failure: recordRejection, then toORPCError
+  → postTransaction, key `${runKey}:${sha256(chunk contents)}`
+  → typed response: { accountsZeroed, remaining, transactionIds }
+                     caller loops until `remaining` is 0
+```
+
+**Why reset compensates instead of reversing.** Posting a reversal per historical transaction is the intuitive design and it is wrong, because ADR 0006 permits reversing a reversal: on a `T1 → R1 → R2` history, "reverse everything un-reversed that is not itself a reversal" selects nothing and leaves the balances standing, while "reverse anything un-reversed" oscillates forever. Reading balances instead is correct whatever shape the history has, and needs no plug figure — every transaction nets to zero, so a currency's balances already sum to zero and legs of `-balance` do too.
+
+**Why the suspense leg is conditional.** On a *final* chunk the planner emits none, so balances that do not sum to zero produce an unbalanced set that `Transaction.create` refuses. That is deliberate: reset is what someone reaches for when a sandbox looks wrong, and a suspense leg on the final chunk would absorb the discrepancy and quietly repair a reconciliation break instead of reporting it.
+
+**What reset does not do.** It never deletes and never deactivates. History only grows, and accounts are left `active` at zero — deactivating them would collide with `UNIQUE (org_id, name)` and the inactive-account check on the next seed, making reset a one-way door.
+
 ## Conventions
 
 **Where auth and session context is attached.** In `createContext`, once per request. It resolves the Better Auth session from the request's cookies and adapts it into `LedgerSession` — this package's own minimal `{ userId, activeOrganizationId }` shape — so routers never depend on Better Auth's generic session type, and tests can build a context from a plain object.

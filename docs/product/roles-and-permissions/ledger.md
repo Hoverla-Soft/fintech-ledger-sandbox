@@ -41,6 +41,8 @@ This mapping was chosen over reconfiguring Better Auth with custom roles (which 
 | Reverse a transaction | yes | no | Phase 4b |
 | Seed / reset the sandbox | yes | no | Phase 4c |
 
+Seed and reset are `adminProcedure` procedures like every other write, so they are refused for a `viewer` by the same middleware and for the same reason — there is no separate sandbox-permission concept. Reset is not a privileged or destructive capability in the usual sense: it deletes nothing and posts ordinary balanced transactions, so an admin who can reset could already have posted the same compensating entries by hand. See ADR 0008.
+
 Reconciliation is deliberately readable by a `viewer`: catching drift is not a privileged act, and a viewer who can already see balances and postings can compute the same answer by hand.
 
 ## Enforcement

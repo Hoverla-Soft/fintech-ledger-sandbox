@@ -6,6 +6,8 @@ The product spec for the fintech ledger sandbox. This is the durable source of t
 
 A payments-style, double-entry ledger. Money never appears or disappears: every economic event is a **transaction** made of ≥2 **postings** (debits/credits) that net to zero. Accounts hold a materialized balance derived from — and always reconcilable with — an append-only posting history. Multi-tenant: every account, transaction, and posting belongs to an **organization** and is invisible to every other org. "Sandbox" = fake money, safe to seed and reset.
 
+*Contract note (Phase 4c):* "reset" means **the money is unwound**, not that the data is erased. Postings are append-only and the database refuses to delete them (invariant #8), so reset posts a balanced compensating transaction that drives every balance to zero and leaves the accounts in place, active, ready to be seeded again. History grows; it never shrinks. See `docs/adr/0008-sandbox-reset.md`.
+
 ## Ubiquitous language
 
 - **Organization (org / tenant):** isolation boundary. Owns accounts. Users belong to orgs via Better Auth's organization plugin.
@@ -78,6 +80,7 @@ Roles come from Better Auth (org-scoped): `admin` (all writes + reads within its
 
 - All 8 invariants have passing automated tests, including cross-tenant-isolation and idempotency-under-concurrency.
 - Reconciliation verify returns clean across all seed scenarios (payroll run, marketplace payout with fees, insufficient-funds rejection, reversal).
+  - *Implementation note (Phase 4c):* these ship as `sandbox.seed`, which also posts a preliminary **funding** scenario — money has to enter the sandbox through an `external` account before any of the four can move it. Verified by `packages/api/src/routers/sandbox.test.ts`.
 - CI green through `/feature-loop` (typecheck, test, build, all guards).
 
 ## Out of scope (v1)

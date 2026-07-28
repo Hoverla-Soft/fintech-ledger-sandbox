@@ -171,4 +171,30 @@ Scope note: `packages/api`'s suite covers the **API boundary** — that the acti
 - `transactions.reverse` — mirrors and links via `reverses_transaction_id`, restoring both balances; the original's postings are byte-identical before and after (invariant #8); reversing a reversal is permitted and re-applies the original effect; **another org's transaction id returns `404` identical to a missing one** — without the org-scoped lookup this would reverse another tenant's transaction, since `ledger_transaction`'s self-FK is org-blind
 - **Rate limiting** — exceeding the org limit returns `429` with `data.reason === "rate_limited"` and a positive `retryAfterSeconds`; one org exhausting its budget leaves another org unaffected (invariant #5 applied to availability, which keying by IP would have broken); a refused `viewer`'s attempts are not charged to anyone's budget, because the limiter runs *after* the role check
 
+### `packages/api/src/sandbox/reset-plan.test.ts`
+- Pure, no database — the chunking algebra is where reset's real risk lives (termination, balance, the conditional suspense leg) and all of it is decidable from balances alone
+- **Direction** — a positive (net-debit) balance is cleared by a credit and a negative one by a debit; every emitted amount is strictly positive; accounts already at zero are skipped rather than turned into zero-amount postings
+- **The chunk boundary** — at exactly 99 accounts the whole set is taken with no suspense leg; at 100 it splits and opens one, and the resulting 99 + 1 legs is exactly `MAX_POSTINGS`; a *partial* chunk that happens to sum to zero correctly gets no suspense leg either
+- **Termination** — a 250-account ledger, a 100-account ledger, and a 10-account ledger are each driven to all-zero by looping the planner and applying each chunk, asserting every chunk nets to zero on the way. This is the property a per-transaction reversal model cannot provide
+- **Currencies** — a chunk never spans two; currencies are taken in ascending ISO order; looping drains all of them
+- **A broken ledger is not papered over** — balances that do not sum to zero produce an unbalanced chunk with no suspense leg, so `Transaction.create` refuses it (`422`) instead of a plug figure quietly repairing a reconciliation break
+- **Chunk hashes** — stable for the same remaining work (so a resumed chunk replays), distinct between two chunks of one reset (so they cannot collide), and sensitive to amounts as well as account ids
+
+### `packages/api/src/sandbox/scenarios.test.ts`
+- Pure, no database — checks the seed set as data, so a malformed scenario fails here by name instead of surfacing as a confusing `422` from inside the handler
+- Every scenario's legs **net to zero** — including the insufficient-funds one, which must be a *balanced* transaction or it would be refused at construction for the wrong reason and never reach the funds check at all
+- Every leg names a declared account; account names are unique (`UNIQUE (org_id, name)`); every amount parses and is positive; the set is single-currency so no scenario can violate invariant #7
+- The four scenarios `ledger.md`'s acceptance criteria name are present, funding runs first, exactly one scenario expects rejection, and exactly one reverses
+- **Key derivation** — a reversing scenario gets two distinct keys (it posts two transactions, and one key for both would collide with itself as a `409`), every transaction the seed posts has a unique key, and two run keys never overlap
+
+### `packages/api/src/routers/sandbox.test.ts`
+- `sandbox.seed` — creates the declared accounts and posts every scenario; **reconciliation returns clean across all of them**, which is `ledger.md` line 80's stated acceptance bar; every balance in the org sums to zero (money is conserved)
+- **The expected rejection is real** — the insufficient-funds scenario is reported as `rejected` with reason `insufficient_funds` and appears in `audit.rejections`, so the endpoint that reads rejections has genuine data to serve
+- **Seed idempotency** — the same run key replays with no new transactions and identical balances; a different run key seeds an independent set; accounts are reused by name across runs rather than colliding on `UNIQUE (org_id, name)`
+- `sandbox.reset` — a no-op on an untouched org; drives every balance to zero while leaving every account **`active`** (the property that keeps seed → reset → seed a loop rather than a one-way door); reconciliation stays clean; the transaction count *grows*, proving nothing was deleted; an ordinary sandbox finishes in one call and grows no suspense account
+- **The case that rules out per-transaction reversal** — a `T1 → R1 → R2` history leaves the ledger at ±100 with every transaction either reversed or itself a reversal. Reset zeroes it anyway, because it reads balances rather than walking the reversal graph
+- **Beyond one chunk** — a ledger past `RESET_CHUNK_SIZE` completes over multiple calls via the suspense path and ends at `remaining: 0`; exactly one suspense account is opened, it is `external`, and it finishes at zero; reconciliation stays clean throughout; two currencies both drain without a transaction ever spanning them
+- **The loop** — seed → reset → seed → reset runs twice end to end, asserting the org is funded after each seed and unwound after each reset, with reconciliation clean at all four points
+- **Permissions and tenancy** — a `viewer` in the same org is refused `403 insufficient_role` on both procedures; seeding and resetting one org leaves another org's accounts and transactions completely untouched
+
 <!-- add one block per test file, keep in sync with what actually exists -->

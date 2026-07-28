@@ -4,6 +4,7 @@ import { protectedProcedure, publicProcedure } from "../procedures";
 import { accountsRouter } from "./accounts";
 import { auditRouter } from "./audit";
 import { reconciliationRouter } from "./reconciliation";
+import { sandboxRouter } from "./sandbox";
 import { transactionsRouter } from "./transactions";
 
 export const appRouter = {
@@ -36,6 +37,7 @@ export const appRouter = {
   transactions: transactionsRouter,
   reconciliation: reconciliationRouter,
   audit: auditRouter,
+  sandbox: sandboxRouter,
 };
 
 export type AppRouter = typeof appRouter;
