@@ -10,7 +10,9 @@ It also installs the `apps/web` test runner, which does not exist today, and rec
 
 ## Status
 
-Human Review
+Done
+
+Approved at human review 2026-07-28; Phase 5b started immediately after.
 
 ## Scope (allowed paths)
 

@@ -16,7 +16,6 @@
     "@fintech-ledger-sandbox/api": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
     "@fintech-ledger-sandbox/ui": "workspace:*",
-    "@hookform/resolvers": "^5.4.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.14.6",

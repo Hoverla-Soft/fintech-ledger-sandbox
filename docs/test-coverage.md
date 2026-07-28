@@ -252,4 +252,16 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The three no-reason branches each render distinctly: a bare `401`, a Zod `BAD_REQUEST` whose field issues are exposed for form binding, and an unmapped `500` that reveals no internals
 - **Hostile input is renderable** — an unrecognised reason falls back without printing `undefined`; a network `TypeError`, `null`, `undefined`, a bare string, a number, an empty object, a string `data`, and a non-array `issues` all return copy rather than throwing inside the error handler; malformed issue entries are dropped rather than propagated
 
+### `apps/web/src/lib/org/role.test.ts` (Phase 5b)
+- **Agreement with `packages/api`** — imports the server's own `toLedgerRole` and asserts the console's copy produces an identical result across 17 inputs (`owner`, `admin`, `member`, `""`, mixed case, padded, comma-lists, near-misses like `ownerish` and `administrator`, and `","`). The console duplicates this mapping because no procedure returns the role (open question #1); the duplication is only safe while the two provably agree
+- Fails closed on anything unrecognised, and on `null`/`undefined` rather than throwing — rendering a write affordance to someone the server will refuse is worse than hiding one from someone who could have used it
+
+### `apps/web/src/components/states/states.test.tsx` (Phase 5b)
+- **The precedence rule, which is the reason this component exists.** A failed query has `data === undefined`, so an empty-first branch renders "nothing here yet" for a server that is down. Asserted directly: a failing query renders the error state and *not* the empty state, even when an `isEmpty` predicate is supplied that would match. In a ledger those states mean opposite things — one invites you to create an account, the other means the balances on screen may be nothing at all
+- Empty renders only when the query genuinely succeeded with no rows; pending renders the skeleton and neither of the other two; settled-but-undefined is treated as an error rather than as empty
+- The error state renders mapped copy and **never** the server's `message`; it is announced as `role="alert"`; its retry fires; a throttled response surfaces `retryAfterSeconds` from the body as a concrete wait
+- Empty and error are distinguishable both by test id and by ARIA role — the empty state is not an alert
+- The loading state carries `aria-busy` and a visually-hidden label rather than rendering silent boxes
+- The empty state always carries a next action (the prop is required, not optional)
+
 <!-- add one block per test file, keep in sync with what actually exists -->

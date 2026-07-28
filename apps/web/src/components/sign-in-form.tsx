@@ -10,10 +10,15 @@ import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
 
-export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
-  const navigate = useNavigate({
-    from: "/",
-  });
+export default function SignInForm({
+  onSwitchToSignUp,
+  redirectTo,
+}: {
+  onSwitchToSignUp: () => void;
+  /** Where the `_auth` guard was sending the user before it bounced them here. */
+  redirectTo?: string;
+}) {
+  const navigate = useNavigate();
   const { isPending } = authClient.useSession();
 
   const form = useForm({
@@ -29,9 +34,8 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
         },
         {
           onSuccess: () => {
-            navigate({
-              to: "/dashboard",
-            });
+            // Land where they were headed, not on a fixed page.
+            navigate({ to: redirectTo ?? "/dashboard" });
             toast.success("Sign in successful");
           },
           onError: (error) => {

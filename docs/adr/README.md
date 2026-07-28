@@ -16,9 +16,10 @@ Format: numbered `NNNN-kebab-title.md`, with **Context / Decision / Consequences
 | [0006](0006-write-endpoint-contract.md) | Write endpoint contract: raw N-leg postings over a transfer shape, body-carried idempotency key, request hash over sorted canonical legs, every pre-persistence rejection audited | Accepted |
 | [0007](0007-rate-limiting.md) | Rate limiting on `adminProcedure` (the write set by construction), keyed by the verified `orgId` with a secondary per-user limit, wrapped so the `429` carries `data.reason` | Accepted |
 | [0008](0008-sandbox-reset.md) | Sandbox seed/reset: reset is a balance-compensating entry (never a deletion, never a per-transaction reversal), bounded and resumable; both procedures are `adminProcedure` endpoints, so ADR 0005's direct-caller hole is never opened | Accepted |
+| [0009](0009-console-session-and-tenant-model.md) | Console session & tenancy: the active org is Better Auth session state changed only through `setActive`; the role is derived client-side as an affordance hint with an agreement test against the server's mapping; the query cache is cleared on org switch and sign-out | Accepted |
 
 ## Planned (the remaining load-bearing ledger decisions)
 
 These are drafted as their phases land, so the reasoning is captured at decision time:
 
-- *(none outstanding — Phase 4c's seed/reset access model was the last outstanding candidate and landed as ADR 0008, which also closes the open consequence ADR 0005 recorded against itself. The next ADR is written when the next load-bearing decision is made; Phase 5's console is the likely source.)*
+- *(none outstanding — Phase 5b's console session and tenancy model was the last outstanding candidate and landed as ADR 0009, which was indeed the console-sourced decision ADR 0008's entry anticipated. The next ADR is written when the next load-bearing decision is made; the likeliest remaining candidate in Phase 5 is how the transfer screen composes and confirms an N-leg transaction, if 5d's choices turn out to be expensive to revisit.)*

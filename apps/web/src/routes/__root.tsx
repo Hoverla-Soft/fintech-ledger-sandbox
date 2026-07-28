@@ -1,16 +1,12 @@
-import type { AppRouterClient } from "@fintech-ledger-sandbox/api/routers/index";
 import { Toaster } from "@fintech-ledger-sandbox/ui/components/sonner";
-import { createORPCClient } from "@orpc/client";
-import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { TooltipProvider } from "@fintech-ledger-sandbox/ui/components/tooltip";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
+import { createRootRouteWithContext, HeadContent, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useState } from "react";
 
-import Header from "@/components/header";
 import { ThemeProvider } from "@/components/theme-provider";
-import { link, orpc } from "@/utils/orpc";
+import type { orpc } from "@/utils/orpc";
 
 import "../index.css";
 
@@ -40,10 +36,23 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   }),
 });
 
+/**
+ * Root chrome only: theme, toasts, tooltips, devtools.
+ *
+ * Two things were removed here in Phase 5b.
+ *
+ * A **second oRPC client** was constructed in this component
+ * (`createORPCClient(link)` plus its own `createTanstackQueryUtils`) and then
+ * never read. It survived because `apps/web` had `noUnusedLocals` off; the
+ * flag is on as of this slice and this was its only violation in the app. Had
+ * it ever been used it would have been a genuine bug — a second client means a
+ * second cache, silently diverging from the one every screen reads.
+ *
+ * The **console header** moved to `components/shell/console-shell.tsx`, which
+ * only the `_auth` layout renders. It carries the organization switcher, and
+ * an org switcher on the public landing and login pages would be meaningless.
+ */
 function RootComponent() {
-  const [client] = useState<AppRouterClient>(() => createORPCClient(link));
-  const [orpcUtils] = useState(() => createTanstackQueryUtils(client));
-
   return (
     <>
       <HeadContent />
@@ -53,14 +62,19 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
-        </div>
-        <Toaster richColors />
+        <TooltipProvider>
+          <div className="h-svh">
+            <Outlet />
+          </div>
+          <Toaster richColors />
+        </TooltipProvider>
       </ThemeProvider>
-      <TanStackRouterDevtools position="bottom-left" />
-      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      {import.meta.env.DEV ? (
+        <>
+          <TanStackRouterDevtools position="bottom-left" />
+          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        </>
+      ) : null}
     </>
   );
 }

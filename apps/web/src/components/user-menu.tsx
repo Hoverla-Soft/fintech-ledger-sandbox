@@ -9,12 +9,16 @@ import {
   DropdownMenuTrigger,
 } from "@fintech-ledger-sandbox/ui/components/dropdown-menu";
 import { Skeleton } from "@fintech-ledger-sandbox/ui/components/skeleton";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { signOutAndClear } from "@/lib/org/session";
 
 export default function UserMenu() {
   const navigate = useNavigate();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
@@ -42,15 +46,14 @@ export default function UserMenu() {
           <DropdownMenuItem
             variant="destructive"
             onClick={() => {
-              authClient.signOut({
-                fetchOptions: {
-                  onSuccess: () => {
-                    navigate({
-                      to: "/",
-                    });
-                  },
-                },
-              });
+              // Clearing the cache is the load-bearing part, and it was missing
+              // before Phase 5b: signing out navigated away but left every
+              // org-scoped response resident, so the next user to sign in on
+              // this tab could be served the previous user's balances out of
+              // cache before their own first refetch resolved.
+              void signOutAndClear(queryClient, () => router.invalidate()).then(() =>
+                navigate({ to: "/" }),
+              );
             }}
           >
             Sign Out

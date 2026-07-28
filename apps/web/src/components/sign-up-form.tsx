@@ -10,10 +10,15 @@ import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
 
-export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) {
-  const navigate = useNavigate({
-    from: "/",
-  });
+export default function SignUpForm({
+  onSwitchToSignIn,
+  redirectTo,
+}: {
+  onSwitchToSignIn: () => void;
+  /** Where the `_auth` guard was sending the user before it bounced them here. */
+  redirectTo?: string;
+}) {
+  const navigate = useNavigate();
   const { isPending } = authClient.useSession();
 
   const form = useForm({
@@ -31,9 +36,11 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
         },
         {
           onSuccess: () => {
-            navigate({
-              to: "/dashboard",
-            });
+            // A brand-new user has no organization yet, so the `_auth` guard will
+            // bounce them to `/organization`. Navigating to the console first
+            // and letting the guard redirect keeps the "where was I going"
+            // logic in exactly one place.
+            navigate({ to: redirectTo ?? "/dashboard" });
             toast.success("Sign up successful");
           },
           onError: (error) => {
