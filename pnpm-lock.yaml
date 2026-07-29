@@ -181,6 +181,9 @@ importers:
       '@fintech-ledger-sandbox/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@fintech-ledger-sandbox/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@fintech-ledger-sandbox/env':
         specifier: workspace:*
         version: link:../../packages/env

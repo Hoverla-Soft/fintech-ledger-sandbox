@@ -11,9 +11,11 @@
  */
 
 export type {
+  PostExchangeInput,
+  PostedExchange,
   PostedPosting,
   PostedTransaction,
   PostTransactionError,
   PostTransactionInput,
 } from "./post-transaction";
-export { postTransaction } from "./post-transaction";
+export { postExchange, postTransaction } from "./post-transaction";

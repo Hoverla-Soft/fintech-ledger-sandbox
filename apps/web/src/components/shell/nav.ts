@@ -3,6 +3,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   type LucideIcon,
+  Repeat,
   Scale,
   ScrollText,
   ShieldCheck,
@@ -35,6 +36,7 @@ export type ConsolePath =
   | "/dashboard"
   | "/accounts"
   | "/transfer"
+  | "/exchange"
   | "/transactions"
   | "/reconciliation"
   | "/audit"
@@ -73,6 +75,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         label: "Transfer",
         icon: ArrowLeftRight,
         hint: "Post a balanced transaction between accounts",
+      },
+      {
+        to: "/exchange",
+        label: "Exchange",
+        icon: Repeat,
+        hint: "Convert between currencies at a rate you state",
       },
       {
         to: "/transactions",

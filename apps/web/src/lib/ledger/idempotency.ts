@@ -39,7 +39,12 @@
  */
 
 /** The distinct operations that can be in flight at once, each with its own key slot. */
-export type OperationKind = "transfer" | "sandbox-run" | "sandbox-reset" | `reverse:${string}`;
+export type OperationKind =
+  | "transfer"
+  | "exchange"
+  | "sandbox-run"
+  | "sandbox-reset"
+  | `reverse:${string}`;
 
 const STORAGE_PREFIX = "ledger.idempotency.";
 

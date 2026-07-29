@@ -59,6 +59,24 @@ export const transactionSchema = z.object({
     .describe(
       "Ids of the transactions that reverse this one — the inverse of `reversesTransactionId`, which points forwards only. Empty when this transaction has not been reversed. An array rather than a boolean because nothing forbids reversing the same transaction twice: there is no unique constraint on the column and `transactions.reverse` performs no existing-reversal check, so a scalar would be correct only until the first double reversal.",
     ),
+  fxSourceTransactionId: z
+    .string()
+    .nullable()
+    .describe(
+      "On the target leg of a cross-currency exchange, the source leg it was converted from. Null on every other transaction.",
+    ),
+  fxTargetTransactionId: z
+    .string()
+    .nullable()
+    .describe(
+      "On the source leg of a cross-currency exchange, the target leg it converted into. Derived as the inverse of `fxSourceTransactionId`, never stored. A single id rather than a list, because a partial UNIQUE index guarantees one source has at most one target — unlike `reversedBy`, where nothing forbids a second reversal.",
+    ),
+  fxRate: z
+    .string()
+    .nullable()
+    .describe(
+      "The agreed exchange rate as a decimal string, on the target leg of an exchange. A string, never a number: a rate parsed as a float reintroduces the rounding error ADR 0002 exists to prevent.",
+    ),
   createdBy: z.string(),
   createdAt: z.string(),
 });
@@ -150,6 +168,9 @@ export function toWireTransaction(row: LedgerTransactionRow): z.infer<typeof tra
     // string[]` and the wire type is mutable, so sharing the reference would
     // let a caller mutate what the repository considers immutable.
     reversedBy: [...row.reversedBy],
+    fxSourceTransactionId: row.fxSourceTransactionId,
+    fxTargetTransactionId: row.fxTargetTransactionId,
+    fxRate: row.fxRate,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
   };

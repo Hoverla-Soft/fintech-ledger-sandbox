@@ -47,7 +47,10 @@ export type LedgerErrorReason =
   | "invalid_amount"
   | "non_positive_amount"
   | "too_few_postings"
-  | "unbalanced_transaction";
+  | "unbalanced_transaction"
+  | "invalid_rate"
+  | "conversion_mismatch"
+  | "same_currency_exchange";
 
 /**
  * Messages are fixed strings, never interpolated with the offending value.
@@ -72,6 +75,11 @@ const MESSAGES: Record<LedgerErrorReason, string> = {
   non_positive_amount: "Every posting amount must be greater than zero.",
   too_few_postings: "A transaction requires at least two postings.",
   unbalanced_transaction: "The transaction's postings do not net to zero.",
+  invalid_rate: "The exchange rate is not a valid positive decimal.",
+  conversion_mismatch:
+    "The converted amount does not match the amount and rate given. The expected value is in `data.expected`.",
+  same_currency_exchange:
+    "Both accounts hold the same currency, so this is an ordinary transfer rather than an exchange.",
 };
 
 /**
@@ -117,6 +125,8 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
       return { code: "UNPROCESSABLE_CONTENT", reason: "too_few_postings" };
     case "UnbalancedTransaction":
       return { code: "UNPROCESSABLE_CONTENT", reason: "unbalanced_transaction" };
+    case "InvalidRate":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "invalid_rate" };
     default: {
       // Exhaustiveness guard: if `LedgerError` or `PersistenceError` gains a
       // member, this stops compiling instead of falling through to a 500.

@@ -95,7 +95,13 @@ export function computeRequestHash(
   transaction: Transaction,
   reversesTransactionId: string | null = null,
 ): string {
-  const legs: HashableLeg[] = transaction.postings
+  return createHash("sha256")
+    .update(canonicalize(hashableLegs(transaction), reversesTransactionId), "utf8")
+    .digest("hex");
+}
+
+function hashableLegs(transaction: Transaction): HashableLeg[] {
+  return transaction.postings
     .map((posting) => ({
       accountId: posting.accountId,
       direction: posting.direction,
@@ -103,8 +109,33 @@ export function computeRequestHash(
       currency: posting.amount.currency,
     }))
     .sort(compareLegs);
+}
 
-  return createHash("sha256")
-    .update(canonicalize(legs, reversesTransactionId), "utf8")
-    .digest("hex");
+/**
+ * The fingerprint for a cross-currency exchange.
+ *
+ * Covers **both legs and the rate**. All three matter: retrying the identical
+ * exchange must replay, while changing the rate — even with the same two
+ * amounts, which a rounding band allows — is a different request and must
+ * conflict rather than silently replay the earlier rate.
+ *
+ * Each leg's own legs are sorted by `canonicalize`'s rule, but the two *legs*
+ * are kept in source-then-target order rather than sorted against each other:
+ * the direction of an exchange is part of its identity, and USD→EUR must never
+ * hash the same as EUR→USD.
+ */
+export function computeExchangeRequestHash(
+  source: Transaction,
+  target: Transaction,
+  rate: string,
+): string {
+  const payload = JSON.stringify({
+    exchange: {
+      source: hashableLegs(source),
+      target: hashableLegs(target),
+      rate,
+    },
+  });
+
+  return createHash("sha256").update(payload, "utf8").digest("hex");
 }

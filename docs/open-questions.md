@@ -53,4 +53,15 @@ Each of these is a capability the console needs and the API does not currently p
 
 ---
 
+## Cross-currency exchange (opened Phase 7c)
+
+| # | Item | Status | Action needed |
+|---|---|---|---|
+| 20 | **Reversing one leg of an exchange leaves the other standing.** `transactions.reverse` is unchanged and knows nothing about `fx_source_transaction_id`, so reversing the USD half of a USD→EUR exchange restores the USD side and leaves 92.00 EUR sitting in the payee's account, with the EUR bridge still short | Known limitation, deliberate | Not half-solved on purpose. "Reverse the exchange" is a different operation from "reverse this transaction": it needs both legs mirrored under one new idempotency key, and it has to decide what happens when the second mirror is unaffordable — the same trap open question #3 recorded for double reversal. Until then the two legs are individually reversible and the audit log shows exactly what was done. Reversing both by hand is correct and leaves reconciliation clean |
+| 21 | **Nothing revalues an FX position or books a gain/loss.** The bridge accounts accumulate offsetting balances (`+100.00 USD` / `-92.00 EUR`) and no process ever marks them to a later rate | Not implemented, out of scope | This is real accounting rather than plumbing, and it needs a rate source to revalue *against* — which the sandbox deliberately does not have (see #22). The positions are at least visible rather than hidden, which is the prerequisite for doing it later |
+| 22 | **There is no rate source; the caller states the rate.** Every exchange records whatever rate was supplied, and nothing checks it against a market | By design (`ADR 0010`) | Chosen over a hardcoded rate table (fiction that looks authoritative) and over a provider integration (a dependency, a network boundary, and non-deterministic tests in a fake-money sandbox). The ledger's job here is to record what was agreed. A provider would become worth it only if the sandbox needed to demonstrate a live-rate integration specifically |
+| 23 | **A same-currency pair is refused rather than falling back to a plain transfer.** `422 same_currency_exchange` | By design | Accepting it would open a bridge pair in one currency and post two transactions where `transactions.create` posts one. The console's picker excludes same-currency destinations, so this is reachable only by calling the API directly |
+
+---
+
 Add a new `## Domain area` section per area rather than one giant table — makes it scannable, and `integration-spec-guard`/`backend-architecture-guard` reference specific sections when they flag something as "should be logged as an open question" instead of assumed.

@@ -429,4 +429,34 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 
 **Charts are not unit-tested for rendering.** They were verified by running the app: a seeded org with transactions spread across the window, screenshotted in both themes. That pass caught two real defects a unit test would not have — a stretched `viewBox` rendering bars wider than their 24px cap with elliptical corners (fixed by moving from SVG to CSS bars), and absolutely-positioned gridlines painting *over* the marks instead of behind them (fixed with explicit `z-0`/`z-10`).
 
+### `packages/core/src/money/exchange.test.ts` — exchange-rate arithmetic (Phase 7c)
+
+- **A rate is held exactly** as an integer numerator plus a scale, and the caller's own text survives so what gets stored is what was agreed rather than a re-rendering that might normalise `"0.9200"` to `"0.92"`
+- **Zero and negative rates are refused.** Zero converts every amount to nothing; a negative would produce a negative target amount that `createPosting` rejects far from the actual mistake
+- **Half-up rounding happens exactly once, at the target scale.** 33.33 USD at 0.92 is 30.6636 EUR → `30.66`
+- **Scale differences are folded into the same fraction**, not applied as a second rounding pass. 1 JPY (exponent 0) at 0.0025 into BHD (exponent 3) is `0.003`; rounding the ×1000 shift separately would give `0.002` or `0.000`
+- **Exact at `9_007_199_254_740_993`** — the first integer a double cannot represent
+- **`checkConversion` returns the expected amount on failure**, not a bare boolean, so a form can say "expected 92.00" instead of "invalid conversion". Tolerance is *zero*: off by one minor unit is refused, because "close enough" on a ledger is how a cent per transaction goes missing
+
+### `packages/api/src/routers/exchange.test.ts` — cross-currency exchange end to end (Phase 7c)
+
+- **Both legs post, each balanced in its own currency**, and the FX position lands on `FX Bridge USD` (+100.00) and `FX Bridge EUR` (−92.00). The bridges are `external`, because the target-side one is credited and so goes negative — which invariant #6 forbids for a `normal` account
+- **Every account still reconciles, and each currency still sums to zero.** This is the payoff of the two-transaction design: reconciliation needed no modification at all
+- **Bridges are opened once**, however many exchanges run
+- **The legs are linked and the rate lives on the target only** — `fxSourceTransactionId` stored, `fxTargetTransactionId` derived as its inverse, `fxRate` on the target. Putting the rate on both would invite a reader to apply it twice
+- **Atomicity: nothing posts when anything fails.** Insufficient funds, an unknown account, and a cross-org account each leave balances untouched, write no transaction of *either* currency, and leave reconciliation clean. A half-completed exchange would strand money in a bridge with nothing to say where it was going
+- **One key covers both legs.** A repeat replays both and moves balances once; the same key with a *different rate* is a `409`, because the same two amounts are reachable from more than one rate within a rounding band and replaying would silently discard the new rate; the same key in the opposite *direction* is also a `409`, which is why the two legs are hashed in source-then-target order rather than sorted
+- **Every refusal is audited** with a matching `reason` and the `post_exchange` action
+- **A viewer is refused** `403`
+
+### `apps/web/src/features/exchange/conversion.test.ts` — the console's side (Phase 7c)
+
+- **The previewed figure is the one submitted**, computed with `packages/core`'s own `convert`. A browser copy of the rounding rule would agree for most inputs and disagree for exactly the awkward ones, producing a form that submits a value the server rejects with no way to tell which side is wrong
+- **Excess precision and non-positive rates are refused**, matching the server
+- **Eligibility is the mirror of the transfer screen's** — an exchange needs the currencies to *differ* where a transfer needs them to match, so `canExchange` and `canTransfer` disagree on the same org and each empty state says the true thing
+- **FX bridge accounts are excluded from both pickers.** They are plumbing opened automatically to hold the position; exchanging directly into one would work and mean nothing
+- **`isFxBridge` matches the server's naming and nothing near it** — `"FX Bridgehead"` and `"My FX Bridge USD"` are not bridges
+
+**Not unit-tested:** the exchange form's rendering. It was verified by driving the real app — pickers, conversion preview, post, source leg, FX link, target leg — which caught two things unit tests would not have: both money-moving forms displayed the account's raw **uuid** in the picker trigger (Base UI's `Select.Value` renders the bare value unless handed a function), and the transaction detail page never surfaced the FX link at all.
+
 <!-- add one block per test file, keep in sync with what actually exists -->

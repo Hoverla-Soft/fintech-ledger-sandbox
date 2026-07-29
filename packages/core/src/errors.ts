@@ -24,6 +24,19 @@ export interface UnsupportedCurrency {
 
 export type InvalidAmountReason = "not-a-bigint" | "malformed-decimal" | "excess-precision";
 
+export type InvalidRateReason =
+  | "malformed-decimal"
+  | "excess-precision"
+  | "too-long"
+  /** Zero or negative. Neither has a meaning as an exchange rate. */
+  | "not-positive";
+
+export interface InvalidRate {
+  readonly kind: "InvalidRate";
+  readonly reason: InvalidRateReason;
+  readonly input: string;
+}
+
 export interface InvalidAmount {
   readonly kind: "InvalidAmount";
   readonly reason: InvalidAmountReason;
@@ -57,6 +70,7 @@ export type LedgerError =
   | CurrencyMismatch
   | UnsupportedCurrency
   | InvalidAmount
+  | InvalidRate
   | NonPositiveAmount
   | TooFewPostings
   | UnbalancedTransaction

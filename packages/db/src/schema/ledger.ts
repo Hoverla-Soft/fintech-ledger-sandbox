@@ -38,6 +38,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
@@ -118,6 +119,27 @@ export const ledgerTransaction = pgTable(
     reversesTransactionId: text("reverses_transaction_id").references(
       (): AnyPgColumn => ledgerTransaction.id,
     ),
+    // Self-FK on the **target** leg of a cross-currency exchange, pointing at
+    // the source leg. Nullable — almost no transaction is half of an exchange.
+    //
+    // A cross-currency transfer is two single-currency transactions, not one
+    // multi-currency transaction: `Transaction` stays balanced within one
+    // currency, reconciliation is untouched, and per-currency conservation
+    // still holds. `postExchange` commits both legs together. See
+    // `docs/adr/0010-cross-currency-exchange.md`.
+    fxSourceTransactionId: text("fx_source_transaction_id").references(
+      (): AnyPgColumn => ledgerTransaction.id,
+    ),
+    // The agreed rate, as the caller wrote it — a decimal *string*, never a
+    // float or a numeric the driver might hand back as one. Stored on the
+    // target leg only, since that is the leg the rate produced. NULL on every
+    // transaction that is not an exchange target.
+    //
+    // Recorded even though it is derivable from the two amounts, because the
+    // derived value is the *rounded* result: 33.33 USD to 30.66 EUR implies a
+    // range of rates, and which one was agreed is a business fact the
+    // amounts cannot recover.
+    fxRate: text("fx_rate"),
     // The actor (org admin) who submitted this transfer. Financial
     // provenance must survive the acting user's own account being deleted,
     // so this intentionally omits `onDelete: "cascade"` (defaults to no
@@ -155,6 +177,22 @@ export const ledgerTransaction = pgTable(
     index("ledger_transaction_reversesTransactionId_idx")
       .on(table.reversesTransactionId)
       .where(sql`${table.reversesTransactionId} is not null`),
+    // Reverse direction of the FX self-FK: "what did this transaction convert
+    // into?" Partial for the same reason as above — the column is NULL for
+    // everything that is not an exchange target.
+    //
+    // **UNIQUE here, unlike the reversal index**, and the difference is the
+    // point. A transaction may be reversed any number of times, so that read
+    // returns a list. An exchange source has exactly one target: `postExchange`
+    // is the only writer, it creates the pair in one commit, and nothing else
+    // may point at a source. Declaring that as a constraint is what makes the
+    // read side's *scalar* counterpart field honest rather than merely
+    // conventional — without it, a scalar would be correct until it wasn't.
+    // Postgres permits many NULLs under a UNIQUE, so non-exchange rows are
+    // unaffected.
+    uniqueIndex("ledger_transaction_fxSourceTransactionId_idx")
+      .on(table.fxSourceTransactionId)
+      .where(sql`${table.fxSourceTransactionId} is not null`),
   ],
 );
 

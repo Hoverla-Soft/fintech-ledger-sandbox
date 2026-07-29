@@ -87,6 +87,42 @@ function TransactionDetailRoute() {
               </div>
             </div>
 
+            {/*
+              A cross-currency exchange is two transactions, so a reader landing
+              on one leg needs to be told the other exists — otherwise the
+              balanced-but-half-the-story postings below look like money going to
+              a bridge account for no reason. The rate is shown on the leg that
+              carries it, which is the target.
+            */}
+            {data.fxTargetTransactionId ? (
+              <p className="text-sm text-muted-foreground">
+                This is the outgoing half of a currency exchange. The money continues into{" "}
+                <Link
+                  to="/transactions/$transactionId"
+                  params={{ transactionId: data.fxTargetTransactionId }}
+                  className="underline underline-offset-4"
+                >
+                  the converted transaction
+                </Link>
+                , which was posted in the same commit — both halves exist or neither does.
+              </p>
+            ) : null}
+
+            {data.fxSourceTransactionId ? (
+              <p className="text-sm text-muted-foreground">
+                This is the incoming half of a currency exchange
+                {data.fxRate ? `, converted at a rate of ${data.fxRate}` : ""}. It came from{" "}
+                <Link
+                  to="/transactions/$transactionId"
+                  params={{ transactionId: data.fxSourceTransactionId }}
+                  className="underline underline-offset-4"
+                >
+                  the outgoing transaction
+                </Link>
+                .
+              </p>
+            ) : null}
+
             {data.reversesTransactionId ? (
               <p className="text-sm text-muted-foreground">
                 This transaction reverses{" "}

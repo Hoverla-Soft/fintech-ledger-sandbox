@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fintech-ledger-sandbox/api": "workspace:*",
+    "@fintech-ledger-sandbox/core": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
     "@fintech-ledger-sandbox/ui": "workspace:*",
     "@orpc/client": "catalog:",

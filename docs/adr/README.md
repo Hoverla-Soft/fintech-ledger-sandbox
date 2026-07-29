@@ -17,9 +17,10 @@ Format: numbered `NNNN-kebab-title.md`, with **Context / Decision / Consequences
 | [0007](0007-rate-limiting.md) | Rate limiting on `adminProcedure` (the write set by construction), keyed by the verified `orgId` with a secondary per-user limit, wrapped so the `429` carries `data.reason` | Accepted |
 | [0008](0008-sandbox-reset.md) | Sandbox seed/reset: reset is a balance-compensating entry (never a deletion, never a per-transaction reversal), bounded and resumable; both procedures are `adminProcedure` endpoints, so ADR 0005's direct-caller hole is never opened | Accepted |
 | [0009](0009-console-session-and-tenant-model.md) | Console session & tenancy: the active org is Better Auth session state changed only through `setActive`; the role is derived client-side as an affordance hint with an agreement test against the server's mapping; the query cache is cleared on org switch and sign-out | Accepted |
+| [0010](0010-cross-currency-exchange.md) | Cross-currency exchange is **two linked single-currency transactions** committed together, not one multi-currency transaction: every existing invariant survives untouched, and the FX position sits openly on a pair of auto-opened `external` bridge accounts. The caller states the rate and the converted amount; the server verifies the conversion and refuses a mismatch | Accepted |
 
 ## Planned (the remaining load-bearing ledger decisions)
 
 These are drafted as their phases land, so the reasoning is captured at decision time:
 
-- *(none outstanding — Phase 5b's console session and tenancy model was the last outstanding candidate and landed as ADR 0009, which was indeed the console-sourced decision ADR 0008's entry anticipated. The next ADR is written when the next load-bearing decision is made; the likeliest remaining candidate in Phase 5 is how the transfer screen composes and confirms an N-leg transaction, if 5d's choices turn out to be expensive to revisit.)*
+- *(none outstanding. Phase 7c's cross-currency model landed as ADR 0010. The anticipated "how the transfer screen composes an N-leg transaction" ADR was never needed — 5d's choices have not had to be revisited. The likeliest next candidate is FX gain/loss recognition, if anyone asks the bridge accounts' accumulated positions to mean something in a P&L.)*

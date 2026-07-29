@@ -32,16 +32,19 @@ export const LEDGER_REASONS = [
   "account_inactive",
   "account_name_taken",
   "account_not_found",
+  "conversion_mismatch",
   "currency_mismatch",
   "idempotency_conflict",
   "insufficient_funds",
   "insufficient_role",
   "invalid_amount",
   "invalid_cursor",
+  "invalid_rate",
   "no_active_organization",
   "non_positive_amount",
   "not_a_member",
   "rate_limited",
+  "same_currency_exchange",
   "too_few_postings",
   "transaction_not_found",
   "unbalanced_transaction",
@@ -100,7 +103,25 @@ const COPY = {
   currency_mismatch: {
     title: "Those accounts hold different currencies",
     detail:
-      "Every leg of a transaction has to be in one currency, and this sandbox does not convert between them. Pick accounts that share a currency.",
+      "Every leg of one transaction has to be in a single currency. To move between currencies, use Exchange — it posts two linked transactions and records the rate.",
+    disposition: "fix_input",
+  },
+  conversion_mismatch: {
+    title: "The converted amount does not match the rate",
+    detail:
+      "The amount arriving has to be exactly what the amount and rate come to, rounded to the target currency's smallest unit. The expected figure is shown on the form.",
+    disposition: "fix_input",
+  },
+  invalid_rate: {
+    title: "That is not a usable exchange rate",
+    detail:
+      "A rate has to be a positive decimal with at most ten decimal places — for example 0.92. Zero and negative rates have no meaning.",
+    disposition: "fix_input",
+  },
+  same_currency_exchange: {
+    title: "Both accounts hold the same currency",
+    detail:
+      "There is nothing to convert. Use Transfer to move money between accounts in one currency.",
     disposition: "fix_input",
   },
   idempotency_conflict: {

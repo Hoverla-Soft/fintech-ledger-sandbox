@@ -151,6 +151,27 @@ export async function pageAccounts(
 }
 
 /**
+ * Looks up one account by its `(org_id, name)` unique key.
+ *
+ * Returns `null` for a miss rather than a `Result`, because the one caller —
+ * finding or opening an FX bridge account — treats absence as "create it", not
+ * as an error. Reporting it as `AccountNotFound` would make every call site
+ * unwrap an error that is a normal, expected outcome.
+ */
+export async function findAccountByName(
+  db: Db,
+  orgId: string,
+  name: string,
+): Promise<LedgerAccountRow | null> {
+  const [row] = await db
+    .select()
+    .from(ledgerAccount)
+    .where(and(eq(ledgerAccount.orgId, orgId), eq(ledgerAccount.name, name)));
+
+  return row === undefined ? null : toAccountRow(row);
+}
+
+/**
  * Looks up one account by id, scoped to `orgId`. A cross-org id and a
  * genuinely missing id both report the same `AccountNotFound` — see
  * `errors.ts`.

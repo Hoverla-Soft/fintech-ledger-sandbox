@@ -1,0 +1,4 @@
+ALTER TABLE "ledger_transaction" ADD COLUMN "fx_source_transaction_id" text;--> statement-breakpoint
+ALTER TABLE "ledger_transaction" ADD COLUMN "fx_rate" text;--> statement-breakpoint
+ALTER TABLE "ledger_transaction" ADD CONSTRAINT "ledger_transaction_fx_source_transaction_id_ledger_transaction_id_fk" FOREIGN KEY ("fx_source_transaction_id") REFERENCES "public"."ledger_transaction"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "ledger_transaction_fxSourceTransactionId_idx" ON "ledger_transaction" USING btree ("fx_source_transaction_id") WHERE "ledger_transaction"."fx_source_transaction_id" is not null;

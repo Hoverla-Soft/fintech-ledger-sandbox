@@ -19,6 +19,8 @@ export type {
   InsufficientFunds,
   InvalidAmount,
   InvalidAmountReason,
+  InvalidRate,
+  InvalidRateReason,
   LedgerError,
   NonPositiveAmount,
   TooFewPostings,
@@ -28,6 +30,8 @@ export type {
 export { isLedgerError } from "./errors";
 export type { Currency } from "./money/currency";
 export { CURRENCIES, minorUnitExponent, parseCurrency } from "./money/currency";
+export type { ConversionMismatch } from "./money/exchange";
+export { checkConversion, convert, MAX_RATE_LENGTH, MAX_RATE_SCALE, Rate } from "./money/exchange";
 export { Money } from "./money/money";
 export type { Result } from "./result";
 export { err, ok } from "./result";

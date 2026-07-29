@@ -85,7 +85,7 @@ Roles come from Better Auth (org-scoped): `admin` (all writes + reads within its
 
 ## Out of scope (v1)
 
-- **FX / multi-currency conversion** — accounts are single-currency; cross-currency transfers are rejected, not converted.
+- ~~**FX / multi-currency conversion**~~ — **delivered in Phase 7c**, and the way it was delivered kept this row's underlying rule intact. An account is still single-currency and a *transaction* is still single-currency: a cross-currency move is **two** linked single-currency transactions committed together (`transactions.exchange`, `docs/adr/0010-cross-currency-exchange.md`), so invariant #7 is unchanged and nothing here was relaxed. Still out of scope: any **rate source** (the caller states the rate), **FX gain/loss recognition** on the bridge positions, and reversing an exchange as a single unit — see open questions #20–#23.
 - **Holds / authorizations** (auth→capture→void, available vs posted balance) — Phase 2 of the product; schema kept extension-ready.
 - Interest, fees schedules, statements, reconciliation against external banks, real payment rails, KYC/regulatory.
 

@@ -44,6 +44,19 @@ import { describeTransfer, prepareTransfer } from "./submission";
 
 type FieldName = "amount" | "source" | "destination" | "form";
 
+/**
+ * What a picker's trigger shows once an account is chosen.
+ *
+ * Base UI's `Select.Value` renders the raw `value` unless handed a function, so
+ * this trigger previously displayed the account's **uuid**. On the screen that
+ * moves money, the trigger is the one place someone can confirm they picked the
+ * account they meant — an id there is not a cosmetic problem.
+ */
+function accountLabel(accounts: readonly WireAccount[], value: unknown): string {
+  const chosen = accounts.find((account) => account.id === value);
+  return chosen === undefined ? "" : `${chosen.name} — ${chosen.balance.amount} ${chosen.currency}`;
+}
+
 export function TransferForm({ accounts }: { accounts: readonly WireAccount[] }) {
   const [sourceId, setSourceId] = useState<string>("");
   const [destinationId, setDestinationId] = useState<string>("");
@@ -200,7 +213,9 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
             })}
             disabled={post.isPending}
           >
-            <SelectValue placeholder="Choose an account" />
+            <SelectValue placeholder="Choose an account">
+              {(value) => accountLabel(sources, value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {sources.map((account) => (
@@ -228,7 +243,9 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
             })}
             disabled={post.isPending || source === null}
           >
-            <SelectValue placeholder={source ? "Choose an account" : "Choose a source first"} />
+            <SelectValue placeholder={source ? "Choose an account" : "Choose a source first"}>
+              {(value) => accountLabel(destinations, value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {destinations.map((account) => (

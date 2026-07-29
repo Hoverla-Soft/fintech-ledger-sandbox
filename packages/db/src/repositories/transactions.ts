@@ -45,6 +45,28 @@ export interface LedgerTransactionRow {
    * Empty for the overwhelming majority of transactions.
    */
   readonly reversedBy: readonly string[];
+  /**
+   * On the **target** leg of a cross-currency exchange: the source leg it was
+   * converted from. `null` on everything else.
+   */
+  readonly fxSourceTransactionId: string | null;
+  /**
+   * On the **source** leg of an exchange: the target leg it converted into.
+   * `null` on everything else.
+   *
+   * Derived per read as the inverse of `fx_source_transaction_id`, never stored
+   * — the same treatment `reversedBy` gets, and for the same reason.
+   *
+   * A **scalar**, unlike `reversedBy`, and the difference is structural rather
+   * than stylistic. A transaction may be reversed any number of times, so that
+   * one has to be a list. An exchange source has exactly one target, and
+   * migration `0005` enforces it with a partial UNIQUE index on
+   * `fx_source_transaction_id` — so this cannot quietly become wrong the way a
+   * scalar `reversedBy` would have.
+   */
+  readonly fxTargetTransactionId: string | null;
+  /** The agreed rate, as text, on the target leg of an exchange. `null` on everything else. */
+  readonly fxRate: string | null;
   readonly createdBy: string;
   readonly createdAt: Date;
 }
@@ -128,6 +150,45 @@ async function loadReversalsByTransactionId(
  * `docs/open-questions.md` #2 rejected — that objection described the client
  * calling `transactions.get` per row, which is a different cost entirely.
  */
+/**
+ * Which of `transactionIds` are exchange *sources*, and what each converted
+ * into.
+ *
+ * One query for the whole page, like the reversal lookup beside it. Returns a
+ * `Map` rather than an object for the same prototype-pollution reason recorded
+ * there — transaction ids are opaque strings, and `"__proto__"` as an object key
+ * resolves through the prototype chain instead of reporting a miss.
+ */
+async function loadFxTargetsBySourceId(
+  db: Db,
+  orgId: string,
+  transactionIds: readonly string[],
+): Promise<Map<string, string>> {
+  const bySourceId = new Map<string, string>();
+  if (transactionIds.length === 0) {
+    return bySourceId;
+  }
+
+  const rows = await db
+    .select({ id: ledgerTransaction.id, source: ledgerTransaction.fxSourceTransactionId })
+    .from(ledgerTransaction)
+    .where(
+      and(
+        eq(ledgerTransaction.orgId, orgId),
+        isNotNull(ledgerTransaction.fxSourceTransactionId),
+        inArray(ledgerTransaction.fxSourceTransactionId, [...transactionIds]),
+      ),
+    );
+
+  for (const row of rows) {
+    if (row.source !== null) {
+      bySourceId.set(row.source, row.id);
+    }
+  }
+
+  return bySourceId;
+}
+
 async function loadPostingsByTransactionId(
   db: Db,
   orgId: string,
@@ -201,14 +262,20 @@ export async function listTransactions(
   // Two batched lookups for the whole page, issued together — constant in
   // page size, not one pair per row.
   const pageIds = pageRows.map((row) => row.id);
-  const [postingsByTransactionId, reversalsByTransactionId] = await Promise.all([
-    loadPostingsByTransactionId(db, input.orgId, pageIds),
-    loadReversalsByTransactionId(db, input.orgId, pageIds),
-  ]);
+  const [postingsByTransactionId, reversalsByTransactionId, fxTargetsBySourceId] =
+    await Promise.all([
+      loadPostingsByTransactionId(db, input.orgId, pageIds),
+      loadReversalsByTransactionId(db, input.orgId, pageIds),
+      loadFxTargetsBySourceId(db, input.orgId, pageIds),
+    ]);
 
   return {
     items: pageRows.map((row) => ({
-      ...toTransactionRow(row, reversalsByTransactionId.get(row.id) ?? []),
+      ...toTransactionRow(
+        row,
+        reversalsByTransactionId.get(row.id) ?? [],
+        fxTargetsBySourceId.get(row.id) ?? null,
+      ),
       postings: postingsByTransactionId.get(row.id) ?? [],
     })),
     nextCursor:
@@ -235,17 +302,22 @@ export async function getTransactionById(
     return err({ kind: "TransactionNotFound", transactionId });
   }
 
-  const [postingRows, reversalsByTransactionId] = await Promise.all([
+  const [postingRows, reversalsByTransactionId, fxTargetsBySourceId] = await Promise.all([
     db
       .select()
       .from(ledgerPosting)
       .where(and(eq(ledgerPosting.orgId, orgId), eq(ledgerPosting.transactionId, transactionId)))
       .orderBy(asc(ledgerPosting.createdAt)),
     loadReversalsByTransactionId(db, orgId, [transactionId]),
+    loadFxTargetsBySourceId(db, orgId, [transactionId]),
   ]);
 
   return ok({
-    ...toTransactionRow(transactionRow, reversalsByTransactionId.get(transactionId) ?? []),
+    ...toTransactionRow(
+      transactionRow,
+      reversalsByTransactionId.get(transactionId) ?? [],
+      fxTargetsBySourceId.get(transactionId) ?? null,
+    ),
     postings: postingRows.map(toPostingRow),
   });
 }
@@ -253,6 +325,7 @@ export async function getTransactionById(
 function toTransactionRow(
   row: typeof ledgerTransaction.$inferSelect,
   reversedBy: readonly string[],
+  fxTargetTransactionId: string | null,
 ): LedgerTransactionRow {
   return {
     id: row.id,
@@ -260,6 +333,9 @@ function toTransactionRow(
     currency: toCurrency(row.currency, `ledger_transaction "${row.id}"`),
     reversesTransactionId: row.reversesTransactionId,
     reversedBy,
+    fxSourceTransactionId: row.fxSourceTransactionId,
+    fxTargetTransactionId,
+    fxRate: row.fxRate,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
   };

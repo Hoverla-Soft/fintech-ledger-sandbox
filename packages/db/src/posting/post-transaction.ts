@@ -28,6 +28,7 @@ import {
 } from "../schema/ledger";
 import { lockAccounts } from "./lock-accounts";
 import { reserveIdempotencyKey } from "./reserve-key";
+import type { PostingTransaction } from "./types";
 
 export interface PostedPosting {
   readonly id: string;
@@ -103,6 +104,134 @@ type TransactionOutcome =
   | { readonly kind: "replay"; readonly transactionId: string }
   | { readonly kind: "posted"; readonly posted: PostedTransaction };
 
+/** What one leg needs beyond the balanced `Transaction` itself. */
+interface ApplyLegInput {
+  readonly orgId: string;
+  readonly actorId: string;
+  readonly transaction: Transaction;
+  readonly reversesTransactionId?: string;
+  /** Set on the target leg of an exchange, pointing at the source leg. */
+  readonly fxSourceTransactionId?: string;
+  /** The agreed rate, as text. Set on the target leg of an exchange only. */
+  readonly fxRate?: string;
+}
+
+/**
+ * Posts one balanced transaction inside an already-open Postgres transaction:
+ * lock the accounts it touches, apply every delta through `core.applyDelta`,
+ * insert the transaction and its postings, update balances, and write the
+ * "posted" audit entry.
+ *
+ * Extracted from `postTransaction` in Phase 7c so `postExchange` can post **two**
+ * legs under one commit and one idempotency key without a second copy of the
+ * posting routine. Everything idempotency-related deliberately stays outside:
+ * a leg is not independently replayable, and one exchange must reserve one key,
+ * not two.
+ *
+ * Throws `DomainRejection` for an expected domain failure rather than returning
+ * a `Result`, because the whole Postgres transaction has to roll back and
+ * Drizzle only rolls back when its callback throws. The public functions catch
+ * it and convert.
+ */
+async function applyLeg(tx: PostingTransaction, input: ApplyLegInput): Promise<PostedTransaction> {
+  const accountIds = [...input.transaction.deltas().keys()];
+  const lockResult = await lockAccounts(tx, input.orgId, accountIds);
+  if (!lockResult.ok) {
+    throw new DomainRejection(lockResult.error);
+  }
+  const lockedAccounts = lockResult.value;
+
+  const resultingBalances = new Map<string, Money>();
+  for (const [accountId, delta] of input.transaction.deltas()) {
+    const row = lockedAccounts.get(accountId);
+    if (row === undefined) {
+      throw new Error(
+        `locked account "${accountId}" missing after lockAccounts reported every id present`,
+      );
+    }
+
+    const account: Account = {
+      id: row.id,
+      orgId: row.orgId,
+      currency: toCurrency(row.currency, `ledger_account "${row.id}"`),
+      type: row.type,
+    };
+    const balance = toMoney(row.balance, row.currency, `ledger_account "${row.id}"`);
+
+    const applied = applyDelta(account, balance, delta);
+    if (!applied.ok) {
+      throw new DomainRejection(applied.error);
+    }
+
+    resultingBalances.set(accountId, applied.value);
+  }
+
+  const transactionId = randomUUID();
+  const [insertedTransaction] = await tx
+    .insert(ledgerTransaction)
+    .values({
+      id: transactionId,
+      orgId: input.orgId,
+      currency: input.transaction.currency,
+      reversesTransactionId: input.reversesTransactionId ?? null,
+      fxSourceTransactionId: input.fxSourceTransactionId ?? null,
+      fxRate: input.fxRate ?? null,
+      createdBy: input.actorId,
+    })
+    .returning();
+
+  if (insertedTransaction === undefined) {
+    throw new Error(`insert into ledger_transaction "${transactionId}" returned no row`);
+  }
+
+  const insertedPostings = await tx
+    .insert(ledgerPosting)
+    .values(
+      input.transaction.postings.map((posting) => ({
+        id: randomUUID(),
+        orgId: input.orgId,
+        transactionId,
+        accountId: posting.accountId,
+        direction: posting.direction,
+        amount: posting.amount.minorUnits,
+        currency: posting.amount.currency,
+      })),
+    )
+    .returning();
+
+  for (const [accountId, balance] of resultingBalances) {
+    await tx
+      .update(ledgerAccount)
+      .set({ balance: balance.minorUnits })
+      .where(and(eq(ledgerAccount.id, accountId), eq(ledgerAccount.orgId, input.orgId)));
+  }
+
+  await tx.insert(ledgerAuditEntry).values({
+    id: randomUUID(),
+    orgId: input.orgId,
+    actorUserId: input.actorId,
+    action: "post_transaction",
+    outcome: "posted",
+    transactionId,
+    metadata: null,
+  });
+
+  return {
+    transactionId,
+    orgId: input.orgId,
+    currency: input.transaction.currency,
+    createdAt: insertedTransaction.createdAt,
+    reversesTransactionId: insertedTransaction.reversesTransactionId,
+    postings: insertedPostings.map((row) => ({
+      id: row.id,
+      accountId: row.accountId,
+      direction: row.direction,
+      amount: toMoney(row.amount, row.currency, `ledger_posting "${row.id}"`),
+    })),
+    balances: resultingBalances,
+  };
+}
+
 /**
  * The atomic posting routine — the only public write path into the
  * ledger. Runs steps 1-4 of the design's posting routine inside **one**
@@ -153,105 +282,12 @@ export async function postTransaction(
         return { kind: "replay", transactionId };
       }
 
-      const accountIds = [...input.transaction.deltas().keys()];
-      const lockResult = await lockAccounts(tx, input.orgId, accountIds);
-      if (!lockResult.ok) {
-        throw new DomainRejection(lockResult.error);
-      }
-      const lockedAccounts = lockResult.value;
-
-      const resultingBalances = new Map<string, Money>();
-      for (const [accountId, delta] of input.transaction.deltas()) {
-        const row = lockedAccounts.get(accountId);
-        if (row === undefined) {
-          throw new Error(
-            `locked account "${accountId}" missing after lockAccounts reported every id present`,
-          );
-        }
-
-        const account: Account = {
-          id: row.id,
-          orgId: row.orgId,
-          currency: toCurrency(row.currency, `ledger_account "${row.id}"`),
-          type: row.type,
-        };
-        const balance = toMoney(row.balance, row.currency, `ledger_account "${row.id}"`);
-
-        const applied = applyDelta(account, balance, delta);
-        if (!applied.ok) {
-          throw new DomainRejection(applied.error);
-        }
-
-        resultingBalances.set(accountId, applied.value);
-      }
-
-      const transactionId = randomUUID();
-      const [insertedTransaction] = await tx
-        .insert(ledgerTransaction)
-        .values({
-          id: transactionId,
-          orgId: input.orgId,
-          currency: input.transaction.currency,
-          reversesTransactionId: input.reversesTransactionId ?? null,
-          createdBy: input.actorId,
-        })
-        .returning();
-
-      if (insertedTransaction === undefined) {
-        throw new Error(`insert into ledger_transaction "${transactionId}" returned no row`);
-      }
-
-      const insertedPostings = await tx
-        .insert(ledgerPosting)
-        .values(
-          input.transaction.postings.map((posting) => ({
-            id: randomUUID(),
-            orgId: input.orgId,
-            transactionId,
-            accountId: posting.accountId,
-            direction: posting.direction,
-            amount: posting.amount.minorUnits,
-            currency: posting.amount.currency,
-          })),
-        )
-        .returning();
-
-      for (const [accountId, balance] of resultingBalances) {
-        await tx
-          .update(ledgerAccount)
-          .set({ balance: balance.minorUnits })
-          .where(and(eq(ledgerAccount.id, accountId), eq(ledgerAccount.orgId, input.orgId)));
-      }
+      const posted = await applyLeg(tx, input);
 
       await tx
         .update(ledgerIdempotencyKey)
-        .set({ transactionId })
+        .set({ transactionId: posted.transactionId })
         .where(eq(ledgerIdempotencyKey.id, reservation.value.id));
-
-      await tx.insert(ledgerAuditEntry).values({
-        id: randomUUID(),
-        orgId: input.orgId,
-        actorUserId: input.actorId,
-        action: "post_transaction",
-        outcome: "posted",
-        transactionId,
-        metadata: null,
-      });
-
-      const posted: PostedTransaction = {
-        transactionId,
-        orgId: input.orgId,
-        currency: input.transaction.currency,
-        createdAt: insertedTransaction.createdAt,
-        reversesTransactionId: insertedTransaction.reversesTransactionId,
-        postings: insertedPostings.map((row) => ({
-          id: row.id,
-          accountId: row.accountId,
-          direction: row.direction,
-          amount: toMoney(row.amount, row.currency, `ledger_posting "${row.id}"`),
-        })),
-        balances: resultingBalances,
-      };
 
       return { kind: "posted", posted };
     });
@@ -289,6 +325,185 @@ export async function postTransaction(
   }
 
   return ok(outcome.posted);
+}
+
+export interface PostExchangeInput {
+  readonly orgId: string;
+  readonly actorId: string;
+  readonly idempotencyKey: string;
+  readonly requestHash: string;
+  /** Balanced in the source currency: the payer credited, the source FX bridge debited. */
+  readonly source: Transaction;
+  /** Balanced in the target currency: the target FX bridge credited, the payee debited. */
+  readonly target: Transaction;
+  /** The agreed rate, as text. Recorded on the target leg. */
+  readonly rate: string;
+}
+
+export interface PostedExchange {
+  readonly source: PostedTransaction;
+  readonly target: PostedTransaction;
+}
+
+/**
+ * Posts a cross-currency exchange as **two linked single-currency transactions**,
+ * in one commit, under one idempotency key.
+ *
+ * ## Why two transactions and not one multi-currency one
+ *
+ * Because everything already built stays true. `Transaction` keeps its
+ * single-currency invariant, so `Transaction.create` is unchanged and
+ * `CurrencyMismatch` still means what it meant. `ledger_transaction.currency`
+ * stays single-valued. Reconciliation is untouched. And per-currency
+ * conservation still holds — each leg nets to zero within its own currency, so
+ * the sum of all balances in a currency is still zero. The FX position lives
+ * where it belongs: as offsetting balances on the two bridge accounts.
+ *
+ * The alternative — relaxing the core invariant to "balanced per currency" —
+ * would have changed the domain, the schema, reconciliation, and every currency
+ * test, and left the FX gain or loss with no account to sit in. See
+ * `docs/adr/0010-cross-currency-exchange.md`.
+ *
+ * ## Atomicity
+ *
+ * Both legs run inside one `db.transaction`, so a failure on the target leg rolls
+ * the source leg back with it. A half-completed exchange would leave money in a
+ * bridge account with nothing to say where it was going — the one outcome this
+ * function exists to make impossible.
+ *
+ * ## Why the union of accounts is locked before either leg posts
+ *
+ * `applyLeg` locks the accounts *its own* leg touches, and `lockAccounts` sorts
+ * ids so concurrent transfers can never deadlock. Two sequential locks break
+ * that guarantee: a USD→EUR exchange would take `{payer, bridge USD}` then
+ * `{bridge EUR, payee}`, while a concurrent EUR→USD exchange takes them in the
+ * opposite order — a textbook deadlock. Locking the union up front, in one sorted
+ * call, restores a single global ordering. The per-leg locks that follow are then
+ * re-locks of rows this transaction already holds, which is free.
+ */
+export async function postExchange(
+  db: Db,
+  input: PostExchangeInput,
+): Promise<Result<PostedExchange, PostTransactionError>> {
+  let outcome:
+    | { readonly kind: "conflict"; readonly error: IdempotencyConflict }
+    | { readonly kind: "replay"; readonly transactionId: string }
+    | { readonly kind: "posted"; readonly posted: PostedExchange };
+
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const reservation = await reserveIdempotencyKey(tx, {
+        orgId: input.orgId,
+        key: input.idempotencyKey,
+        requestHash: input.requestHash,
+      });
+
+      if (!reservation.ok) {
+        return { kind: "conflict", error: reservation.error } as const;
+      }
+
+      if (reservation.value.replay) {
+        const { transactionId } = reservation.value;
+        if (transactionId === null) {
+          throw new Error(
+            `idempotency key "${input.idempotencyKey}" for org "${input.orgId}" was reserved but never backfilled with a transaction id`,
+          );
+        }
+        return { kind: "replay", transactionId } as const;
+      }
+
+      // See the locking note above — one sorted lock over both legs' accounts.
+      const allAccountIds = [...input.source.deltas().keys(), ...input.target.deltas().keys()];
+      const lockResult = await lockAccounts(tx, input.orgId, allAccountIds);
+      if (!lockResult.ok) {
+        throw new DomainRejection(lockResult.error);
+      }
+
+      const source = await applyLeg(tx, {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        transaction: input.source,
+      });
+
+      const target = await applyLeg(tx, {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        transaction: input.target,
+        fxSourceTransactionId: source.transactionId,
+        fxRate: input.rate,
+      });
+
+      // The key points at the **source** leg: it is the transaction the caller
+      // asked for, and the target is reachable from it through the FX link. A
+      // replay therefore reloads from the source and walks forward.
+      await tx
+        .update(ledgerIdempotencyKey)
+        .set({ transactionId: source.transactionId })
+        .where(eq(ledgerIdempotencyKey.id, reservation.value.id));
+
+      return { kind: "posted", posted: { source, target } } as const;
+    });
+  } catch (caught) {
+    if (caught instanceof DomainRejection) {
+      await writeRejectionAudit(db, { ...input, transaction: input.source }, caught.reason);
+      return err(caught.reason);
+    }
+    throw caught;
+  }
+
+  if (outcome.kind === "conflict") {
+    await auditBestEffort(db, {
+      orgId: input.orgId,
+      actorUserId: input.actorId,
+      action: "post_exchange",
+      reason: "idempotency_conflict",
+      metadata: { kind: outcome.error.kind, keyLength: outcome.error.idempotencyKey.length },
+    });
+    return err(outcome.error);
+  }
+
+  if (outcome.kind === "replay") {
+    return ok(await loadPostedExchange(db, input.orgId, outcome.transactionId));
+  }
+
+  return ok(outcome.posted);
+}
+
+/**
+ * Reconstructs both legs of an exchange for an idempotency replay.
+ *
+ * Finds the target by the FX link rather than by any assumption about ids or
+ * ordering. The partial UNIQUE index on `fx_source_transaction_id` is what makes
+ * "the" target well defined — without it this would have to return a list and
+ * every caller would have to decide what more than one means.
+ */
+async function loadPostedExchange(
+  db: Db,
+  orgId: string,
+  sourceTransactionId: string,
+): Promise<PostedExchange> {
+  const [targetRow] = await db
+    .select({ id: ledgerTransaction.id })
+    .from(ledgerTransaction)
+    .where(
+      and(
+        eq(ledgerTransaction.orgId, orgId),
+        eq(ledgerTransaction.fxSourceTransactionId, sourceTransactionId),
+      ),
+    );
+
+  if (targetRow === undefined) {
+    throw new Error(
+      `exchange replay found no target leg linked to source transaction "${sourceTransactionId}" in org "${orgId}"`,
+    );
+  }
+
+  const [source, target] = await Promise.all([
+    loadPostedTransaction(db, orgId, sourceTransactionId),
+    loadPostedTransaction(db, orgId, targetRow.id),
+  ]);
+
+  return { source, target };
 }
 
 /** Human-readable, machine-stable reason code stored on the rejection audit row (`ledger.md`'s `insufficient_funds`, etc.). */
