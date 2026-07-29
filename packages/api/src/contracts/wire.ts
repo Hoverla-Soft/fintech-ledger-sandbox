@@ -6,6 +6,7 @@ import type {
   LedgerPostingRow,
   LedgerTransactionRow,
   LedgerTransactionWithPostings,
+  OrgSummary,
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
@@ -172,6 +173,68 @@ export function toWireReconciliation(
     recordedBalance: toWireMoney(row.recordedBalance),
     computedBalance: toWireMoney(row.computedBalance),
     reconciled: row.reconciled,
+  };
+}
+
+/**
+ * The overview aggregate.
+ *
+ * `normalTotal` and `externalTotal` are returned separately rather than netted:
+ * they are exact mirrors, so a single "total balance" would always read `0.00`
+ * and look like a bug. Their summing to zero *is* the signal — money is
+ * conserved because every transaction is balanced and single-currency.
+ */
+export const currencyPositionSchema = z.object({
+  currency: z.string(),
+  accountCount: z.int(),
+  normalTotal: moneySchema,
+  externalTotal: moneySchema,
+});
+
+export const activityPointSchema = z.object({
+  date: z.string().describe("UTC calendar day, `YYYY-MM-DD`."),
+  currency: z.string(),
+  transactionCount: z.int(),
+  debitVolume: moneySchema.describe(
+    "Sum of the debit legs of that day's transactions. Debits only — a balanced transaction's credits are equal and opposite, so summing both would always be zero.",
+  ),
+});
+
+export const orgSummarySchema = z.object({
+  currencies: z.array(currencyPositionSchema),
+  activity: z.array(activityPointSchema),
+  totals: z.object({
+    accountCount: z.int(),
+    transactionCount: z.int(),
+    reversalCount: z
+      .int()
+      .describe(
+        "Transactions that reverse another. A reversal is itself a transaction, so this is a subset of `transactionCount`, not a separate population.",
+      ),
+    rejectionCount: z.int(),
+  }),
+  activityWindowDays: z.int().describe("How many days back the activity series covers."),
+});
+
+export function toWireOrgSummary(
+  summary: OrgSummary,
+  activityWindowDays: number,
+): z.infer<typeof orgSummarySchema> {
+  return {
+    currencies: summary.currencies.map((position) => ({
+      currency: position.currency,
+      accountCount: position.accountCount,
+      normalTotal: toWireMoneyFromMinorUnits(position.normalTotal, position.currency),
+      externalTotal: toWireMoneyFromMinorUnits(position.externalTotal, position.currency),
+    })),
+    activity: summary.activity.map((point) => ({
+      date: point.date,
+      currency: point.currency,
+      transactionCount: point.transactionCount,
+      debitVolume: toWireMoneyFromMinorUnits(point.debitVolume, point.currency),
+    })),
+    totals: summary.totals,
+    activityWindowDays,
   };
 }
 

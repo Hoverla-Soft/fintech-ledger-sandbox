@@ -407,4 +407,26 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 ### `packages/api/src/routers/sandbox.test.ts` — assertions kept as strong under pagination (updated Phase 7a)
 - Five assertions that read *all* accounts now **walk pages**. One of them was failing outright; the more instructive one was **passing while checking 50 of 105 balances**. Any assertion about a total, a count, or the *absence* of something cannot be made from a single page — "no suspense account on page one" is not "no suspense account"
 
+### `packages/api/src/routers/dashboard.test.ts` — the overview aggregate (Phase 7b)
+
+- **Money is conserved per currency**: `normalTotal + externalTotal === 0n` across a multi-currency, multi-leg, partly-reversed org. Every transaction is balanced and single-currency, so summing balances across *all* accounts in a currency sums every signed posting in it — a sum of zeroes. If this fails, either the aggregate is wrong or the ledger is
+- **A 4-leg payroll run counts as one transaction, and its debits sum once.** Joining postings multiplies each transaction row by its leg count: a plain `count(*)` would report four. `count(distinct)` fixes the count while leaving the `sum` correct — the two aggregates want opposite things from the same join, and both have to be right
+- **Debits only.** A balanced transaction's credits are equal and opposite, so summing both directions would always yield zero and summing all legs regardless of direction would double what moved
+- **Query count is constant** between a small org and one with 9 accounts, 9 transactions, and a second currency. If a per-account or per-currency lookup is reintroduced, cost grows with the data on the landing screen and this fails
+- **An empty org returns zeroed totals and empty arrays** — not `null`, `NaN`, or an error. An aggregate over no rows is exactly where a `sum` comes back `NULL` and a mapper mishandles it
+- **A refused transfer counts as a rejection and appears in no other figure.** It writes no transaction and no posting, so leaking it into volume would be a false claim that money moved
+- **Tenant isolation**, asserted in both directions: this org sees zeroes while the other org sees its own two accounts, so the assertion is about scoping rather than about an empty database
+
+### `apps/web/src/features/dashboard/summary.test.ts` — chart series construction (Phase 7b)
+
+- **Days with no activity are zero-filled, not omitted.** The server returns rows only for days that had activity; plotting those directly would sit a one-day gap beside a three-day gap and read as continuous. The x-axis is a timeline, so silence occupies its slot
+- **Days are built in UTC.** Two instants on the same UTC date produce the same window. Local-time getters would shift every bar by a day for any user east or west of UTC against a server grouping by `date_trunc` on a timestamp — activity on the wrong day, not merely a differently-labelled axis
+- **Counts sum across currencies; amounts never do.** The count series is asserted to carry `0n` for `minorUnits`, so nothing can start adding USD to EUR to make a taller bar
+- **`0.10 + 0.20 === 30n`** exactly, because volume is summed as `bigint` minor units (ADR 0002)
+- **`dailyVolume` returns `null`, never a partial series**, when an amount will not parse or the currency code is unknown. A chart drawn from the days that happened to parse would understate what moved while looking authoritative
+- **`barHeightPercent` is exact past float precision** (`9_007_199_254_740_993n`), clamps to `100` so a bar cannot overflow its plot, and returns `0` for a zero, negative, or degenerate scale rather than throwing or inventing one
+- **`isConserved` has three states.** `null` when a total will not parse — claiming "not conserved" there would raise a false alarm about the ledger's integrity, and claiming "conserved" would suppress a real one
+
+**Charts are not unit-tested for rendering.** They were verified by running the app: a seeded org with transactions spread across the window, screenshotted in both themes. That pass caught two real defects a unit test would not have — a stretched `viewBox` rendering bars wider than their 24px cap with elliptical corners (fixed by moving from SVG to CSS bars), and absolutely-positioned gridlines painting *over* the marks instead of behind them (fixed with explicit `z-0`/`z-10`).
+
 <!-- add one block per test file, keep in sync with what actually exists -->
