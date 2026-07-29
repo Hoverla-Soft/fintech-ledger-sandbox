@@ -364,6 +364,13 @@ describe("audit", () => {
   });
 
   it("returns an empty list for an org with no rejections", async () => {
-    await expect(client().audit.rejections({})).resolves.toEqual({ entries: [] });
+    // `nextCursor: null` is part of the contract as of Phase 7a, and asserting
+    // the whole object rather than just `entries` is deliberate: it fails if a
+    // future change starts handing out a cursor for a page that has no rows,
+    // which would send a client walking into nothing.
+    await expect(client().audit.rejections({})).resolves.toEqual({
+      entries: [],
+      nextCursor: null,
+    });
   });
 });

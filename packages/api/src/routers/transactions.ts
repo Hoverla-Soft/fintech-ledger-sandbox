@@ -13,12 +13,10 @@ import {
   getTransactionById,
   listTransactions,
   recordRejection,
-  type TransactionCursor,
 } from "@fintech-ledger-sandbox/db/repositories";
-import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { cursorSchema, decodeCursor, encodeCursor } from "../contracts/cursor";
+import { decodeTimeCursorOrThrow, encodeTimeCursor, pageInputShape } from "../contracts/cursor";
 import { decimalAmountSchema, parseBoundedAmount } from "../contracts/money";
 import { computeRequestHash } from "../contracts/request-hash";
 import {
@@ -33,14 +31,12 @@ import { adminProcedure, orgProcedure } from "../procedures";
 /**
  * Transaction and posting reads.
  *
- * `MAX_PAGE_SIZE` is declared here as well as in `packages/db` — deliberately
- * not shared. They enforce different things: this one rejects an unreasonable
- * request at the contract boundary with a `400`, while the repository's own
- * clamp is an unconditional server-side ceiling that holds no matter which
- * caller reaches it. A caller asking for 10_000 gets told so, rather than
- * silently receiving 200 and believing it saw everything.
+ * The paging input comes from `contracts/cursor.ts`'s `pageInputShape`, shared
+ * with the other four paginated procedures. It used to be declared here; it
+ * moved once there was more than one paginated endpoint, so the contract-level
+ * `limit` ceiling cannot drift between them. Why that ceiling is *not* shared
+ * with `packages/db`'s own clamp is recorded there.
  */
-const MAX_PAGE_SIZE = 200;
 
 /** Bounds how many row locks one request can demand. Well above any realistic payroll or split. */
 const MAX_POSTINGS = 100;
@@ -265,12 +261,7 @@ export const transactionsRouter = {
     }),
 
   list: orgProcedure
-    .input(
-      z.object({
-        limit: z.int().min(1).max(MAX_PAGE_SIZE).optional(),
-        cursor: cursorSchema.optional(),
-      }),
-    )
+    .input(z.object(pageInputShape))
     .output(
       z.object({
         transactions: z.array(transactionWithPostingsSchema),
@@ -278,31 +269,17 @@ export const transactionsRouter = {
       }),
     )
     .handler(async ({ context, input }) => {
-      // A cursor is opaque, so a malformed one is a bad request, not a
-      // server fault. Decoding before the query also keeps an Invalid Date
-      // from reaching Drizzle, where it would become SQL NULL and silently
-      // return an empty page instead of an error.
-      let after: TransactionCursor | undefined;
-      if (input.cursor !== undefined) {
-        const decoded = decodeCursor(input.cursor);
-        if (decoded === null) {
-          throw new ORPCError("BAD_REQUEST", {
-            message: "Malformed pagination cursor.",
-            data: { reason: "invalid_cursor" },
-          });
-        }
-        after = decoded;
-      }
-
+      // A cursor is opaque, so a malformed one is a bad request, not a server
+      // fault — see `decodeTimeCursorOrThrow`.
       const page = await listTransactions(context.db, {
         orgId: context.orgId,
         limit: input.limit,
-        after,
+        after: decodeTimeCursorOrThrow(input.cursor),
       });
 
       return {
         transactions: page.items.map(toWireTransactionWithPostings),
-        nextCursor: page.nextCursor === null ? null : encodeCursor(page.nextCursor),
+        nextCursor: page.nextCursor === null ? null : encodeTimeCursor(page.nextCursor),
       };
     }),
 

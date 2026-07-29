@@ -47,11 +47,8 @@ import { ORPCError } from "@orpc/server";
  *
  * ### Known limitation
  *
- * In-process state. Correct for this single-process sandbox and for the tests,
- * but it does not survive a restart and would not be shared across replicas.
- * ADR 0007 records what to swap in (the library's Redis adapter, or
- * `rate-limiter-flexible` with a Drizzle store) if the deployment model ever
- * changes.
+ * In-process state: correct for this single-process sandbox, lost on restart,
+ * not shared across replicas. ADR 0007 records what to swap in.
  */
 
 const MINUTE_MS = 60_000;
@@ -112,11 +109,9 @@ export async function enforceLimit(
 /** Test-only: drops all accumulated counters so one test's writes cannot exhaust the next test's budget. */
 export function resetRateLimitersForTesting(): void {
   for (const limiter of [orgWriteLimiter, userWriteLimiter]) {
-    // `MemoryRatelimiter` keeps its window state in a private `store` Map and
-    // exposes no reset. Tests share one process across files, so without this
-    // the suite's own throughput would trip the limit and produce failures
-    // that look like product bugs. Reaching for the private field is confined
-    // to this one clearly-labelled helper rather than spread across tests.
+    // `MemoryRatelimiter` keeps window state in a private `store` Map and
+    // exposes no reset. Confined to this one helper rather than spread across
+    // tests, which share a process and would otherwise trip the limit.
     const store = (limiter as unknown as { store?: Map<string, unknown> }).store;
     store?.clear();
   }

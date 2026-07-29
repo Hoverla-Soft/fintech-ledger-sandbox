@@ -10,20 +10,16 @@ import {
 } from "@fintech-ledger-sandbox/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 
-import { EmptyState, QueryState } from "@/components/states";
 import {
-  FIRST_PAGE,
-  goToNext,
-  goToPrevious,
-  hasPrevious,
-  type PageState,
-  pageNumber,
-  resetToFirstPage,
-} from "@/features/transactions/pagination";
+  CursorExpiredNotice,
+  PageControls,
+  useCursorRecovery,
+  usePageState,
+} from "@/components/paging";
+import { EmptyState, QueryState } from "@/components/states";
 import { formatTransactionTotal, type WirePosting } from "@/features/transactions/total";
-import { describeFailure } from "@/lib/ledger/errors";
+import { hasPrevious } from "@/lib/pagination";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/transactions/")({
@@ -58,33 +54,11 @@ function TransactionTotal({ postings }: { postings: readonly WirePosting[] }) {
 }
 
 function TransactionsRoute() {
-  const [page, setPage] = useState<PageState>(FIRST_PAGE);
-  const [cursorExpired, setCursorExpired] = useState(false);
-
+  const paging = usePageState();
   const transactions = useQuery(
-    orpc.transactions.list.queryOptions({
-      input: { limit: PAGE_SIZE, ...(page.cursor === null ? {} : { cursor: page.cursor }) },
-    }),
+    orpc.transactions.list.queryOptions({ input: { limit: PAGE_SIZE, ...paging.cursorInput } }),
   );
-
-  /**
-   * An expired or malformed cursor sends the user back to page one **with a
-   * notice**.
-   *
-   * Rendering it as an empty list would tell someone their ledger is empty
-   * when it is not — the single worst thing this screen could say. The whole
-   * walk is discarded rather than one step, because a stale cursor means the
-   * sequence it belongs to is stale too.
-   */
-  useEffect(() => {
-    if (!transactions.isError) {
-      return;
-    }
-    if (describeFailure(transactions.error).reason === "invalid_cursor") {
-      setPage(resetToFirstPage());
-      setCursorExpired(true);
-    }
-  }, [transactions.isError, transactions.error]);
+  useCursorRecovery(paging, transactions);
 
   const nextCursor = transactions.data?.nextCursor ?? null;
 
@@ -98,17 +72,13 @@ function TransactionsRoute() {
         </p>
       </div>
 
-      {cursorExpired ? (
-        <p role="status" className="rounded-none border p-3 text-sm">
-          That page link expired, so this is the first page again.
-        </p>
-      ) : null}
+      <CursorExpiredNotice show={paging.cursorExpired} />
 
       <QueryState
         query={transactions}
         loadingRows={6}
         empty={{
-          isEmpty: (data) => data.transactions.length === 0 && !hasPrevious(page),
+          isEmpty: (data) => data.transactions.length === 0 && !hasPrevious(paging.page),
           render: (
             <EmptyState
               title="No transactions yet"
@@ -170,44 +140,11 @@ function TransactionsRoute() {
               </TableBody>
             </Table>
 
-            {/*
-              Amounts are absent because `transactions.list` returns
-              `transactionSchema`, which carries no postings. Fetching each
-              row's detail would be up to 200 extra membership-checked requests
-              per page against an endpoint shaped to avoid exactly that.
-              Recorded as open question #2; detail is one click away.
-            */}
-            <p className="text-xs text-muted-foreground">
-              Amounts are shown on a transaction&apos;s own page.
-            </p>
-
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Page {pageNumber(page)}</span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!hasPrevious(page) || transactions.isFetching}
-                  onClick={() => {
-                    setCursorExpired(false);
-                    setPage(goToPrevious(page));
-                  }}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={nextCursor === null || transactions.isFetching}
-                  onClick={() => {
-                    setCursorExpired(false);
-                    setPage(goToNext(page, nextCursor));
-                  }}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <PageControls
+              paging={paging}
+              nextCursor={nextCursor}
+              isFetching={transactions.isFetching}
+            />
           </>
         )}
       </QueryState>

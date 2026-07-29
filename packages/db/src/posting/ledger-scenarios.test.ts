@@ -151,8 +151,8 @@ describe("ledger.md acceptance scenarios", () => {
     await expectBalance(orgId, destination, 0n);
 
     const rejections = await listRejections(database.db, orgId);
-    expect(rejections).toHaveLength(1);
-    expect(rejections[0]?.reason).toBe("insufficient_funds");
+    expect(rejections.items).toHaveLength(1);
+    expect(rejections.items[0]?.reason).toBe("insufficient_funds");
 
     const reconciliation = await reconcileAccounts(database.db, orgId);
     expect(reconciliation).toHaveLength(2);

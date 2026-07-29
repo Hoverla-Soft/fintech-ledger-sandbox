@@ -94,8 +94,39 @@ async function resetToCompletion(
   }
 }
 
+/** The wire account shape, taken from the router client so it cannot drift from the contract. */
+type ListedAccount = Awaited<
+  ReturnType<ReturnType<typeof clientFor>["accounts"]["list"]>
+>["accounts"][number];
+
+/**
+ * Every account in the org, walked across pages.
+ *
+ * `accounts.list` is cursor-paginated as of Phase 7a, and the chunking tests
+ * below deliberately create more accounts than one page holds
+ * (`RESET_CHUNK_SIZE + 5`). Reading only the first page here would quietly
+ * shrink "every balance is zero" to "the first fifty balances are zero" — a
+ * test that still passes while checking half of what it claims. Walking is what
+ * keeps the assertion as strong as it was before the endpoint was paginated.
+ */
+async function allAccounts(tenant: SeededTenant = admin): Promise<ListedAccount[]> {
+  const client = clientFor(db, sessionFor(tenant));
+  const collected: ListedAccount[] = [];
+  let cursor: string | undefined;
+
+  for (let page = 0; page < 50; page += 1) {
+    const result = await client.accounts.list({ limit: 200, ...(cursor ? { cursor } : {}) });
+    collected.push(...result.accounts);
+    if (result.nextCursor === null) {
+      return collected;
+    }
+    cursor = result.nextCursor;
+  }
+  throw new Error("accounts.list walk did not terminate within 50 pages");
+}
+
 async function balancesOf(tenant: SeededTenant = admin): Promise<Record<string, string>> {
-  const { accounts } = await clientFor(db, sessionFor(tenant)).accounts.list();
+  const accounts = await allAccounts(tenant);
   return Object.fromEntries(accounts.map((account) => [account.name, account.balance.amount]));
 }
 
@@ -123,7 +154,7 @@ describe("sandbox.seed", () => {
   it("leaves reconciliation clean across every seeded scenario", async () => {
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
 
-    const verified = await asAdmin().reconciliation.verify();
+    const verified = await asAdmin().reconciliation.verify({});
 
     expect(verified.allReconciled).toBe(true);
     expect(verified.accounts.length).toBe(SEED_ACCOUNTS.length);
@@ -143,7 +174,7 @@ describe("sandbox.seed", () => {
   it("conserves money: every balance sums to zero across the org", async () => {
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
 
-    const { accounts } = await asAdmin().accounts.list();
+    const accounts = await allAccounts();
     const total = accounts.reduce(
       (sum, account) => sum + unwrap(Money.parse(account.balance.amount, "USD")).minorUnits,
       0n,
@@ -178,7 +209,7 @@ describe("sandbox.seed", () => {
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
 
-    const { accounts } = await asAdmin().accounts.list();
+    const accounts = await allAccounts();
 
     expect(accounts).toHaveLength(SEED_ACCOUNTS.length);
   });
@@ -196,7 +227,7 @@ describe("sandbox.reset", () => {
 
     await resetToCompletion();
 
-    const { accounts } = await asAdmin().accounts.list();
+    const accounts = await allAccounts();
     expect(accounts.length).toBeGreaterThan(0);
     for (const account of accounts) {
       expect(account.balance.amount).toBe("0.00");
@@ -208,7 +239,7 @@ describe("sandbox.reset", () => {
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
     await resetToCompletion();
 
-    expect((await asAdmin().reconciliation.verify()).allReconciled).toBe(true);
+    expect((await asAdmin().reconciliation.verify({})).allReconciled).toBe(true);
   });
 
   it("only grows history — it never deletes a posting", async () => {
@@ -226,7 +257,8 @@ describe("sandbox.reset", () => {
     const { calls } = await resetToCompletion();
 
     expect(calls).toBe(1);
-    const { accounts } = await asAdmin().accounts.list();
+    // Walked: absence on page one is not absence.
+    const accounts = await allAccounts();
     expect(accounts.map((account) => account.name)).toEqual(
       expect.not.arrayContaining([expect.stringContaining("Suspense")]),
     );
@@ -350,7 +382,9 @@ describe("sandbox.reset — beyond one chunk", () => {
     await fundManyAccounts(RESET_CHUNK_SIZE + 5);
     await resetToCompletion();
 
-    const { accounts } = await asAdmin().accounts.list();
+    // Walked, not first-page: this test creates 104 accounts, and "Sandbox
+    // Suspense USD" sorts after every "Bulk USD nnn", so it is not on page one.
+    const accounts = await allAccounts();
     const suspense = accounts.filter((account) => account.name.startsWith("Sandbox Suspense"));
 
     expect(suspense).toHaveLength(1);
@@ -362,7 +396,7 @@ describe("sandbox.reset — beyond one chunk", () => {
     await fundManyAccounts(RESET_CHUNK_SIZE + 5);
     await resetToCompletion();
 
-    expect((await asAdmin().reconciliation.verify()).allReconciled).toBe(true);
+    expect((await asAdmin().reconciliation.verify({})).allReconciled).toBe(true);
   });
 
   it("drains two currencies without ever mixing them in one transaction", async () => {
@@ -374,7 +408,7 @@ describe("sandbox.reset — beyond one chunk", () => {
     for (const [, amount] of Object.entries(await balancesOf())) {
       expect(amount).toMatch(/^0\.00$/);
     }
-    expect((await asAdmin().reconciliation.verify()).allReconciled).toBe(true);
+    expect((await asAdmin().reconciliation.verify({})).allReconciled).toBe(true);
   });
 });
 
@@ -385,12 +419,12 @@ describe("the sandbox loop", () => {
     for (const lap of [1, 2]) {
       await client.sandbox.seed({ idempotencyKey: randomUUID() });
 
-      expect((await client.reconciliation.verify()).allReconciled).toBe(true);
+      expect((await client.reconciliation.verify({})).allReconciled).toBe(true);
       expect((await balancesOf())["Operating"], `lap ${lap} funded`).not.toBe("0.00");
 
       await resetToCompletion(client);
 
-      expect((await client.reconciliation.verify()).allReconciled).toBe(true);
+      expect((await client.reconciliation.verify({})).allReconciled).toBe(true);
       expect((await balancesOf())["Operating"], `lap ${lap} unwound`).toBe("0.00");
     }
   });
@@ -421,7 +455,7 @@ describe("sandbox permissions and tenancy", () => {
     await asAdmin().sandbox.seed({ idempotencyKey: randomUUID() });
     await resetToCompletion();
 
-    const otherAccounts = (await clientFor(db, sessionFor(other)).accounts.list()).accounts;
+    const otherAccounts = await allAccounts(other);
 
     expect(otherAccounts).toHaveLength(1);
     expect(otherAccounts[0]?.id).toBe(otherWallet);

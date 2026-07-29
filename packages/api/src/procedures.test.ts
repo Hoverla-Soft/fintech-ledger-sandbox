@@ -141,6 +141,7 @@ describe("orgProcedure", () => {
     const tenant = await seedTenant(db, "Member");
     await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
       accounts: [],
+      nextCursor: null,
     });
   });
 });
@@ -153,6 +154,7 @@ describe("role mapping through the middleware", () => {
     const tenant = await seedTenant(db, "Viewer", "member");
     await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
       accounts: [],
+      nextCursor: null,
     });
   });
 
@@ -160,6 +162,7 @@ describe("role mapping through the middleware", () => {
     const tenant = await seedTenant(db, "Admin", "admin");
     await expect(clientFor(db, sessionFor(tenant)).accounts.list({})).resolves.toEqual({
       accounts: [],
+      nextCursor: null,
     });
   });
 });

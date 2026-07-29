@@ -10,32 +10,24 @@ import { z } from "zod";
 /**
  * How money crosses the API boundary.
  *
- * ADR 0002 chose `bigint` minor units for the domain precisely because
- * floating point cannot represent money exactly. That choice carries one
- * downstream obligation, recorded in the ADR's own Consequences: **`bigint`
- * does not serialize to JSON** — `JSON.stringify` throws on it. So the wire
- * format is a decimal *string* plus an explicit currency, never a JSON
- * number. A JSON number would reintroduce the exact IEEE-754 imprecision the
- * domain was designed to avoid, silently, at the last hop.
+ * **`bigint` does not serialize to JSON** — `JSON.stringify` throws on it — so
+ * the wire format is a decimal *string* plus an explicit currency, never a JSON
+ * number, which would reintroduce the IEEE-754 imprecision ADR 0002 chose
+ * `bigint` to avoid.
  *
- * `Money.format()` and `Money.parse()` are documented inverses in
- * `packages/core` ("`Money.parse(money.format(), currency)` round-trips"), so
- * this module is a thin adapter over them rather than a second formatting
- * implementation. Restating how a currency's exponent maps to decimal places
- * here would be exactly the drift ADR 0002 rejected.
+ * A thin adapter over `Money.format()` / `Money.parse()`, which `packages/core`
+ * documents as inverses. Restating how an exponent maps to decimal places here
+ * would be exactly the drift ADR 0002 rejected.
  */
 
 /**
  * Upper bound on an inbound decimal amount string.
  *
- * Closes a deferral recorded in Phase 2: `Money.parse` puts no length cap on
- * the string it hands to `BigInt(...)`, and `BigInt` parsing is superlinear
- * in digit count — a multi-megabyte numeric string is a cheap way to burn
- * server CPU. That was correctly *not* fixed in `packages/core`, which has no
- * notion of an untrusted request; it belongs here, at the boundary that does.
- * 30 characters comfortably exceeds any real amount (a 3-exponent currency
- * still leaves 26 integer digits, far past the sandbox's largest plausible
- * balance) while making the attack useless.
+ * `Money.parse` puts no length cap on the string it hands to `BigInt(...)`, and
+ * `BigInt` parsing is superlinear in digit count — a multi-megabyte numeric
+ * string is a cheap way to burn server CPU. It belongs here, at the boundary,
+ * not in `packages/core`, which has no notion of an untrusted request. 30
+ * characters still leaves a 3-exponent currency 26 integer digits.
  */
 export const MAX_DECIMAL_AMOUNT_LENGTH = 30;
 
@@ -54,10 +46,6 @@ export type WireMoney = z.infer<typeof moneySchema>;
  * sees the value. Shape validation stays in `packages/core` — this
  * deliberately does not re-implement the decimal grammar, only bounds the
  * input's size so the domain's parser cannot be used as a CPU sink.
- *
- * Unused by Phase 4a's read-only surface; the write endpoints in 4b are its
- * first consumer. It ships here because this module is where the money
- * contract lives and the Phase 2 deferral is discharged by defining it.
  */
 export const decimalAmountSchema = z
   .string()
@@ -114,7 +102,6 @@ export function parseBoundedAmount(
   return parsed;
 }
 
-/** Encodes a domain `Money` for transport. */
 export function toWireMoney(money: Money): WireMoney {
   return { amount: money.format(), currency: money.currency };
 }

@@ -8,11 +8,8 @@ import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
  * dismissed by clicking the backdrop or pressing Escape**. That is Base UI's
  * behaviour for this primitive and it is the reason to use it here rather than
  * styling a regular dialog to look serious. In this console it guards
- * reversal, which posts a real compensating transaction and — because the API
- * has no reverse lookup — can be done twice with no warning from anything but
- * this dialog.
- *
- * Added Phase 5e alongside its first consumer.
+ * reversal, which posts a real compensating transaction and is not
+ * deduplicated — `reversedBy` makes a repeat visible, it does not forbid it.
  */
 function AlertDialog(props: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root {...props} />;

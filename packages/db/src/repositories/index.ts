@@ -5,5 +5,6 @@
  */
 export * from "./accounts";
 export * from "./audit";
+export * from "./pagination";
 export * from "./reconciliation";
 export * from "./transactions";

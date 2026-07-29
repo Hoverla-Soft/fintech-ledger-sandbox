@@ -8,10 +8,6 @@ import { cva, type VariantProps } from "class-variance-authority";
  * which is the wrong shape for a failure the user has to act on. The console
  * needs a message that stays put next to the thing that failed — a failed
  * load with a retry, a destructive-action warning, a reconciliation alarm.
- *
- * Added Phase 5b as the first consumer (the error state) landed, per the
- * repo's rule that a primitive arrives with its consumer rather than ahead of
- * it (`docs/development/architecture.md`).
  */
 
 const alertVariants = cva(

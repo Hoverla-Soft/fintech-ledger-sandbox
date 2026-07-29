@@ -12,8 +12,20 @@ export const Route = createFileRoute("/_auth/transfer")({
   component: TransferRoute,
 });
 
+/**
+ * The picker needs candidate *pairs*, not a page, so it asks for the largest
+ * page the contract allows rather than paging.
+ *
+ * An org holding more accounts than this cannot be fully represented in a
+ * dropdown anyway — the honest answer there is a searchable picker, not silent
+ * truncation, and that is a bigger change than this task. What this screen does
+ * instead is *say so* when `nextCursor` comes back non-null, so nobody concludes
+ * from an absent account that it does not exist.
+ */
+const PICKER_LIMIT = 200;
+
 function TransferRoute() {
-  const accounts = useQuery(orpc.accounts.list.queryOptions());
+  const accounts = useQuery(orpc.accounts.list.queryOptions({ input: { limit: PICKER_LIMIT } }));
   const { canWrite } = useOrgContext();
 
   return (
@@ -38,7 +50,12 @@ function TransferRoute() {
             // Deliberately not `length === 0`: an org holding one USD account
             // and one JPY account has two accounts and can still transfer
             // nothing, so the empty state has to say something true.
-            isEmpty: (data) => !canTransfer(data.accounts),
+            //
+            // With a paginated source this verdict covers only the accounts
+            // loaded. That is why it is qualified below when `nextCursor` is
+            // non-null: "no eligible pair here" is honest, "you cannot transfer"
+            // would not be.
+            isEmpty: (data) => !canTransfer(data.accounts) && data.nextCursor === null,
             render: (
               <EmptyState
                 title="Nothing to transfer between yet"
@@ -52,7 +69,18 @@ function TransferRoute() {
             ),
           }}
         >
-          {(data) => <TransferForm accounts={data.accounts} />}
+          {(data) => (
+            <>
+              {data.nextCursor !== null ? (
+                <p role="status" className="rounded-none border border-dashed p-3 text-xs">
+                  This organization has more than {PICKER_LIMIT} accounts. The pickers below show
+                  the first {PICKER_LIMIT} by name — an account you expect to see may be outside
+                  them.
+                </p>
+              ) : null}
+              <TransferForm accounts={data.accounts} />
+            </>
+          )}
         </QueryState>
       )}
     </div>

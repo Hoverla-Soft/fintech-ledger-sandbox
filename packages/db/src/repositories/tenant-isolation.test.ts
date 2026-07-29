@@ -204,13 +204,13 @@ describe("tenant isolation (invariant #5)", () => {
         transaction: buildTransfer(orgBSource, orgBDestination, "3.00"),
       });
 
-      expect(await listAuditEntries(database.db, orgAId)).toEqual([]);
-      expect(await listRejections(database.db, orgAId)).toEqual([]);
+      expect((await listAuditEntries(database.db, orgAId)).items).toEqual([]);
+      expect((await listRejections(database.db, orgAId)).items).toEqual([]);
 
       const orgBAudit = await listAuditEntries(database.db, orgBId);
-      expect(orgBAudit).toHaveLength(2);
+      expect(orgBAudit.items).toHaveLength(2);
       const orgBRejections = await listRejections(database.db, orgBId);
-      expect(orgBRejections).toHaveLength(1);
+      expect(orgBRejections.items).toHaveLength(1);
     });
   });
 
@@ -256,10 +256,10 @@ describe("tenant isolation (invariant #5)", () => {
 
       // The rejection is recorded under the *calling* org (A), never org B.
       const orgARejections = await listRejections(database.db, orgAId);
-      expect(orgARejections).toHaveLength(1);
-      expect(orgARejections[0]?.reason).toBe("account_not_found");
+      expect(orgARejections.items).toHaveLength(1);
+      expect(orgARejections.items[0]?.reason).toBe("account_not_found");
       const orgBRejections = await listRejections(database.db, orgBId);
-      expect(orgBRejections).toHaveLength(0);
+      expect(orgBRejections.items).toHaveLength(0);
     });
   });
 
@@ -269,8 +269,8 @@ describe("tenant isolation (invariant #5)", () => {
 
       expect(await listAccounts(database.db, orgId)).toEqual([]);
       expect((await listTransactions(database.db, { orgId })).items).toEqual([]);
-      expect(await listAuditEntries(database.db, orgId)).toEqual([]);
-      expect(await listRejections(database.db, orgId)).toEqual([]);
+      expect((await listAuditEntries(database.db, orgId)).items).toEqual([]);
+      expect((await listRejections(database.db, orgId)).items).toEqual([]);
       expect(await reconcileAccounts(database.db, orgId)).toEqual([]);
     });
   });

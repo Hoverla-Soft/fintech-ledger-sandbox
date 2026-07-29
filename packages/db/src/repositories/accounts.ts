@@ -7,13 +7,22 @@ import {
   ok,
   type Result,
 } from "@fintech-ledger-sandbox/core";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, or } from "drizzle-orm";
 
 import type { AccountAlreadyExists, AccountNotFound } from "../errors";
 import type { Db } from "../index";
 import { toCurrency } from "../internal/money";
 import { getPostgresErrorCode, POSTGRES_UNIQUE_VIOLATION } from "../internal/pg-errors";
 import { ledgerAccount } from "../schema/ledger";
+import {
+  clampPageSize,
+  type NameCursor,
+  type Page,
+  type PageRequest,
+  splitPage,
+} from "./pagination";
+
+const DEFAULT_PAGE_SIZE = 50;
 
 export interface LedgerAccountRow {
   readonly id: string;
@@ -78,7 +87,17 @@ export async function createAccount(
   return ok(toAccountRow(row));
 }
 
-/** Every account for `orgId`, ordered by name. Org-scoped — never reads across tenants. */
+/**
+ * Every account for `orgId`, ordered by name, **unbounded**. Org-scoped —
+ * never reads across tenants.
+ *
+ * Kept unbounded on purpose, and not exposed on the wire. Its callers are
+ * server-side operations that are only correct when they see the whole set:
+ * `sandbox.reset` plans the chunk that zeroes every balance and then verifies
+ * none remain, which a paged read would quietly perform over the first page
+ * only — a reset that reports success while leaving balances behind. Wire
+ * reads use `pageAccounts` instead.
+ */
 export async function listAccounts(db: Db, orgId: string): Promise<readonly LedgerAccountRow[]> {
   const rows = await db
     .select()
@@ -86,6 +105,49 @@ export async function listAccounts(db: Db, orgId: string): Promise<readonly Ledg
     .where(eq(ledgerAccount.orgId, orgId))
     .orderBy(asc(ledgerAccount.name));
   return rows.map(toAccountRow);
+}
+
+/**
+ * Cursor-paginated accounts for `orgId`, ordered by `(name, id)`.
+ *
+ * `name` alone would be an unstable sort key despite the `(org_id, name)`
+ * unique constraint making it unique *today*: the tiebreaker costs nothing and
+ * means a later change that drops or scopes that constraint cannot silently
+ * turn into rows being skipped mid-walk. Same `(sort key, id)` shape as
+ * `listTransactions`, for the same reason.
+ */
+export async function pageAccounts(
+  db: Db,
+  orgId: string,
+  request: PageRequest<NameCursor> = {},
+): Promise<Page<LedgerAccountRow, NameCursor>> {
+  const limit = clampPageSize(request.limit, DEFAULT_PAGE_SIZE);
+  const after = request.after;
+
+  const cursorFilter = after
+    ? or(
+        gt(ledgerAccount.name, after.name),
+        and(eq(ledgerAccount.name, after.name), gt(ledgerAccount.id, after.id)),
+      )
+    : undefined;
+
+  const rows = await db
+    .select()
+    .from(ledgerAccount)
+    .where(
+      cursorFilter
+        ? and(eq(ledgerAccount.orgId, orgId), cursorFilter)
+        : eq(ledgerAccount.orgId, orgId),
+    )
+    .orderBy(asc(ledgerAccount.name), asc(ledgerAccount.id))
+    .limit(limit + 1);
+
+  const { pageRows, hasMore, lastRow } = splitPage(rows, limit);
+
+  return {
+    items: pageRows.map(toAccountRow),
+    nextCursor: hasMore && lastRow !== undefined ? { name: lastRow.name, id: lastRow.id } : null,
+  };
 }
 
 /**

@@ -1,11 +1,15 @@
 /**
  * Forward-only cursor paging, with a client-held stack for going back.
  *
- * `transactions.list` returns a `nextCursor` and nothing else — no
+ * Every paginated procedure returns a `nextCursor` and nothing else — no
  * `prevCursor`, no total, no `hasPrevious`. So "previous" cannot be requested;
  * it can only be *remembered*. This module holds the cursors already used and
  * pops them, which is the only correct way to offer back-navigation over a
  * forward-only API.
+ *
+ * Lives in `lib/` rather than under `features/transactions/` since Phase 7a:
+ * the transactions, accounts, audit, and reconciliation screens all page, and
+ * none of this is transaction-specific.
  *
  * The cursor itself is **opaque** (`packages/api/src/contracts/cursor.ts`
  * encodes a `createdAt`/`id` pair as base64url). Nothing here inspects,

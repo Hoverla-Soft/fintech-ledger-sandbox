@@ -2,10 +2,11 @@ import { parseCurrency } from "@fintech-ledger-sandbox/core";
 import {
   createAccount,
   getAccountById,
-  listAccounts,
+  pageAccounts,
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
+import { decodeNameCursorOrThrow, encodeNameCursor, pageInputShape } from "../contracts/cursor";
 import { accountSchema, toWireAccount } from "../contracts/wire";
 import { toORPCError } from "../errors";
 import { adminProcedure, orgProcedure } from "../procedures";
@@ -52,11 +53,38 @@ export const accountsRouter = {
       return toWireAccount(created.value);
     }),
 
+  /**
+   * Cursor-paginated, ordered by name (open question #7).
+   *
+   * `nextCursor` is what makes truncation *visible*. This endpoint has three
+   * consumers that are not tables — the transfer picker, the transfer
+   * eligibility check, and the transaction-detail name lookup — and each of
+   * them is only correct over the accounts it actually received. A non-null
+   * `nextCursor` is how they know to say "there are more" rather than draw a
+   * conclusion from a subset.
+   *
+   * The unbounded read still exists as `listAccounts` for the server-side
+   * callers that must see every account (`sandbox.reset`), and is not reachable
+   * from the wire.
+   */
   list: orgProcedure
-    .output(z.object({ accounts: z.array(accountSchema) }))
-    .handler(async ({ context }) => {
-      const accounts = await listAccounts(context.db, context.orgId);
-      return { accounts: accounts.map(toWireAccount) };
+    .input(z.object(pageInputShape))
+    .output(
+      z.object({
+        accounts: z.array(accountSchema),
+        nextCursor: z.string().nullable(),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const page = await pageAccounts(context.db, context.orgId, {
+        limit: input.limit,
+        after: decodeNameCursorOrThrow(input.cursor),
+      });
+
+      return {
+        accounts: page.items.map(toWireAccount),
+        nextCursor: page.nextCursor === null ? null : encodeNameCursor(page.nextCursor),
+      };
     }),
 
   /**

@@ -28,7 +28,13 @@ function TransactionDetailRoute() {
   // Names, so the legs read as accounts rather than as uuids. A failure here
   // is cosmetic — `PostingsTable` falls back to the id — so it deliberately
   // does not gate the transaction from rendering.
-  const accounts = useQuery(orpc.accounts.list.queryOptions());
+  //
+  // The same fallback is what makes pagination safe here: an account outside
+  // the first page simply renders as its id, which is accurate rather than
+  // wrong. A transaction has at most a hundred legs, so one large page covers
+  // any realistic case, and a missing name degrades to something true instead
+  // of naming the wrong account.
+  const accounts = useQuery(orpc.accounts.list.queryOptions({ input: { limit: 200 } }));
   const { canWrite } = useOrgContext();
 
   const accountNames = useMemo(() => {

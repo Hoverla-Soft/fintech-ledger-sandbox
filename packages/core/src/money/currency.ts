@@ -35,7 +35,7 @@ export type Currency = keyof typeof CURRENCY_MINOR_UNIT_EXPONENTS;
  * the API boundary ever needed — both validate a code someone else supplied.
  * A user interface has the opposite problem: it must *offer* the codes before
  * anyone has typed one, and it cannot do that from a type alias, which is
- * erased at runtime. Added in Phase 5a for the console's currency picker.
+ * erased at runtime.
  *
  * Derived from `CURRENCY_MINOR_UNIT_EXPONENTS` rather than written out a
  * second time, so a currency can never appear in one and not the other —
@@ -58,7 +58,6 @@ export function parseCurrency(code: string): Result<Currency, UnsupportedCurrenc
   return err({ kind: "UnsupportedCurrency", code });
 }
 
-/** The ISO-4217 minor-unit exponent for a known currency. */
 export function minorUnitExponent(currency: Currency): number {
   return CURRENCY_MINOR_UNIT_EXPONENTS[currency];
 }

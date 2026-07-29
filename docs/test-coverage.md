@@ -385,4 +385,26 @@ Run with `pnpm test:e2e`. Requires Postgres up (`pnpm db:start`) and migrated; P
 
 The numbered **manual demo scripts** in the archived Phase 5 task files are therefore *not* retired — they remain the record for everything above.
 
+### `packages/api/src/routers/pagination.test.ts` — cursor paging on the four reads that gained it (Phase 7a)
+
+Closes open questions #6 and #7. `transactions.list` was already paginated and stays covered in `reads.test.ts`.
+
+- **Every walk visits every row exactly once** — accounts, the audit log, and reconciliation, at a page size of 2 or 3. Asserted as both a length and a `Set` size, so a duplicate is caught as well as a gap. The walk helper is bounded at 50 pages and *throws* rather than looping: a cursor that fails to advance is a hang otherwise, and a hanging test is far worse to diagnose than a failing one
+- **`reconciliation.verify` reports `allReconciled: false` when the only drifting account is outside the first page.** The load-bearing test of the whole slice. It asserts page one is *genuinely clean* and the verdict is *still false* — a page-local fold over those two clean rows would return `true`, so the "guard the guard" assertion is what makes this test meaningful rather than incidentally passing
+- **`accountCount` and `unreconciledCount` are identical at `limit: 1` and `limit: 200`**, proving the counts are whole-org aggregates and not derived from the rows returned
+- **A posting-less account with a drifted balance is caught, not excused.** `coalesce(computed, 0) <> recorded` matters: `NULL <> 0` is `NULL`, which `count(*) filter` does not count, so the naive comparison would silently exempt exactly the accounts most likely to be wrong
+- **All five paginated procedures reject a malformed cursor with the same `400 invalid_cursor`**, never an empty page. Asserted as a table across every endpoint, because the console keys its "that page link expired" recovery off that exact reason string — a procedure that spelled it differently would silently render an empty list, telling someone their ledger is empty when it is not
+- **The rejections tab pages independently of the full log.** A cursor from the unfiltered log applied to the filtered view would skip rejections
+- **Drift is injected with raw SQL**, deliberately: there is no way to break invariant #2 through the ledger's own write path, which is the point of the invariant, so it has to be done at the storage layer or it cannot be tested at all
+
+### `packages/api/src/contracts/cursor.test.ts` — generalized codec (updated Phase 7a)
+- The cursor now carries a **sort key** rather than a timestamp, since accounts and reconciliation page on `(name, id)` while transactions and audit page on `(created_at, id)`
+- **A name cursor round-trips through JSON + base64url with quotes, slashes, and non-ASCII intact.** A mangled key resumes the walk from the wrong row
+- **The length cap is checked against the worst case** — a 120-character account name, not a timestamp. If `MAX_CURSOR_LENGTH` ever stopped covering it, every account page past the first would fail with `invalid_cursor`
+- **A legacy `{c,i}` token decodes to `null`.** Cursors are opaque and short-lived so the field rename is not a breaking change, but it has to fail *loudly* as an invalid cursor — which every screen recovers from — rather than decode to something wrong
+- **The Invalid Date guard is scoped to the time cursor only.** The same token is a legitimate *name* cursor, and conflating the two would reject valid account pages
+
+### `packages/api/src/routers/sandbox.test.ts` — assertions kept as strong under pagination (updated Phase 7a)
+- Five assertions that read *all* accounts now **walk pages**. One of them was failing outright; the more instructive one was **passing while checking 50 of 105 balances**. Any assertion about a total, a count, or the *absence* of something cannot be made from a single page — "no suspense account on page one" is not "no suspense account"
+
 <!-- add one block per test file, keep in sync with what actually exists -->

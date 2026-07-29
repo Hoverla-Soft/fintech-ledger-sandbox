@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or, type SQL } from "drizzle-orm";
 
 import type { Db } from "../index";
 import { ledgerAuditEntry } from "../schema/ledger";
+import {
+  clampPageSize,
+  type Page,
+  type PageRequest,
+  splitPage,
+  type TimeCursor,
+} from "./pagination";
 
-/** Server-controlled cap, same reasoning as `repositories/transactions.ts`. */
-const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 100;
 
 export interface AuditEntryRow {
@@ -64,18 +69,55 @@ export async function recordRejection(db: Db, input: RecordRejectionInput): Prom
   });
 }
 
-/** The full audit log for `orgId`, most recent first. */
+export type AuditPage = Page<AuditEntryRow, TimeCursor>;
+
+/**
+ * One cursor-paginated read of the audit table, shared by both views below.
+ *
+ * The ordering is **descending** — most recent first, which is the only useful
+ * default for a log — so the cursor predicate is `<`, not the `>` every other
+ * paginated read here uses. Getting that backwards yields a walk that returns
+ * page one forever, which is why the two views compose this rather than each
+ * writing their own.
+ */
+async function pageAuditTable(
+  db: Db,
+  scope: SQL | undefined,
+  request: PageRequest<TimeCursor>,
+): Promise<AuditPage> {
+  const limit = clampPageSize(request.limit, DEFAULT_LIMIT);
+  const after = request.after;
+
+  const cursorFilter = after
+    ? or(
+        lt(ledgerAuditEntry.createdAt, after.createdAt),
+        and(eq(ledgerAuditEntry.createdAt, after.createdAt), lt(ledgerAuditEntry.id, after.id)),
+      )
+    : undefined;
+
+  const rows = await db
+    .select()
+    .from(ledgerAuditEntry)
+    .where(cursorFilter ? and(scope, cursorFilter) : scope)
+    .orderBy(desc(ledgerAuditEntry.createdAt), desc(ledgerAuditEntry.id))
+    .limit(limit + 1);
+
+  const { pageRows, hasMore, lastRow } = splitPage(rows, limit);
+
+  return {
+    items: pageRows,
+    nextCursor:
+      hasMore && lastRow !== undefined ? { createdAt: lastRow.createdAt, id: lastRow.id } : null,
+  };
+}
+
+/** The audit log for `orgId`, most recent first, one page at a time. */
 export async function listAuditEntries(
   db: Db,
   orgId: string,
-  limit?: number,
-): Promise<readonly AuditEntryRow[]> {
-  return db
-    .select()
-    .from(ledgerAuditEntry)
-    .where(eq(ledgerAuditEntry.orgId, orgId))
-    .orderBy(desc(ledgerAuditEntry.createdAt))
-    .limit(clampLimit(limit));
+  request: PageRequest<TimeCursor> = {},
+): Promise<AuditPage> {
+  return pageAuditTable(db, eq(ledgerAuditEntry.orgId, orgId), request);
 }
 
 /**
@@ -85,19 +127,11 @@ export async function listAuditEntries(
 export async function listRejections(
   db: Db,
   orgId: string,
-  limit?: number,
-): Promise<readonly AuditEntryRow[]> {
-  return db
-    .select()
-    .from(ledgerAuditEntry)
-    .where(and(eq(ledgerAuditEntry.orgId, orgId), eq(ledgerAuditEntry.outcome, "rejected")))
-    .orderBy(desc(ledgerAuditEntry.createdAt))
-    .limit(clampLimit(limit));
-}
-
-function clampLimit(requested: number | undefined): number {
-  if (requested === undefined || !Number.isFinite(requested)) {
-    return DEFAULT_LIMIT;
-  }
-  return Math.min(Math.max(Math.trunc(requested), 1), MAX_LIMIT);
+  request: PageRequest<TimeCursor> = {},
+): Promise<AuditPage> {
+  return pageAuditTable(
+    db,
+    and(eq(ledgerAuditEntry.orgId, orgId), eq(ledgerAuditEntry.outcome, "rejected")),
+    request,
+  );
 }

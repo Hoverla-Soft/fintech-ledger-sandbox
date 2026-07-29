@@ -11,10 +11,15 @@ import type { TransactionNotFound } from "../errors";
 import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
 import { ledgerPosting, ledgerTransaction } from "../schema/ledger";
+import {
+  clampPageSize,
+  type Page,
+  type PageRequest,
+  splitPage,
+  type TimeCursor,
+} from "./pagination";
 
 const DEFAULT_PAGE_SIZE = 50;
-/** Server-controlled cap — a caller cannot request an unbounded page regardless of what it asks for. */
-const MAX_PAGE_SIZE = 200;
 
 export interface LedgerTransactionRow {
   readonly id: string;
@@ -58,22 +63,11 @@ export interface LedgerTransactionWithPostings extends LedgerTransactionRow {
   readonly postings: readonly LedgerPostingRow[];
 }
 
-/** Opaque cursor position: the composite `(org_id, created_at, id)` index this repository paginates on. */
-export interface TransactionCursor {
-  readonly createdAt: Date;
-  readonly id: string;
-}
-
-export interface ListTransactionsInput {
+export interface ListTransactionsInput extends PageRequest<TimeCursor> {
   readonly orgId: string;
-  readonly limit?: number;
-  readonly after?: TransactionCursor;
 }
 
-export interface TransactionsPage {
-  readonly items: readonly LedgerTransactionWithPostings[];
-  readonly nextCursor: TransactionCursor | null;
-}
+export type TransactionsPage = Page<LedgerTransactionWithPostings, TimeCursor>;
 
 /**
  * Which of `transactionIds` have been reversed, and by what.
@@ -178,7 +172,7 @@ export async function listTransactions(
   db: Db,
   input: ListTransactionsInput,
 ): Promise<TransactionsPage> {
-  const limit = clampPageSize(input.limit);
+  const limit = clampPageSize(input.limit, DEFAULT_PAGE_SIZE);
 
   const cursorFilter = input.after
     ? or(
@@ -202,9 +196,7 @@ export async function listTransactions(
     .orderBy(asc(ledgerTransaction.createdAt), asc(ledgerTransaction.id))
     .limit(limit + 1);
 
-  const hasMore = rows.length > limit;
-  const pageRows = hasMore ? rows.slice(0, limit) : rows;
-  const lastRow = pageRows[pageRows.length - 1];
+  const { pageRows, hasMore, lastRow } = splitPage(rows, limit);
 
   // Two batched lookups for the whole page, issued together — constant in
   // page size, not one pair per row.
@@ -256,13 +248,6 @@ export async function getTransactionById(
     ...toTransactionRow(transactionRow, reversalsByTransactionId.get(transactionId) ?? []),
     postings: postingRows.map(toPostingRow),
   });
-}
-
-function clampPageSize(requested: number | undefined): number {
-  if (requested === undefined || !Number.isFinite(requested)) {
-    return DEFAULT_PAGE_SIZE;
-  }
-  return Math.min(Math.max(Math.trunc(requested), 1), MAX_PAGE_SIZE);
 }
 
 function toTransactionRow(

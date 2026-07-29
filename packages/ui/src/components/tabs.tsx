@@ -7,9 +7,6 @@ import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
  * Base UI handles the roving-focus and `aria-selected` wiring, which is the
  * part hand-rolled tabs usually get wrong — a set of buttons that merely look
  * like tabs is unnavigable by keyboard and unannounced by a screen reader.
- *
- * Added Phase 5g alongside its first consumer, the audit log's
- * all-entries / rejections split.
  */
 function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
   return (

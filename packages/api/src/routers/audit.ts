@@ -1,6 +1,7 @@
 import { listAuditEntries, listRejections } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
+import { decodeTimeCursorOrThrow, encodeTimeCursor, pageInputShape } from "../contracts/cursor";
 import { auditEntrySchema, toWireAuditEntry } from "../contracts/wire";
 import { orgProcedure } from "../procedures";
 
@@ -12,31 +13,48 @@ import { orgProcedure } from "../procedures";
  * its own procedure because `ledger.md` line 62 names rejections as a
  * first-class surface, and because "show me what failed" is the question
  * asked far more often than "show me everything."
+ *
+ * Both are cursor-paginated as of Phase 7a, closing open question #6. Before
+ * that they took a bare `limit` capped at 200 with no cursor, so the log was
+ * genuinely not walkable past its most recent 200 entries — and an audit log
+ * that cannot be walked is one that can quietly stop containing the entry
+ * someone is looking for. Ordering is descending (most recent first), so the
+ * walk moves backwards in time.
  */
-const MAX_LIMIT = 200;
-
-const listInput = z.object({
-  limit: z.int().min(1).max(MAX_LIMIT).optional(),
-});
 
 const listOutput = z.object({
   entries: z.array(auditEntrySchema),
+  nextCursor: z.string().nullable(),
 });
 
 export const auditRouter = {
   list: orgProcedure
-    .input(listInput)
+    .input(z.object(pageInputShape))
     .output(listOutput)
     .handler(async ({ context, input }) => {
-      const entries = await listAuditEntries(context.db, context.orgId, input.limit);
-      return { entries: entries.map(toWireAuditEntry) };
+      const page = await listAuditEntries(context.db, context.orgId, {
+        limit: input.limit,
+        after: decodeTimeCursorOrThrow(input.cursor),
+      });
+
+      return {
+        entries: page.items.map(toWireAuditEntry),
+        nextCursor: page.nextCursor === null ? null : encodeTimeCursor(page.nextCursor),
+      };
     }),
 
   rejections: orgProcedure
-    .input(listInput)
+    .input(z.object(pageInputShape))
     .output(listOutput)
     .handler(async ({ context, input }) => {
-      const entries = await listRejections(context.db, context.orgId, input.limit);
-      return { entries: entries.map(toWireAuditEntry) };
+      const page = await listRejections(context.db, context.orgId, {
+        limit: input.limit,
+        after: decodeTimeCursorOrThrow(input.cursor),
+      });
+
+      return {
+        entries: page.items.map(toWireAuditEntry),
+        nextCursor: page.nextCursor === null ? null : encodeTimeCursor(page.nextCursor),
+      };
     }),
 };

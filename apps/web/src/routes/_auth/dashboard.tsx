@@ -26,7 +26,10 @@ export const Route = createFileRoute("/_auth/dashboard")({
  */
 function DashboardRoute() {
   const { org, role } = useOrgContext();
-  const accounts = useQuery(orpc.accounts.list.queryOptions());
+  // `accounts.list` is paginated, so `accounts.length` is a page length, not a
+  // total. The count below is therefore rendered with a "+" when another page
+  // exists — a bare number would be a straightforwardly false total.
+  const accounts = useQuery(orpc.accounts.list.queryOptions({ input: { limit: 200 } }));
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
@@ -60,7 +63,10 @@ function DashboardRoute() {
         >
           {(data) => (
             <p className="text-sm">
-              <span className="text-2xl font-semibold">{data.accounts.length}</span>{" "}
+              <span className="text-2xl font-semibold">
+                {data.accounts.length}
+                {data.nextCursor === null ? "" : "+"}
+              </span>{" "}
               <span className="text-muted-foreground">
                 {data.accounts.length === 1 ? "account" : "accounts"} in this organization
               </span>
