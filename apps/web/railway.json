@@ -1,0 +1,28 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm exec turbo run build --filter=web...",
+    "watchPatterns": [
+      "apps/web/**",
+      "packages/api/**",
+      "packages/core/**",
+      "packages/env/**",
+      "packages/ui/**",
+      "packages/config/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "turbo.json",
+      "tsconfig.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter web run serve",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 30,
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

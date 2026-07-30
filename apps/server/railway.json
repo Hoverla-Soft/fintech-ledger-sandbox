@@ -1,0 +1,30 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm exec turbo run build --filter=server...",
+    "watchPatterns": [
+      "apps/server/**",
+      "packages/api/**",
+      "packages/auth/**",
+      "packages/core/**",
+      "packages/db/**",
+      "packages/env/**",
+      "packages/config/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "turbo.json",
+      "tsconfig.json"
+    ]
+  },
+  "deploy": {
+    "preDeployCommand": "pnpm --filter @fintech-ledger-sandbox/db run db:migrate",
+    "startCommand": "pnpm --filter server run start",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 30,
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
