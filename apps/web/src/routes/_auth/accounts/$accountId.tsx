@@ -1,8 +1,23 @@
+import { Badge } from "@fintech-ledger-sandbox/ui/components/badge";
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
 import { Separator } from "@fintech-ledger-sandbox/ui/components/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@fintech-ledger-sandbox/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
+import {
+  CursorExpiredNotice,
+  PageControls,
+  useCursorRecovery,
+  usePageState,
+} from "@/components/paging";
 import { QueryState } from "@/components/states";
 import {
   AccountBalance,
@@ -10,25 +25,30 @@ import {
   AccountTypeBadge,
   isSuspenseAccount,
 } from "@/features/accounts/account-display";
+import { hasPrevious } from "@/lib/pagination";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/accounts/$accountId")({
   component: AccountDetailRoute,
 });
 
+const PAGE_SIZE = 25;
+
 /**
- * One account.
- *
- * A `404` here means one of two things and the console cannot tell them apart:
- * the id does not exist, or it belongs to another organization. That is
- * deliberate — `packages/api/src/routers/accounts.ts` collapses both into a
- * byte-identical `AccountNotFound` so the endpoint cannot be used to probe
- * another tenant's ids. The copy therefore says "not in this organization",
- * which is true either way and implies nothing about the other case.
+ * One account as a statement: header facts plus posting timeline with running
+ * balance. A `404` here means the id is missing or belongs to another org —
+ * the API collapses both deliberately.
  */
 function AccountDetailRoute() {
   const { accountId } = Route.useParams();
   const account = useQuery(orpc.accounts.get.queryOptions({ input: { accountId } }));
+  const paging = usePageState();
+  const postings = useQuery(
+    orpc.accounts.postings.queryOptions({
+      input: { accountId, limit: PAGE_SIZE, ...paging.cursorInput },
+    }),
+  );
+  useCursorRecovery(paging, postings);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">
@@ -83,6 +103,85 @@ function AccountDetailRoute() {
                 balance here is expected rather than an error.
               </p>
             ) : null}
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div>
+                <h2 className="font-medium">Statement</h2>
+                <p className="text-sm text-muted-foreground">
+                  Oldest first. Running balance is the signed sum of postings after each leg.
+                </p>
+              </div>
+
+              <CursorExpiredNotice show={paging.cursorExpired} />
+
+              <QueryState
+                query={postings}
+                loadingRows={5}
+                empty={{
+                  isEmpty: (page) => page.postings.length === 0 && !hasPrevious(paging.page),
+                  render: (
+                    <p className="rounded-none border border-dashed p-4 text-center text-sm text-muted-foreground">
+                      No postings on this account yet.
+                    </p>
+                  ),
+                }}
+              >
+                {(page) => (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>When</TableHead>
+                          <TableHead>Direction</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Running</TableHead>
+                          <TableHead>Txn</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {page.postings.map((posting) => (
+                          <TableRow key={posting.id}>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {new Date(posting.createdAt).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={posting.direction === "debit" ? "outline" : "secondary"}
+                              >
+                                {posting.direction}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono tabular-nums">
+                              {posting.amount.amount} {posting.amount.currency}
+                            </TableCell>
+                            <TableCell className="text-right font-mono tabular-nums">
+                              {posting.runningBalance.amount}
+                            </TableCell>
+                            <TableCell>
+                              <Link
+                                to="/transactions/$transactionId"
+                                params={{ transactionId: posting.transactionId }}
+                                search={{ play: true }}
+                                className="font-mono text-xs underline-offset-4 hover:underline"
+                              >
+                                {posting.transactionId.slice(0, 8)}…
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <PageControls
+                      paging={paging}
+                      nextCursor={page.nextCursor}
+                      isFetching={postings.isFetching}
+                    />
+                  </>
+                )}
+              </QueryState>
+            </div>
           </div>
         )}
       </QueryState>

@@ -133,6 +133,7 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
       await navigate({
         to: "/transactions/$transactionId",
         params: { transactionId: transaction.id },
+        search: { play: true },
       });
     },
 
@@ -279,6 +280,34 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
         />
         <FieldError id="transfer-amount-error" message={errorFor("amount")} />
       </Field>
+
+      {idempotencyKey ? (
+        <div
+          className="space-y-2 rounded-none border border-dashed p-3 text-sm"
+          data-testid="idempotency-panel"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-medium">Idempotency</p>
+              <p className="text-xs text-muted-foreground">
+                This key is minted when the form opens. Retrying with the same key replays the same
+                write — it will not double-post.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={post.isPending || pendingPostings === null}
+              onClick={onConfirm}
+              title="Submit again with the same key to demonstrate safe retry"
+            >
+              Simulate retry
+            </Button>
+          </div>
+          <p className="break-all font-mono text-xs text-muted-foreground">{idempotencyKey}</p>
+        </div>
+      ) : null}
 
       {errorFor("form") ? (
         <p role="alert" className="text-sm text-destructive">

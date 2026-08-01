@@ -22,6 +22,7 @@ export function AuditTable({ entries }: { entries: readonly WireAuditEntry[] }) 
       <TableHeader>
         <TableRow>
           <TableHead>When</TableHead>
+          <TableHead>Actor</TableHead>
           <TableHead>Action</TableHead>
           <TableHead>Outcome</TableHead>
           <TableHead>Transaction</TableHead>
@@ -35,18 +36,19 @@ export function AuditTable({ entries }: { entries: readonly WireAuditEntry[] }) 
               <TableCell className="whitespace-nowrap">
                 {new Date(entry.createdAt).toLocaleString()}
               </TableCell>
+              <TableCell
+                className="max-w-[8rem] truncate font-mono text-xs"
+                title={entry.actorUserId}
+              >
+                {entry.actorUserId.slice(0, 8)}…
+              </TableCell>
               <TableCell>
-                {/* Falls back to the raw identifier for an action this console
-                    has never seen — `action` is an open string, not an enum. */}
                 <div>{actionLabel(entry.action)}</div>
                 {metadata ? (
                   <details className="mt-1">
                     <summary className="cursor-pointer text-xs text-muted-foreground">
                       metadata
                     </summary>
-                    {/* Rendered as opaque JSON. `metadata` is `z.unknown()`;
-                        reaching in for a field that "should" be there is how a
-                        log viewer breaks on the rows it most needs to show. */}
                     <pre className="mt-1 max-w-xs overflow-x-auto rounded-none border p-2 text-xs">
                       {metadata}
                     </pre>
@@ -61,6 +63,7 @@ export function AuditTable({ entries }: { entries: readonly WireAuditEntry[] }) 
                   <Link
                     to="/transactions/$transactionId"
                     params={{ transactionId: entry.transactionId }}
+                    search={{ play: true }}
                     className="font-mono text-xs underline-offset-4 hover:underline"
                   >
                     {entry.transactionId.slice(0, 8)}…

@@ -96,7 +96,11 @@ export function ReverseDialog({
       setTyped("");
       toast.success("Reversal posted");
       onReversed?.();
-      await navigate({ to: "/transactions/$transactionId", params: { transactionId: created.id } });
+      await navigate({
+        to: "/transactions/$transactionId",
+        params: { transactionId: created.id },
+        search: { play: true },
+      });
     },
 
     onError: (error) => {

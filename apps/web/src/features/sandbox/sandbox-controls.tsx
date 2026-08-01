@@ -14,7 +14,7 @@ import {
   startOperation,
 } from "@/lib/ledger/idempotency";
 import { client, orpc } from "@/utils/orpc";
-
+import { GuidedWalkthrough } from "./guided-walkthrough";
 import { type ResetProgress, runResetLoop } from "./reset-loop";
 import { type ScenarioOutcome, ScenarioOutcomes } from "./scenario-outcomes";
 
@@ -146,7 +146,12 @@ export function SandboxControls() {
           Running again replays the same run and posts nothing new. Starting a new run posts a fresh
           set.
         </p>
-        {scenarios ? <ScenarioOutcomes outcomes={scenarios} /> : null}
+        {scenarios ? (
+          <div className="space-y-4">
+            <GuidedWalkthrough outcomes={scenarios} />
+            <ScenarioOutcomes outcomes={scenarios} />
+          </div>
+        ) : null}
       </section>
 
       <Separator />

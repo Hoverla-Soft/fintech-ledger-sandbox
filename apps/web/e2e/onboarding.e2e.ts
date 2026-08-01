@@ -16,7 +16,7 @@ test("an unauthenticated visitor is sent to login, not to a broken console", asy
   await page.goto("/accounts");
 
   await page.waitForURL(/\/login/);
-  await expect(page.getByRole("button", { name: "Sign Up" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create account" })).toBeVisible();
 });
 
 test("a new user signs up, is routed to org creation, and reaches the console", async ({

@@ -67,11 +67,12 @@ describe("ADR 0005: the acting org is derived, never accepted", () => {
     // Guards the guard. If introspection silently returned nothing, every
     // assertion below would vacuously pass and this test would be worse than
     // useless — it would report green while checking nothing.
-    expect(procedures.length).toBe(15);
+    expect(procedures.length).toBe(16);
     expect(procedures.map((procedure) => procedure.path).sort()).toEqual([
       "accounts.create",
       "accounts.get",
       "accounts.list",
+      "accounts.postings",
       "audit.list",
       "audit.rejections",
       "dashboard.summary",

@@ -2,28 +2,39 @@ import { parseCurrency } from "@fintech-ledger-sandbox/core";
 import {
   createAccount,
   getAccountById,
+  pageAccountPostings,
   pageAccounts,
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
-import { decodeNameCursorOrThrow, encodeNameCursor, pageInputShape } from "../contracts/cursor";
+import {
+  decodeNameCursorOrThrow,
+  decodeTimeCursorOrThrow,
+  encodeNameCursor,
+  encodeTimeCursor,
+  pageInputShape,
+} from "../contracts/cursor";
+import { moneySchema, toWireMoney } from "../contracts/money";
 import { accountSchema, toWireAccount } from "../contracts/wire";
 import { toORPCError } from "../errors";
 import { adminProcedure, orgProcedure } from "../procedures";
 
 /**
- * Account reads. Both procedures sit on `orgProcedure`, so `orgId` arrives
- * from a verified `member` row and neither input schema mentions an
- * organization — see ADR 0005.
+ * Account reads. Procedures sit on `orgProcedure`, so `orgId` arrives from a
+ * verified `member` row and no input schema mentions an organization — ADR 0005.
  */
 
+const accountPostingSchema = z.object({
+  id: z.string(),
+  transactionId: z.string(),
+  accountId: z.string(),
+  direction: z.enum(["debit", "credit"]),
+  amount: moneySchema,
+  runningBalance: moneySchema,
+  createdAt: z.string(),
+});
+
 export const accountsRouter = {
-  /**
-   * Admin-only. A duplicate `(org_id, name)` returns `409 account_name_taken`
-   * rather than the unhandled 500 it produced before Phase 4b — the schema's
-   * unique constraint stays the arbiter (a check-then-insert would be racy),
-   * but `packages/db` now translates its violation into a typed error.
-   */
   create: adminProcedure
     .input(
       z.object({
@@ -53,20 +64,6 @@ export const accountsRouter = {
       return toWireAccount(created.value);
     }),
 
-  /**
-   * Cursor-paginated, ordered by name (open question #7).
-   *
-   * `nextCursor` is what makes truncation *visible*. This endpoint has three
-   * consumers that are not tables — the transfer picker, the transfer
-   * eligibility check, and the transaction-detail name lookup — and each of
-   * them is only correct over the accounts it actually received. A non-null
-   * `nextCursor` is how they know to say "there are more" rather than draw a
-   * conclusion from a subset.
-   *
-   * The unbounded read still exists as `listAccounts` for the server-side
-   * callers that must see every account (`sandbox.reset`), and is not reachable
-   * from the wire.
-   */
   list: orgProcedure
     .input(z.object(pageInputShape))
     .output(
@@ -87,12 +84,6 @@ export const accountsRouter = {
       };
     }),
 
-  /**
-   * A cross-org id and a genuinely missing id produce byte-identical `404`s.
-   * `packages/db` collapses both into the same `AccountNotFound` on purpose
-   * (`ledger.md` line 56), and this handler simply forwards it — there is no
-   * branch here that could distinguish them and leak the difference.
-   */
   get: orgProcedure
     .input(z.object({ accountId: z.uuid() }))
     .output(accountSchema)
@@ -104,5 +95,49 @@ export const accountsRouter = {
       }
 
       return toWireAccount(result.value);
+    }),
+
+  /**
+   * Statement timeline for one account — oldest first, with running balance.
+   * Missing / cross-org accounts collapse to the same `AccountNotFound` as `get`.
+   */
+  postings: orgProcedure
+    .input(
+      z.object({
+        accountId: z.uuid(),
+        ...pageInputShape,
+      }),
+    )
+    .output(
+      z.object({
+        postings: z.array(accountPostingSchema),
+        nextCursor: z.string().nullable(),
+      }),
+    )
+    .handler(async ({ context, input }) => {
+      const account = await getAccountById(context.db, context.orgId, input.accountId);
+      if (!account.ok) {
+        throw toORPCError(account.error);
+      }
+
+      const page = await pageAccountPostings(context.db, {
+        orgId: context.orgId,
+        accountId: input.accountId,
+        limit: input.limit,
+        after: decodeTimeCursorOrThrow(input.cursor),
+      });
+
+      return {
+        postings: page.items.map((row) => ({
+          id: row.id,
+          transactionId: row.transactionId,
+          accountId: row.accountId,
+          direction: row.direction,
+          amount: toWireMoney(row.amount),
+          runningBalance: toWireMoney(row.runningBalance),
+          createdAt: row.createdAt.toISOString(),
+        })),
+        nextCursor: page.nextCursor === null ? null : encodeTimeCursor(page.nextCursor),
+      };
     }),
 };

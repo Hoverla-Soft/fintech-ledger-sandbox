@@ -17,18 +17,11 @@ export interface WirePosting {
 }
 
 /**
- * A transaction's legs, with the balance made visible.
+ * A transaction's legs as a journal — debit and credit columns, with the
+ * balance made visible.
  *
- * The net-to-zero row is not decoration. "Money is conserved" is invariant #1
- * and the reason this system exists; showing the debits, the credits, and
- * their difference lets a person *see* it hold rather than take the API's word
- * for it. It is the same check `assertBalanced` runs before sending, rendered
- * for the transaction that actually landed.
- *
- * Sums are computed with `BigInt` over the decimal strings' digits, never
- * `Number` — `docs/adr/0002-money-representation.md`. All legs in a
- * transaction share one currency (invariant #7), so they are identically
- * scaled and can be summed digit-wise without re-deriving the exponent.
+ * The net-to-zero row is not decoration. "Money is conserved" is invariant #1;
+ * showing both sides and their equality lets a person *see* it hold.
  */
 export function PostingsTable({
   postings,
@@ -47,8 +40,8 @@ export function PostingsTable({
         <TableHeader>
           <TableRow>
             <TableHead>Account</TableHead>
-            <TableHead>Direction</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-right">Debit</TableHead>
+            <TableHead className="text-right">Credit</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -59,16 +52,27 @@ export function PostingsTable({
                   <span className="font-mono text-xs">{posting.accountId}</span>
                 )}
               </TableCell>
-              <TableCell>
-                <Badge variant={posting.direction === "debit" ? "outline" : "secondary"}>
-                  {posting.direction}
-                </Badge>
+              <TableCell className="text-right font-mono tabular-nums">
+                {posting.direction === "debit"
+                  ? `${posting.amount.amount} ${posting.amount.currency}`
+                  : "—"}
               </TableCell>
-              <TableCell className="text-right font-mono">
-                {posting.amount.amount} {posting.amount.currency}
+              <TableCell className="text-right font-mono tabular-nums">
+                {posting.direction === "credit"
+                  ? `${posting.amount.amount} ${posting.amount.currency}`
+                  : "—"}
               </TableCell>
             </TableRow>
           ))}
+          <TableRow className="border-t-2 font-medium">
+            <TableCell>Totals</TableCell>
+            <TableCell className="text-right font-mono tabular-nums">
+              {formatFromDigits(totals.debits, totals.scale)} {currency}
+            </TableCell>
+            <TableCell className="text-right font-mono tabular-nums">
+              {formatFromDigits(totals.credits, totals.scale)} {currency}
+            </TableCell>
+          </TableRow>
         </TableBody>
       </Table>
 
@@ -76,13 +80,12 @@ export function PostingsTable({
         className="flex items-center justify-between rounded-none border p-3 text-sm"
         data-testid="net-to-zero-proof"
       >
-        <span className="text-muted-foreground">
-          Debits {formatFromDigits(totals.debits, totals.scale)} {currency} · Credits{" "}
-          {formatFromDigits(totals.credits, totals.scale)} {currency}
-        </span>
-        <span className={balanced ? "font-medium" : "font-medium text-destructive"}>
-          {balanced ? "Nets to zero" : "Does not balance"}
-        </span>
+        <span className="text-muted-foreground">Journal integrity</span>
+        {balanced ? (
+          <Badge variant="success">Nets to zero</Badge>
+        ) : (
+          <Badge variant="destructive">Does not balance</Badge>
+        )}
       </div>
     </div>
   );

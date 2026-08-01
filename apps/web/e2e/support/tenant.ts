@@ -57,7 +57,7 @@ export async function signUpAndCreateOrg(page: Page, tenant: Tenant): Promise<vo
   await page.getByLabel("Name").fill(tenant.orgName);
   await page.getByLabel("Email").fill(tenant.email);
   await page.getByLabel("Password").fill(tenant.password);
-  await page.getByRole("button", { name: "Sign Up" }).click();
+  await page.getByRole("button", { name: "Create account" }).click();
 
   // A brand-new user has a session but no active organization, so the tenant
   // gate must route to org creation — not to an error, and not to the console.

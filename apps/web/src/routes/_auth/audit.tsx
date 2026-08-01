@@ -1,3 +1,4 @@
+import { Button } from "@fintech-ledger-sandbox/ui/components/button";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@fintech-ledger-sandbox/ui/components/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -10,6 +11,8 @@ import {
 } from "@/components/paging";
 import { EmptyState, QueryState } from "@/components/states";
 import { AuditTable } from "@/features/audit/audit-table";
+import { actionLabel, type WireAuditEntry } from "@/features/audit/entry-display";
+import { downloadCsv } from "@/lib/export/csv";
 import { hasPrevious } from "@/lib/pagination";
 import { orpc } from "@/utils/orpc";
 
@@ -17,21 +20,24 @@ export const Route = createFileRoute("/_auth/audit")({
   component: AuditRoute,
 });
 
-/** Well inside the API's `1..200` range, so the `400 {issues}` branch on `limit` is unreachable from this screen. */
 const PAGE_SIZE = 50;
 
-/**
- * The audit log and its rejections view.
- *
- * Open to both roles — both procedures sit on `orgProcedure`, and a viewer who
- * can see balances can already see everything here.
- *
- * Each tab pages independently. That is not cosmetic: `rejections` is a
- * *filtered* read of the same table, so its cursor walks the filtered sequence.
- * Sharing one cursor between the tabs would hand a position from the full log to
- * the filtered view and skip rejections — under-reporting on the one screen
- * whose entire job is "what was refused".
- */
+function exportEntries(filename: string, entries: readonly WireAuditEntry[]) {
+  downloadCsv(
+    filename,
+    ["id", "createdAt", "actorUserId", "action", "outcome", "reason", "transactionId"],
+    entries.map((entry) => [
+      entry.id,
+      entry.createdAt,
+      entry.actorUserId,
+      actionLabel(entry.action),
+      entry.outcome,
+      entry.reason ?? "",
+      entry.transactionId ?? "",
+    ]),
+  );
+}
+
 function AuditRoute() {
   const allPaging = usePageState();
   const all = useQuery(
@@ -39,10 +45,6 @@ function AuditRoute() {
   );
   useCursorRecovery(allPaging, all);
 
-  // A separate query, not a client-side filter of `all`. Filtering the fetched
-  // page would drop every rejection that fell outside it — the rejections view
-  // would then under-report, which is the one thing a "what was refused" screen
-  // must never do.
   const rejectionsPaging = usePageState();
   const rejections = useQuery(
     orpc.audit.rejections.queryOptions({
@@ -88,6 +90,17 @@ function AuditRoute() {
           >
             {(data) => (
               <div className="space-y-3">
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={data.entries.length === 0}
+                    onClick={() => exportEntries("audit.csv", data.entries)}
+                  >
+                    Export CSV
+                  </Button>
+                </div>
                 <AuditTable entries={data.entries} />
                 <PageControls
                   paging={allPaging}
@@ -122,6 +135,17 @@ function AuditRoute() {
           >
             {(data) => (
               <div className="space-y-3">
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={data.entries.length === 0}
+                    onClick={() => exportEntries("rejections.csv", data.entries)}
+                  >
+                    Export CSV
+                  </Button>
+                </div>
                 <AuditTable entries={data.entries} />
                 <PageControls
                   paging={rejectionsPaging}
@@ -142,18 +166,6 @@ function AuditRoute() {
   );
 }
 
-/**
- * The one thing a reader would still get wrong.
- *
- * The 200-entry ceiling caveat that used to sit here is gone: Phase 7a gave
- * both procedures a cursor, so the log genuinely is walkable to its end and
- * saying otherwise would now be the inaccurate statement.
- *
- * Account creation is a different matter. `accounts.create` writes **no** audit
- * entry (`docs/adr/0006-write-endpoint-contract.md`), so a log described as
- * "everything that happened" reads as evidence that no account was created,
- * which is false.
- */
 function AccountCreationCaveat() {
   return (
     <p className="text-xs text-muted-foreground">

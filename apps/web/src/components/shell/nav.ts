@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BookOpen,
   FlaskConical,
   LayoutDashboard,
   type LucideIcon,
@@ -13,25 +14,11 @@ import {
 /**
  * The console's route map, declared once.
  *
- * The sidebar, the top bar's breadcrumb, and the command palette all render
- * from this list. They used to be three places a new screen had to be
- * registered, which is three chances to ship a route reachable only by typing
- * its URL.
- *
- * `hint` is written for the palette, where a one-line description is the
- * difference between a searchable command and a bare noun. It is also what
- * makes the list searchable by intent — typing "drift" finds reconciliation.
+ * Destinations are declared once in this list and read by the sidebar, the
+ * breadcrumb, and the palette, so a screen added later cannot end up reachable
+ * only by typing its URL.
  */
 
-/**
- * The console's own paths, as a closed union.
- *
- * Written out rather than inferred from `as const`: a heterogeneous tuple of
- * literal types makes `flatMap` collapse to `unknown`, and widening `to` to
- * `string` would hand `Link` a path it cannot verify. This keeps both ends
- * working — the router still checks every destination, and the list is
- * iterable.
- */
 export type ConsolePath =
   | "/"
   | "/accounts"
@@ -40,7 +27,8 @@ export type ConsolePath =
   | "/transactions"
   | "/reconciliation"
   | "/audit"
-  | "/sandbox";
+  | "/sandbox"
+  | "/api";
 
 export interface NavItem {
   readonly to: ConsolePath;
@@ -116,6 +104,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         icon: FlaskConical,
         hint: "Seed the demo scenarios, or unwind every balance to zero",
       },
+      {
+        to: "/api",
+        label: "API",
+        icon: BookOpen,
+        hint: "OpenAPI reference and a sample transfer against the typed RPC",
+      },
     ],
   },
 ];
@@ -135,8 +129,6 @@ export function findNavItem(pathname: string): { group: string; item: NavItem } 
 
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      // `/` is a prefix of every path, so the overview entry must match
-      // exactly — otherwise every console screen would breadcrumb as Overview.
       const matches =
         item.to === "/"
           ? pathname === "/"

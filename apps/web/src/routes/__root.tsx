@@ -20,11 +20,12 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "fintech-ledger-sandbox",
+        title: "Ledger sandbox",
       },
       {
         name: "description",
-        content: "fintech-ledger-sandbox is a web application",
+        content:
+          "A payments-style double-entry ledger sandbox. Fake money, real correctness — balanced postings, reconcilable balances, multi-tenant isolation.",
       },
     ],
     links: [

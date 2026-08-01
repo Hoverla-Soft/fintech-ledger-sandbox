@@ -61,12 +61,22 @@ function DashboardRoute() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl">{org?.name ?? "Console"}</h1>
-        <p className="text-muted-foreground text-sm">
-          Signed in as <span className="font-medium">{role}</span>.
-          {role === "viewer" ? " You have read access to this organization." : null}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-bold text-2xl">{org?.name ?? "Console"}</h1>
+          <p className="text-muted-foreground text-sm">
+            Signed in as <span className="font-medium">{role}</span>.
+            {role === "viewer" ? " You have read access to this organization." : null}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="default" size="sm" render={<Link to="/sandbox" />}>
+            Run demo walkthrough
+          </Button>
+          <Button variant="outline" size="sm" render={<Link to="/reconciliation" />}>
+            Check integrity
+          </Button>
+        </div>
       </div>
 
       <QueryState

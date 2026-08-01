@@ -64,4 +64,12 @@ Each of these is a capability the console needs and the API does not currently p
 
 ---
 
+## Portfolio showcase track (opened 2026-08-01)
+
+| # | Item | Status | Action needed |
+|---|---|---|---|
+| 24 | **Thin maker-checker for transfers deferred.** Portfolio Phase 3 cut valve: org role matrix + API playground + actor-rich audit export shipped first; pending→approve transfer workflow needs schema + dual-admin enforcement and was not worth diluting Phase 1–2 demo polish in this pass | Deferred | Revisit when a buyer demo explicitly needs two-control language. Spec sketch remains in the portfolio roadmap (P3-4): `pending_approval` → `posted`, block self-approve |
+
+---
+
 Add a new `## Domain area` section per area rather than one giant table — makes it scannable, and `integration-spec-guard`/`backend-architecture-guard` reference specific sections when they flag something as "should be logged as an open question" instead of assumed.

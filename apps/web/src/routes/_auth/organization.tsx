@@ -1,6 +1,15 @@
+import { Badge } from "@fintech-ledger-sandbox/ui/components/badge";
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
 import { Input } from "@fintech-ledger-sandbox/ui/components/input";
 import { Label } from "@fintech-ledger-sandbox/ui/components/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@fintech-ledger-sandbox/ui/components/table";
 import { useForm } from "@tanstack/react-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
@@ -10,24 +19,20 @@ import z from "zod";
 import { EmptyState } from "@/components/states";
 import { authClient } from "@/lib/auth-client";
 import { describeFailure } from "@/lib/ledger/errors";
+import { toLedgerRole } from "@/lib/org/role";
 import { switchOrganization, useOrganizations, useOrgContext } from "@/lib/org/session";
 
-/**
- * Organization bootstrap and switching.
- *
- * Deliberately **outside** the `_auth` layout's active-org requirement in
- * spirit, though it sits under it: the guard redirects here precisely when
- * there is no active org, so this route must render usefully in that state
- * rather than bouncing back. It is the one console screen that assumes nothing
- * about tenancy.
- */
 export const Route = createFileRoute("/_auth/organization")({
   component: OrganizationRoute,
 });
 
+/**
+ * Organization bootstrap, switching, and the admin/viewer permission matrix.
+ */
 function OrganizationRoute() {
-  const { org } = useOrgContext();
+  const { org, canWrite } = useOrgContext();
   const { data: organizations, isPending } = useOrganizations();
+  const { data: activeOrganization } = authClient.useActiveOrganization();
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();
@@ -40,23 +45,15 @@ function OrganizationRoute() {
       }),
     },
     onSubmit: async ({ value, formApi }) => {
-      // A slug is required by Better Auth and is not a product concept here,
-      // so it is derived rather than asked for. Suffixed with a short random
-      // component because slugs are globally unique and two orgs called
-      // "Acme" in one sandbox is an entirely reasonable thing to want.
       const slug = `${slugify(value.name)}-${Math.random().toString(36).slice(2, 8)}`;
-
       const created = await authClient.organization.create({ name: value.name, slug });
 
       if (created.error) {
-        // The form stays open with the reason inline — `ledger.md:75`.
         const failure = describeFailure(created.error);
         toast.error(failure.title, { description: failure.detail });
         return;
       }
 
-      // Creating an org does not make it active; without this the user would
-      // be redirected straight back here by the `_auth` guard.
       await switchOrganization(created.data.id, queryClient, () => router.invalidate());
       formApi.reset();
       toast.success(`Created ${value.name}`);
@@ -64,10 +61,37 @@ function OrganizationRoute() {
     },
   });
 
+  const inviteForm = useForm({
+    defaultValues: { email: "" },
+    validators: {
+      onSubmit: z.object({
+        email: z.email("Enter a valid email"),
+      }),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      if (!org) {
+        return;
+      }
+      const invited = await authClient.organization.inviteMember({
+        email: value.email,
+        role: "member",
+        organizationId: org.id,
+      });
+      if (invited.error) {
+        const failure = describeFailure(invited.error);
+        toast.error(failure.title, { description: failure.detail });
+        return;
+      }
+      toast.success(`Invited ${value.email} as viewer (member)`);
+      formApi.reset();
+    },
+  });
+
   const hasOrganizations = (organizations?.length ?? 0) > 0;
+  const memberRows = activeOrganization?.members ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8 py-8">
+    <div className="mx-auto w-full max-w-2xl space-y-8 py-8">
       <div>
         <h1 className="text-2xl font-bold">Organizations</h1>
         <p className="text-sm text-muted-foreground">
@@ -109,6 +133,124 @@ function OrganizationRoute() {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {org ? (
+        <section className="space-y-4 rounded-none border p-4" data-testid="role-matrix">
+          <div>
+            <h2 className="font-medium">Members & permissions</h2>
+            <p className="text-sm text-muted-foreground">
+              Better Auth roles map to ledger roles: owner/admin → write access; member → viewer.
+            </p>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Capability</TableHead>
+                <TableHead>Admin</TableHead>
+                <TableHead>Viewer</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[
+                ["Read balances, history, audit, reconciliation", "yes", "yes"],
+                ["Create accounts / post transfers", "yes", "no"],
+                ["Reverse transactions", "yes", "no"],
+                ["Seed / reset sandbox", "yes", "no"],
+              ].map(([cap, admin, viewer]) => (
+                <TableRow key={cap}>
+                  <TableCell>{cap}</TableCell>
+                  <TableCell>
+                    <Badge variant={admin === "yes" ? "success" : "muted"}>{admin}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={viewer === "yes" ? "success" : "muted"}>{viewer}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {memberRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Member list loads with the active organization session.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Auth role</TableHead>
+                  <TableHead>Ledger role</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {memberRows.map((member) => {
+                  const ledgerRole = toLedgerRole(member.role);
+                  return (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <div className="text-sm">{member.user?.name ?? member.userId}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {member.user?.email ?? member.userId}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{member.role}</TableCell>
+                      <TableCell>
+                        <Badge variant={ledgerRole === "admin" ? "default" : "secondary"}>
+                          {ledgerRole}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+
+          {canWrite ? (
+            <form
+              className="space-y-3 border-t pt-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void inviteForm.handleSubmit();
+              }}
+            >
+              <h3 className="text-sm font-medium">Invite viewer</h3>
+              <inviteForm.Field name="email">
+                {(field) => (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invite-email">Email</Label>
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </div>
+                )}
+              </inviteForm.Field>
+              <inviteForm.Subscribe
+                selector={(state) => ({
+                  canSubmit: state.canSubmit,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ canSubmit, isSubmitting }) => (
+                  <Button type="submit" size="sm" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? "Inviting…" : "Send invite"}
+                  </Button>
+                )}
+              </inviteForm.Subscribe>
+            </form>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Inviting members needs an admin role. As a viewer you can still read the matrix above.
+            </p>
+          )}
         </section>
       ) : null}
 

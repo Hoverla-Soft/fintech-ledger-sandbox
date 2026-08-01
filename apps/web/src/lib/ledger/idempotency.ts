@@ -42,6 +42,7 @@
 export type OperationKind =
   | "transfer"
   | "exchange"
+  | "fee-split"
   | "sandbox-run"
   | "sandbox-reset"
   | `reverse:${string}`;

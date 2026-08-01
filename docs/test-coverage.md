@@ -459,4 +459,26 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 
 **Not unit-tested:** the exchange form's rendering. It was verified by driving the real app — pickers, conversion preview, post, source leg, FX link, target leg — which caught two things unit tests would not have: both money-moving forms displayed the account's raw **uuid** in the picker trigger (Base UI's `Select.Value` renders the bare value unless handed a function), and the transaction detail page never surfaced the FX link at all.
 
+### Portfolio showcase track (2026-08-01)
+
+### `apps/web/src/features/assurance/integrity-seal-label.test.ts`
+- Clean ledger copy includes the account count and singularises one account
+- Drift copy reports `N of M`; compact chrome collapses to `Verified` / `Drift`
+
+### `apps/web/src/features/theater/conservation.test.ts`
+- Conservation meter percent tracks revealed legs; mid-reveal is never `balanced`
+- Full reveal is 100% and balanced when debits equal credits
+
+### `apps/web/src/features/sandbox/guided-walkthrough.test.ts`
+- Expected `insufficient_funds` refusal is celebrated; other rejection reasons are not
+
+### `apps/web/src/features/transactions/postings-table.test.tsx` (extended)
+- Debit/credit columns plus totals row and journal integrity badge
+
+### `apps/web/src/lib/export/csv.test.ts`
+- CSV cells with commas/quotes are escaped for client-side History/Audit export
+
+### `apps/web/e2e/walkthrough.e2e.ts`
+- Seed → guided walkthrough → Open theater → integrity seal visible (demo spine)
+
 <!-- add one block per test file, keep in sync with what actually exists -->

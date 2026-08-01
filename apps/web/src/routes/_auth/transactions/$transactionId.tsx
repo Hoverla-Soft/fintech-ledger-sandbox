@@ -4,8 +4,10 @@ import { Separator } from "@fintech-ledger-sandbox/ui/components/separator";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import z from "zod";
 
 import { QueryState } from "@/components/states";
+import { MoneyFlowTheater } from "@/features/theater/money-flow-theater";
 import { PostingsTable } from "@/features/transactions/postings-table";
 import { ReverseDialog } from "@/features/transactions/reverse-dialog";
 import { useOrgContext } from "@/lib/org/session";
@@ -13,27 +15,21 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/transactions/$transactionId")({
   component: TransactionDetailRoute,
+  validateSearch: z.object({
+    play: z.coerce.boolean().optional(),
+  }),
 });
 
 /**
  * One transaction and its legs.
  *
- * The post-transfer destination `docs/product/requirements/ledger.md` names,
- * which is why it ships in the same slice as the transfer rather than later —
- * building the form first would have meant shipping a throwaway landing page.
+ * `?play=1` opens money-flow theater so a successful write can stage the
+ * conservation proof instead of dumping the visitor on a static journal.
  */
 function TransactionDetailRoute() {
   const { transactionId } = Route.useParams();
+  const { play } = Route.useSearch();
   const transaction = useQuery(orpc.transactions.get.queryOptions({ input: { transactionId } }));
-  // Names, so the legs read as accounts rather than as uuids. A failure here
-  // is cosmetic — `PostingsTable` falls back to the id — so it deliberately
-  // does not gate the transaction from rendering.
-  //
-  // The same fallback is what makes pagination safe here: an account outside
-  // the first page simply renders as its id, which is accurate rather than
-  // wrong. A transaction has at most a hundred legs, so one large page covers
-  // any realistic case, and a missing name degrades to something true instead
-  // of naming the wrong account.
   const accounts = useQuery(orpc.accounts.list.queryOptions({ input: { limit: 200 } }));
   const { canWrite } = useOrgContext();
 
@@ -68,13 +64,6 @@ function TransactionDetailRoute() {
                       : `reversed ×${data.reversedBy.length}`}
                   </Badge>
                 ) : null}
-                {/*
-                  Hidden for viewers as a courtesy; `403 insufficient_role` is
-                  still handled by the mutation (ADR 0009). Reversing a
-                  reversal is deliberately permitted by the API — it re-applies
-                  the original effect — so this is offered on every
-                  transaction rather than only on non-reversals.
-                */}
                 {canWrite ? (
                   <ReverseDialog
                     transactionId={data.id}
@@ -87,19 +76,13 @@ function TransactionDetailRoute() {
               </div>
             </div>
 
-            {/*
-              A cross-currency exchange is two transactions, so a reader landing
-              on one leg needs to be told the other exists — otherwise the
-              balanced-but-half-the-story postings below look like money going to
-              a bridge account for no reason. The rate is shown on the leg that
-              carries it, which is the target.
-            */}
             {data.fxTargetTransactionId ? (
               <p className="text-sm text-muted-foreground">
                 This is the outgoing half of a currency exchange. The money continues into{" "}
                 <Link
                   to="/transactions/$transactionId"
                   params={{ transactionId: data.fxTargetTransactionId }}
+                  search={{ play: true }}
                   className="underline underline-offset-4"
                 >
                   the converted transaction
@@ -138,12 +121,34 @@ function TransactionDetailRoute() {
               </p>
             ) : null}
 
+            <MoneyFlowTheater
+              postings={data.postings}
+              accountNames={accountNames}
+              autoPlay={play === true}
+              headline={
+                data.reversesTransactionId
+                  ? "Reversal posted"
+                  : data.fxSourceTransactionId || data.fxTargetTransactionId
+                    ? "Exchange leg posted"
+                    : "Money moved"
+              }
+              subtitle={
+                data.reversesTransactionId
+                  ? "Mirrored legs unwind the original effect. History grows; nothing is edited."
+                  : "Each posting appears in turn. Debits and credits must finish equal."
+              }
+            />
+
             <Separator />
 
             <dl className="grid gap-3 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Currency</dt>
                 <dd>{data.currency}</dd>
+              </div>
+              <div className="flex justify-between gap-8">
+                <dt className="text-muted-foreground">Posted by</dt>
+                <dd className="font-mono text-xs break-all">{data.createdBy}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Posted</dt>
@@ -154,7 +159,7 @@ function TransactionDetailRoute() {
             <Separator />
 
             <div>
-              <h2 className="mb-2 font-medium">Postings</h2>
+              <h2 className="mb-2 font-medium">Journal</h2>
               <p className="mb-3 text-sm text-muted-foreground">
                 Oldest first. Every transaction is a balanced set of at least two legs — money is
                 never created or destroyed, only moved.

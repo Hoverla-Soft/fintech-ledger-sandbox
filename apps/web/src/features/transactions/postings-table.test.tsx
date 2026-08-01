@@ -123,17 +123,20 @@ describe("PostingsTable", () => {
     expect(screen.getByText("unknown-id")).toBeInTheDocument();
   });
 
-  it("shows each leg's direction", () => {
+  it("places amounts in debit and credit columns", () => {
     render(
       <PostingsTable
         postings={[
-          posting({ id: "a", direction: "debit" }),
-          posting({ id: "b", direction: "credit" }),
+          posting({ id: "a", direction: "debit", amount: { amount: "12.50", currency: "USD" } }),
+          posting({ id: "b", direction: "credit", amount: { amount: "12.50", currency: "USD" } }),
         ]}
         accountNames={names}
       />,
     );
-    expect(screen.getByText("debit")).toBeInTheDocument();
-    expect(screen.getByText("credit")).toBeInTheDocument();
+    expect(screen.getByText("Debit")).toBeInTheDocument();
+    expect(screen.getByText("Credit")).toBeInTheDocument();
+    // Two legs + matching totals row cells.
+    expect(screen.getAllByText("12.50 USD")).toHaveLength(4);
+    expect(screen.getByText("Nets to zero")).toBeInTheDocument();
   });
 });

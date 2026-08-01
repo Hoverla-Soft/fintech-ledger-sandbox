@@ -1,6 +1,20 @@
 # fintech-ledger-sandbox
 
+A payments-style, double-entry, multi-tenant **fintech ledger sandbox**. Fake money, real correctness — every transfer is a balanced set of postings, balances reconcile, and no organization can see another's data.
+
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
+
+## 5-minute demo
+
+1. Open http://localhost:3001 and create an account (branded auth screen).
+2. Create an organization when prompted.
+3. Go to **Sandbox** → **Run scenarios**.
+4. Use the **Demo walkthrough** steps: funding → payroll → marketplace fee split → expected insufficient-funds refusal → reversal. Open **theater** on posted steps to watch conservation.
+5. Confirm the sidebar **Verified** integrity seal stays clean; open **Reconciliation** for the full check.
+6. Switch organization (or create a second one) to show tenant isolation.
+7. Open **API** for the OpenAPI reference and a sample transfer.
+
+Devtools badges appear only in local `pnpm dev`; production builds hide them.
 
 ## Features
 

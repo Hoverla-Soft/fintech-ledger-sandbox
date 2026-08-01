@@ -138,6 +138,7 @@ export function ExchangeForm({ accounts }: { accounts: readonly WireAccount[] })
       await navigate({
         to: "/transactions/$transactionId",
         params: { transactionId: result.source.id },
+        search: { play: true },
       });
     },
 

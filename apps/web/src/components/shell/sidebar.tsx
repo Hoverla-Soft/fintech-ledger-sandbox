@@ -1,6 +1,8 @@
 import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 
+import { IntegritySeal } from "@/features/assurance/integrity-seal";
+
 import { LedgerMark } from "./ledger-mark";
 import { NAV_GROUPS, NAV_ITEMS } from "./nav";
 import { SandboxBadge } from "./sandbox-badge";
@@ -55,7 +57,8 @@ export function ConsoleSidebar() {
         ))}
       </nav>
 
-      <div className="border-t px-4 py-3">
+      <div className="space-y-3 border-t px-4 py-3">
+        <IntegritySeal />
         <SandboxBadge withDescription />
       </div>
     </aside>

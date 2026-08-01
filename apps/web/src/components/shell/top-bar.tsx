@@ -4,6 +4,8 @@ import { ChevronRight, Search } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import UserMenu from "@/components/user-menu";
 
+import { IntegritySeal } from "@/features/assurance/integrity-seal";
+
 import { findNavItem } from "./nav";
 import { OrgSwitcher } from "./org-switcher";
 import { SandboxBadge } from "./sandbox-badge";
@@ -31,7 +33,8 @@ export function ConsoleTopBar({ onOpenPalette }: { onOpenPalette: () => void }) 
         strip directly underneath it, so the space goes to the environment badge
         instead — which the sidebar carries at lg and up.
       */}
-      <span className="shrink-0 lg:hidden">
+      <span className="flex shrink-0 items-center gap-1.5 lg:hidden">
+        <IntegritySeal compact />
         <SandboxBadge />
       </span>
 
