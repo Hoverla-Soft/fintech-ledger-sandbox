@@ -481,4 +481,12 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 ### `apps/web/e2e/walkthrough.e2e.ts`
 - Seed → guided walkthrough → Open theater → integrity seal visible (demo spine)
 
+### `packages/api/src/routers/writes.test.ts` — replayed flag (2026-08-01)
+- Fresh `transactions.create` returns `replayed: false`; same key+payload returns `replayed: true` without a second row
+
+### `packages/api/src/routers/reads.test.ts` — history filters (2026-08-01)
+- `accountId`, `kind`, and debit-total `minAmount`/`maxAmount` filter in SQL
+- Cursor pagination under `accountId` walks without duplicates or under-fill
+
 <!-- add one block per test file, keep in sync with what actually exists -->
+

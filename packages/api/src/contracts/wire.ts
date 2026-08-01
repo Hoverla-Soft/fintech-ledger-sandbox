@@ -122,11 +122,17 @@ export const postedTransactionSchema = transactionWithPostingsSchema.extend({
     .describe(
       "Resulting balance per touched account, current as of this response — on an idempotent replay this reflects the account's balance now, not at the time of the original posting.",
     ),
+  replayed: z
+    .boolean()
+    .describe(
+      "True when this response was served from an idempotency replay (same key + same payload) rather than a fresh post. Balances may still differ from the original response because they are current as of this read.",
+    ),
 });
 
 export function toWirePostedTransaction(
   transaction: LedgerTransactionWithPostings,
   balances: ReadonlyMap<string, Money>,
+  replayed: boolean,
 ): z.infer<typeof postedTransactionSchema> {
   return {
     ...toWireTransactionWithPostings(transaction),
@@ -134,6 +140,7 @@ export function toWirePostedTransaction(
       accountId,
       balance: toWireMoney(balance),
     })),
+    replayed,
   };
 }
 

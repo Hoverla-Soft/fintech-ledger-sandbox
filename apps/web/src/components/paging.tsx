@@ -32,6 +32,8 @@ export interface PagingState {
   readonly goBack: () => void;
   /** Abandons the walk and returns to page one, flagged so the screen can say why. */
   readonly expire: () => void;
+  /** Returns to page one without the expired-cursor notice (e.g. when filters change). */
+  readonly reset: () => void;
 }
 
 /**
@@ -64,6 +66,11 @@ export function usePageState(): PagingState {
     setCursorExpired(true);
   }, []);
 
+  const reset = useCallback(() => {
+    setPage(resetToFirstPage());
+    setCursorExpired(false);
+  }, []);
+
   return {
     page,
     cursorInput: page.cursor === null ? {} : { cursor: page.cursor },
@@ -71,6 +78,7 @@ export function usePageState(): PagingState {
     goNext,
     goBack,
     expire,
+    reset,
   };
 }
 

@@ -152,6 +152,68 @@ describe("transactions.list pagination", () => {
   });
 });
 
+describe("transactions.list filters", () => {
+  it("filters by account, kind, and debit-total amount bounds in SQL", async () => {
+    const otherWallet = await seedAccount(db, tenant.orgId, "normal", "Other wallet");
+    const small = await postTransfer(db, tenant, fundingId, walletId, "10.00");
+    const large = await postTransfer(db, tenant, fundingId, walletId, "50.00");
+    await postTransfer(db, tenant, fundingId, otherWallet, "50.00");
+    const reversal = await client().transactions.reverse({
+      transactionId: small,
+      idempotencyKey: randomUUID(),
+    });
+
+    const byAccount = await client().transactions.list({ accountId: walletId, limit: 50 });
+    expect(byAccount.transactions.map((row) => row.id).sort()).toEqual(
+      [small, large, reversal.id].sort(),
+    );
+
+    const reversals = await client().transactions.list({ kind: "reversals", limit: 50 });
+    expect(reversals.transactions.map((row) => row.id)).toEqual([reversal.id]);
+
+    const transfers = await client().transactions.list({ kind: "transfers", limit: 50 });
+    expect(transfers.transactions.some((row) => row.id === reversal.id)).toBe(false);
+
+    const mid = await client().transactions.list({
+      accountId: walletId,
+      minAmount: "20.00",
+      maxAmount: "60.00",
+      limit: 50,
+    });
+    // Reversal of 10.00 has debit total 10.00 — out of range. Large 50.00 stays.
+    expect(mid.transactions.map((row) => row.id)).toEqual([large]);
+  });
+
+  it("keeps cursor pagination correct under a filter", async () => {
+    for (let index = 0; index < 4; index += 1) {
+      await postTransfer(db, tenant, fundingId, walletId, "1.00");
+    }
+    const other = await seedAccount(db, tenant.orgId, "normal", "Elsewhere");
+    await postTransfer(db, tenant, fundingId, other, "1.00");
+
+    const first = await client().transactions.list({ accountId: walletId, limit: 2 });
+    expect(first.transactions).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await client().transactions.list({
+      accountId: walletId,
+      limit: 2,
+      cursor: first.nextCursor ?? undefined,
+    });
+    expect(second.transactions).toHaveLength(2);
+    const ids = [...first.transactions, ...second.transactions].map((row) => row.id);
+    expect(new Set(ids).size).toBe(4);
+    expect(
+      ids.every((id) =>
+        first.transactions.concat(second.transactions).some((row) => row.id === id),
+      ),
+    ).toBe(true);
+    for (const row of [...first.transactions, ...second.transactions]) {
+      expect(row.postings.some((posting) => posting.accountId === walletId)).toBe(true);
+    }
+  });
+});
+
 describe("transactions.list carries what moved (Phase 6b, open question #2)", () => {
   it("returns every posting on every row, so a history table can show amounts", async () => {
     // Before 6b this endpoint returned `transactionSchema`, which has no

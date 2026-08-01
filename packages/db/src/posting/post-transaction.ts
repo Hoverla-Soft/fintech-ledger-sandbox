@@ -46,6 +46,12 @@ export interface PostedTransaction {
   readonly postings: readonly PostedPosting[];
   /** Resulting balance per account id, for every account this transaction touched. */
   readonly balances: ReadonlyMap<string, Money>;
+  /**
+   * True when this result was served from an idempotency replay rather than a
+   * fresh post. Open question #4 — without this flag the wire response cannot
+   * tell a client whether money moved again.
+   */
+  readonly replayed: boolean;
 }
 
 export interface PostTransactionInput {
@@ -229,6 +235,7 @@ async function applyLeg(tx: PostingTransaction, input: ApplyLegInput): Promise<P
       amount: toMoney(row.amount, row.currency, `ledger_posting "${row.id}"`),
     })),
     balances: resultingBalances,
+    replayed: false,
   };
 }
 
@@ -645,5 +652,6 @@ async function loadPostedTransaction(
       amount: toMoney(row.amount, row.currency, `ledger_posting "${row.id}"`),
     })),
     balances,
+    replayed: true,
   };
 }

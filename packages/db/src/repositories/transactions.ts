@@ -1,12 +1,13 @@
 import {
+  CURRENCIES,
   type Currency,
   err,
-  type Money,
+  Money,
   ok,
   type PostingDirection,
   type Result,
 } from "@fintech-ledger-sandbox/core";
-import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { TransactionNotFound } from "../errors";
 import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
@@ -87,6 +88,23 @@ export interface LedgerTransactionWithPostings extends LedgerTransactionRow {
 
 export interface ListTransactionsInput extends PageRequest<TimeCursor> {
   readonly orgId: string;
+  /** Only transactions that posted a leg against this account. */
+  readonly accountId?: string;
+  /** ISO currency code filter. */
+  readonly currency?: string;
+  /** Inclusive lower bound on `created_at`. */
+  readonly createdAfter?: Date;
+  /** Exclusive upper bound on `created_at`. */
+  readonly createdBefore?: Date;
+  /**
+   * Inclusive lower/upper bounds on the transaction's **debit-side total**
+   * (sum of debit posting minor units), interpreted with each row's currency
+   * via `Money.parse`.
+   */
+  readonly minAmount?: string;
+  readonly maxAmount?: string;
+  /** Restrict to reversals, non-reversals, or leave unrestricted. */
+  readonly kind?: "transfers" | "reversals";
 }
 
 export type TransactionsPage = Page<LedgerTransactionWithPostings, TimeCursor>;
@@ -228,6 +246,9 @@ async function loadPostingsByTransactionId(
  * `(created_at, id)` — the same tiebreaker order as the
  * `ledger_transaction_orgId_createdAt_id_idx` index this query relies on,
  * so pagination is stable even when multiple rows share a `created_at`.
+ *
+ * Optional filters are applied in SQL (not after `LIMIT`) so a page never
+ * silently under-fills because matching rows were discarded client-side.
  */
 export async function listTransactions(
   db: Db,
@@ -245,9 +266,45 @@ export async function listTransactions(
       )
     : undefined;
 
-  const whereClause = cursorFilter
-    ? and(eq(ledgerTransaction.orgId, input.orgId), cursorFilter)
-    : eq(ledgerTransaction.orgId, input.orgId);
+  const filters = [eq(ledgerTransaction.orgId, input.orgId)];
+
+  if (cursorFilter) {
+    filters.push(cursorFilter);
+  }
+  if (input.currency !== undefined) {
+    filters.push(eq(ledgerTransaction.currency, input.currency));
+  }
+  if (input.createdAfter !== undefined) {
+    filters.push(gte(ledgerTransaction.createdAt, input.createdAfter));
+  }
+  if (input.createdBefore !== undefined) {
+    filters.push(lt(ledgerTransaction.createdAt, input.createdBefore));
+  }
+  if (input.kind === "reversals") {
+    filters.push(isNotNull(ledgerTransaction.reversesTransactionId));
+  } else if (input.kind === "transfers") {
+    filters.push(isNull(ledgerTransaction.reversesTransactionId));
+  }
+  if (input.accountId !== undefined) {
+    filters.push(
+      inArray(
+        ledgerTransaction.id,
+        db
+          .select({ id: ledgerPosting.transactionId })
+          .from(ledgerPosting)
+          .where(
+            and(eq(ledgerPosting.orgId, input.orgId), eq(ledgerPosting.accountId, input.accountId)),
+          ),
+      ),
+    );
+  }
+
+  const amountClause = debitAmountFilter(input.minAmount, input.maxAmount);
+  if (amountClause !== undefined) {
+    filters.push(amountClause);
+  }
+
+  const whereClause = and(...filters);
 
   // Fetch one extra row to know whether another page exists without a second count query.
   const rows = await db
@@ -281,6 +338,50 @@ export async function listTransactions(
     nextCursor:
       hasMore && lastRow !== undefined ? { createdAt: lastRow.createdAt, id: lastRow.id } : null,
   };
+}
+
+/**
+ * Debit-total amount bounds, OR'd across currencies that can parse the bound
+ * strings. A bound that is illegal for every known currency matches nothing
+ * (`false`) rather than throwing — the API layer should reject that earlier.
+ */
+function debitAmountFilter(minAmount?: string, maxAmount?: string) {
+  if (minAmount === undefined && maxAmount === undefined) {
+    return undefined;
+  }
+
+  const debitTotal = sql`(
+    select coalesce(sum(${ledgerPosting.amount}), 0)
+    from ${ledgerPosting}
+    where ${ledgerPosting.transactionId} = ${ledgerTransaction.id}
+      and ${ledgerPosting.orgId} = ${ledgerTransaction.orgId}
+      and ${ledgerPosting.direction} = 'debit'
+  )`;
+
+  const branches = [];
+  for (const currency of CURRENCIES) {
+    const min = minAmount === undefined ? null : Money.parse(minAmount, currency);
+    const max = maxAmount === undefined ? null : Money.parse(maxAmount, currency);
+    if (minAmount !== undefined && min !== null && !min.ok) {
+      continue;
+    }
+    if (maxAmount !== undefined && max !== null && !max.ok) {
+      continue;
+    }
+    const parts = [eq(ledgerTransaction.currency, currency)];
+    if (min?.ok) {
+      parts.push(sql`${debitTotal} >= ${min.value.minorUnits}`);
+    }
+    if (max?.ok) {
+      parts.push(sql`${debitTotal} <= ${max.value.minorUnits}`);
+    }
+    branches.push(and(...parts));
+  }
+
+  if (branches.length === 0) {
+    return sql`false`;
+  }
+  return or(...branches);
 }
 
 /**

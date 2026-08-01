@@ -395,9 +395,11 @@ describe("transactions.create", () => {
     it("replays the original on the same key and payload", async () => {
       const request = transfer("100.00");
       const first = await asAdmin().transactions.create(request);
+      expect(first.replayed).toBe(false);
       const second = await asAdmin().transactions.create(request);
 
       expect(second.id).toBe(first.id);
+      expect(second.replayed).toBe(true);
       const { transactions } = await asAdmin().transactions.list({});
       expect(transactions).toHaveLength(1);
     });

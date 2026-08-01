@@ -188,7 +188,7 @@ async function postAndLoad(
     throw new Error(`transaction "${posted.value.transactionId}" was posted but is not readable`);
   }
 
-  return toWirePostedTransaction(loaded.value, posted.value.balances);
+  return toWirePostedTransaction(loaded.value, posted.value.balances, posted.value.replayed);
 }
 
 /**
@@ -528,14 +528,33 @@ export const transactionsRouter = {
       }
 
       return {
-        source: toWirePostedTransaction(sourceLoaded.value, posted.value.source.balances),
-        target: toWirePostedTransaction(targetLoaded.value, posted.value.target.balances),
+        source: toWirePostedTransaction(
+          sourceLoaded.value,
+          posted.value.source.balances,
+          posted.value.source.replayed,
+        ),
+        target: toWirePostedTransaction(
+          targetLoaded.value,
+          posted.value.target.balances,
+          posted.value.target.replayed,
+        ),
         rate: rate.value.text,
       };
     }),
 
   list: orgProcedure
-    .input(z.object(pageInputShape))
+    .input(
+      z.object({
+        ...pageInputShape,
+        accountId: z.uuid().optional(),
+        currency: z.string().min(1).max(3).optional(),
+        createdAfter: z.iso.datetime().optional(),
+        createdBefore: z.iso.datetime().optional(),
+        minAmount: z.string().min(1).max(40).optional(),
+        maxAmount: z.string().min(1).max(40).optional(),
+        kind: z.enum(["all", "transfers", "reversals"]).optional(),
+      }),
+    )
     .output(
       z.object({
         transactions: z.array(transactionWithPostingsSchema),
@@ -549,6 +568,15 @@ export const transactionsRouter = {
         orgId: context.orgId,
         limit: input.limit,
         after: decodeTimeCursorOrThrow(input.cursor),
+        ...(input.accountId !== undefined ? { accountId: input.accountId } : {}),
+        ...(input.currency !== undefined ? { currency: input.currency } : {}),
+        ...(input.createdAfter !== undefined ? { createdAfter: new Date(input.createdAfter) } : {}),
+        ...(input.createdBefore !== undefined
+          ? { createdBefore: new Date(input.createdBefore) }
+          : {}),
+        ...(input.minAmount !== undefined ? { minAmount: input.minAmount } : {}),
+        ...(input.maxAmount !== undefined ? { maxAmount: input.maxAmount } : {}),
+        ...(input.kind !== undefined && input.kind !== "all" ? { kind: input.kind } : {}),
       });
 
       return {

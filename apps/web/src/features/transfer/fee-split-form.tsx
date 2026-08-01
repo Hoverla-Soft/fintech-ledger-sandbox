@@ -85,7 +85,13 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
     onSuccess: async (transaction) => {
       await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
       completeOperation("fee-split", keyStore);
-      toast.success("Fee split posted");
+      if (transaction.replayed) {
+        toast.success("Fee split replayed", {
+          description: "Same idempotency key — no second posting.",
+        });
+      } else {
+        toast.success("Fee split posted");
+      }
       await navigate({
         to: "/transactions/$transactionId",
         params: { transactionId: transaction.id },

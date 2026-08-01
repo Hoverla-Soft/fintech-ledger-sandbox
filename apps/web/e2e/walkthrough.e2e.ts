@@ -13,7 +13,9 @@ test("sandbox seed surfaces the demo walkthrough and theater link", async ({ pag
   const tenant = uniqueTenant("walkthrough");
   await signUpAndCreateOrg(page, tenant);
 
-  await page.getByRole("link", { name: "Sandbox" }).click();
+  // Prefer the URL: the brand link is named "Ledger sandbox", which also
+  // matches a loose `name: "Sandbox"` locator (strict-mode collision).
+  await page.goto("/sandbox");
   await expect(page.getByRole("heading", { name: "Sandbox" })).toBeVisible();
 
   await page.getByRole("button", { name: "Run scenarios" }).click();
@@ -32,7 +34,6 @@ test("sandbox seed surfaces the demo walkthrough and theater link", async ({ pag
     await expect(page.getByTestId("money-flow-theater")).toBeVisible({ timeout: 30_000 });
   }
 
-  await expect(
-    page.getByTestId("integrity-seal").or(page.getByTestId("integrity-seal-loading")),
-  ).toBeVisible();
+  // Sidebar + top bar both mount a seal; either proves ambient credibility.
+  await expect(page.getByTestId("integrity-seal").first()).toBeVisible();
 });

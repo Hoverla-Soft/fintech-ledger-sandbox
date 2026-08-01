@@ -129,7 +129,13 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
       // genuinely new key rather than replaying this one.
       completeOperation("transfer", keyStore);
       setPendingPostings(null);
-      toast.success("Transfer posted");
+      if (transaction.replayed) {
+        toast.success("Transfer replayed", {
+          description: "Same idempotency key — no second posting.",
+        });
+      } else {
+        toast.success("Transfer posted");
+      }
       await navigate({
         to: "/transactions/$transactionId",
         params: { transactionId: transaction.id },
