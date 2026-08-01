@@ -4,16 +4,7 @@ import { Link } from "@tanstack/react-router";
 
 import { orpc } from "@/utils/orpc";
 
-import { integritySealLabel } from "./integrity-seal-label";
-
-/**
- * Ambient integrity proof in the console chrome.
- *
- * Reconciliation already exists as a page; burying it means a visitor never
- * sees the product's differentiator. This seal reuses `reconciliation.verify`'s
- * whole-org aggregates (`allReconciled`, `accountCount`) and links to the full
- * check. Deliberately not polled — ADR 0003 treats verification as on-demand.
- */
+/** Ambient integrity proof — reuses `reconciliation.verify` aggregates. */
 export function IntegritySeal({ compact = false }: { compact?: boolean }) {
   const reconciliation = useQuery({
     ...orpc.reconciliation.verify.queryOptions({ input: { limit: 1 } }),
@@ -45,12 +36,13 @@ export function IntegritySeal({ compact = false }: { compact?: boolean }) {
   }
 
   const { allReconciled, accountCount, unreconciledCount } = reconciliation.data;
-  const label = integritySealLabel({
-    allReconciled,
-    accountCount,
-    unreconciledCount,
-    compact,
-  });
+  const label = allReconciled
+    ? compact
+      ? "Verified"
+      : `Verified · ${accountCount} ${accountCount === 1 ? "account" : "accounts"}`
+    : compact
+      ? "Drift"
+      : `Drift · ${unreconciledCount} of ${accountCount}`;
 
   return (
     <Link

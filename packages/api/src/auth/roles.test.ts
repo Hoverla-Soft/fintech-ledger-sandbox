@@ -13,12 +13,11 @@ describe("toLedgerRole", () => {
   });
 
   it("fails closed: any unrecognized role is a viewer, never an admin", () => {
-    // The failure mode that matters. A role string this mapping does not
-    // recognize — a future Better Auth default, a typo, a hand-edited column —
-    // must never grant write access to a ledger.
     for (const unknown of ["", " ", "guest", "superuser", "ADMIN_", "administrator", "0", "null"]) {
       expect(toLedgerRole(unknown)).toBe("viewer");
     }
+    expect(toLedgerRole(null)).toBe("viewer");
+    expect(toLedgerRole(undefined)).toBe("viewer");
   });
 
   it("is case-insensitive", () => {

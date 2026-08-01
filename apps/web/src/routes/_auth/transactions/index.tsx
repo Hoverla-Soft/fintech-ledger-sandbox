@@ -306,7 +306,6 @@ function TransactionsRoute() {
                       <Link
                         to="/transactions/$transactionId"
                         params={{ transactionId: transaction.id }}
-                        search={{ play: true }}
                         className="font-mono text-xs underline-offset-4 hover:underline"
                       >
                         {transaction.id.slice(0, 8)}…

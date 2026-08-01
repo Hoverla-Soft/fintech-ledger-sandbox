@@ -1,8 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { authClient } from "@/lib/auth-client";
+import { canWrite, type LedgerRole, toLedgerRole } from "@fintech-ledger-sandbox/api/auth/roles";
 
-import { canWrite, type LedgerRole, toLedgerRole } from "./role";
+import { authClient } from "@/lib/auth-client";
 
 /**
  * Reading and changing the acting organization.
@@ -31,10 +31,8 @@ export interface OrgContext {
 /**
  * The active organization and the caller's role in it.
  *
- * `role` is an **affordance hint** and nothing more — see `role.ts`. It is
- * `viewer` while the member row is still loading, which is the fail-closed
- * direction: a write button that appears a moment late is better than one that
- * appears and then 403s.
+ * `role` is an affordance hint only (open question #1). Fail-closed to
+ * `viewer` while the member row is loading.
  */
 export function useOrgContext(): OrgContext {
   const { data: organization, isPending: orgPending } = authClient.useActiveOrganization();

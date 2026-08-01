@@ -18,7 +18,7 @@ The form's copy of a rule exists to save a round trip, not to enforce anything. 
 
 ### Mirror the published contract; do not restate it loosely
 
-The account name cap is `120` because `accounts.create`'s input schema says `z.string().min(1).max(120)`. Where a value can be *enumerated*, take it from the source rather than retyping it: the currency picker is populated from `CURRENCIES` (`@fintech-ledger-sandbox/api/contracts/currencies`), so a code the ledger has no minor-unit exponent for cannot be chosen. `docs/adr/0002-money-representation.md` exists because a guessed exponent is a silent 100× error.
+The account name cap is `120` because `accounts.create`'s input schema says `z.string().min(1).max(120)`. Where a value can be *enumerated*, take it from the source rather than retyping it: the currency picker is populated from `CURRENCIES` (`@fintech-ledger-sandbox/core`), so a code the ledger has no minor-unit exponent for cannot be chosen. `docs/adr/0002-money-representation.md` exists because a guessed exponent is a silent 100× error.
 
 **Wire the branch anyway.** The currency wire type is `z.string()`, and a stale client is possible, so `422 unsupported_currency` is handled even though the picker makes it unreachable. A validation path with no test and no UI is a validation path that does not exist.
 

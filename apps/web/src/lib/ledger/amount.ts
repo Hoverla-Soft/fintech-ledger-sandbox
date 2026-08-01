@@ -1,13 +1,9 @@
 import {
-  CURRENCIES,
-  type Currency,
-  minorUnitExponent,
-} from "@fintech-ledger-sandbox/api/contracts/currencies";
-import {
   MAX_DECIMAL_AMOUNT_LENGTH,
   MAX_MINOR_UNITS,
   parseBoundedAmount,
 } from "@fintech-ledger-sandbox/api/contracts/money";
+import { CURRENCIES, type Currency, minorUnitExponent } from "@fintech-ledger-sandbox/core";
 
 /**
  * The console's money boundary.
@@ -173,4 +169,29 @@ export function formatMinorUnits(minorUnits: bigint, currency: string): string {
 export function formatAmountWithCurrency(minorUnits: bigint, currency: string): string {
   const formatted = formatMinorUnits(minorUnits, currency);
   return asCurrency(currency) === null ? formatted : `${formatted} ${currency}`;
+}
+
+/** Split a decimal string without going through `Number`. */
+export function decomposeDecimal(decimal: string): {
+  readonly negative: boolean;
+  readonly integer: string;
+  readonly fraction: string;
+} {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(decimal);
+  if (match === null) {
+    return { negative: false, integer: "0", fraction: "" };
+  }
+  const [, sign = "", integer = "0", fraction = ""] = match;
+  return { negative: sign === "-", integer, fraction };
+}
+
+/** Render a digit-string bigint back at the scale it was summed at. */
+export function formatFromDigits(value: bigint, scale: number): string {
+  const negative = value < 0n;
+  const digits = (negative ? -value : value).toString().padStart(scale + 1, "0");
+  const sign = negative ? "-" : "";
+  if (scale === 0) {
+    return `${sign}${digits}`;
+  }
+  return `${sign}${digits.slice(0, digits.length - scale)}.${digits.slice(digits.length - scale)}`;
 }

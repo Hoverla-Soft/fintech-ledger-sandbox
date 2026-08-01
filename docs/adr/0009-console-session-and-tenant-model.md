@@ -21,7 +21,7 @@ Concretely:
 
 - `organizationClient()` is registered on the client, mirroring the `organization()` plugin the server has had since Phase 1. The active org changes **only** through `authClient.organization.setActive`.
 - The console never stores the org in application state. It reads through Better Auth's own atoms (`useActiveOrganization`, `useActiveMember`, `useListOrganizations`), which the plugin invalidates on `setActive`, `create`, and `sign-out`.
-- `apps/web/src/lib/org/role.ts` maps the Better Auth `member.role` string to `admin`/`viewer` using the same fail-closed rule as `packages/api/src/auth/roles.ts` — `owner`/`admin` → admin, comma-lists take the write role, anything unrecognised → `viewer`. `role.test.ts` imports the server's own function and asserts the two agree case for case.
+- The console imports `toLedgerRole` from `packages/api/src/auth/roles.ts` — `owner`/`admin` → admin, comma-lists take the write role, anything unrecognised (including a missing member row) → `viewer`. Affordance only; writes still enforce on the server.
 - Switching organizations and signing out both call `queryClient.clear()`.
 
 ## Consequences

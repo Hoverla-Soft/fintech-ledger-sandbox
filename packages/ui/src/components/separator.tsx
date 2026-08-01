@@ -1,18 +1,6 @@
 import { cn } from "@fintech-ledger-sandbox/ui/lib/utils";
 
-/**
- * A rule between sections.
- *
- * The package had no standalone divider before Phase 5b — only
- * `DropdownMenuSeparator` (bound to the menu) and `Marker variant="separator"`
- * (bound to the chat scaffolding). `apps/web/src/components/header.tsx` was
- * hand-rolling a bare `<hr />` as a result. This is that class string lifted
- * into a primitive so the shell and later screens share one.
- *
- * `decorative` controls whether assistive technology is told about it. A rule
- * that merely looks tidy should be `aria-hidden`; one that genuinely marks a
- * boundary between groups should announce itself as a separator.
- */
+/** Horizontal/vertical rule. `decorative` hides it from assistive tech. */
 function Separator({
   className,
   orientation = "horizontal",

@@ -182,7 +182,6 @@ function AccountDetailRoute() {
                                 <Link
                                   to="/transactions/$transactionId"
                                   params={{ transactionId: posting.transactionId }}
-                                  search={{ play: true }}
                                   className="font-mono text-xs underline-offset-4 hover:underline"
                                 >
                                   {posting.transactionId.slice(0, 8)}…

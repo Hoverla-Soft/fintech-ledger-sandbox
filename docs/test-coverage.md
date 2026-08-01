@@ -208,11 +208,6 @@ Scope note: `packages/api`'s suite covers the **API boundary** — that the acti
 - **The loop** — seed → reset → seed → reset runs twice end to end, asserting the org is funded after each seed and unwound after each reset, with reconciliation clean at all four points
 - **Permissions and tenancy** — a `viewer` in the same org is refused `403 insufficient_role` on both procedures; seeding and resetting one org leaves another org's accounts and transactions completely untouched
 
-### `packages/api/src/contracts/currencies.test.ts`
-- The allowlist is reachable through the package's `@fintech-ledger-sandbox/api/contracts/currencies` subpath, which is how `apps/web` gets it without depending on `packages/core` directly
-- **Every offered currency survives the same boundary parser the write endpoints use** — a picker cannot present a code `transactions.create` would reject with `422 unsupported_currency`
-- One minor unit of each currency round-trips through `format` → `parseBoundedAmount` back to `1n`, and the rendered form carries exactly the declared number of fraction digits — the property a hardcoded exponent of 2 breaks on JPY (0) and BHD (3)
-
 ---
 
 ## `apps/web` — the console (Phase 5a)
@@ -235,9 +230,7 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The multi-leg posted scenarios (`payroll`, `marketplace_payout`) agree: the account money leaves carries the single credit
 - `composeTransfer` scales to the currency, not to two decimal places — 1250 minor units is `"12.50"` USD, `"1250"` JPY, `"1.250"` BHD
 - Rejects a non-positive amount and a transfer to the same account (which would net to zero against itself)
-- `composeLegs` accepts a balanced N-leg split, rejects an unbalanced one, rejects fewer than 2 and more than `MAX_POSTINGS` legs, and rejects a non-positive leg — direction carries the sign, never the amount
-- **Both composers reject an unknown currency up front** (regression). `formatMinorUnits` refuses to guess a scale and returns `"100 XXX"` — correct for display, but not a decimal string, so the composers used to return `ok: true` carrying it as a wire `amount` and the failure surfaced only as a thrown `assertBalanced` instead of a typed rejection a form could render inline
-- **Randomised splits for every leg count from 2 to 100** net to exactly `0n`, under a seeded PRNG so a failure is reproducible rather than a flake
+- `composeTransfer` rejects an unknown currency up front (regression). `formatMinorUnits` refuses to guess a scale and returns `"100 XXX"` — correct for display, but not a decimal string
 - `assertBalanced` throws on an unbalanced array, on fewer than 2 or more than 100 legs, on legs spanning more than one currency, and on an amount that is not a decimal string
 - **The false-pass regression** — `"1.0"` debit against `"10"` credit both reduce to the digits `10`. A scale-blind check cancels them and waves through a transfer moving nine units of real money. Legs are rescaled to a common width before summing, and legs written at different widths that genuinely agree (`"1.0"` / `"1.00"`) still pass
 
@@ -260,9 +253,8 @@ Unit tests over the console's pure kernel. No database and no Docker. The `happy
 - The three no-reason branches each render distinctly: a bare `401`, a Zod `BAD_REQUEST` whose field issues are exposed for form binding, and an unmapped `500` that reveals no internals
 - **Hostile input is renderable** — an unrecognised reason falls back without printing `undefined`; a network `TypeError`, `null`, `undefined`, a bare string, a number, an empty object, a string `data`, and a non-array `issues` all return copy rather than throwing inside the error handler; malformed issue entries are dropped rather than propagated
 
-### `apps/web/src/lib/org/role.test.ts` (Phase 5b)
-- **Agreement with `packages/api`** — imports the server's own `toLedgerRole` and asserts the console's copy produces an identical result across 17 inputs (`owner`, `admin`, `member`, `""`, mixed case, padded, comma-lists, near-misses like `ownerish` and `administrator`, and `","`). The console duplicates this mapping because no procedure returns the role (open question #1); the duplication is only safe while the two provably agree
-- Fails closed on anything unrecognised, and on `null`/`undefined` rather than throwing — rendering a write affordance to someone the server will refuse is worse than hiding one from someone who could have used it
+### `packages/api/src/auth/roles.test.ts`
+- Maps Better Auth `owner`/`admin` → ledger `admin`, `member` → `viewer`; fails closed on unrecognised strings and on `null`/`undefined` (console affordance path)
 
 ### `apps/web/src/components/states/states.test.tsx` (Phase 5b)
 - **The precedence rule, which is the reason this component exists.** A failed query has `data === undefined`, so an empty-first branch renders "nothing here yet" for a server that is down. Asserted directly: a failing query renders the error state and *not* the empty state, even when an `isEmpty` predicate is supplied that would match. In a ledger those states mean opposite things — one invites you to create an account, the other means the balances on screen may be nothing at all
@@ -469,17 +461,6 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 
 ### Portfolio showcase track (2026-08-01)
 
-### `apps/web/src/features/assurance/integrity-seal-label.test.ts`
-- Clean ledger copy includes the account count and singularises one account
-- Drift copy reports `N of M`; compact chrome collapses to `Verified` / `Drift`
-
-### `apps/web/src/features/theater/conservation.test.ts`
-- Conservation meter percent tracks revealed legs; mid-reveal is never `balanced`
-- Full reveal is 100% and balanced when debits equal credits
-
-### `apps/web/src/features/sandbox/guided-walkthrough.test.ts`
-- Expected `insufficient_funds` refusal is celebrated; other rejection reasons are not
-
 ### `apps/web/src/features/transactions/postings-table.test.tsx` (extended)
 - Debit/credit columns plus totals row and journal integrity badge
 
@@ -487,7 +468,7 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 - CSV cells with commas/quotes are escaped for client-side History/Audit export
 
 ### `apps/web/e2e/walkthrough.e2e.ts`
-- Seed → guided walkthrough → Open theater → integrity seal visible (demo spine)
+- Seed → scenario outcomes → integrity seal visible (demo spine)
 
 ### `packages/api/src/routers/writes.test.ts` — replayed flag (2026-08-01)
 - Fresh `transactions.create` returns `replayed: false`; same key+payload returns `replayed: true` without a second row

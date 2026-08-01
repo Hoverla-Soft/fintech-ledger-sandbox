@@ -19,7 +19,7 @@ import z from "zod";
 import { EmptyState } from "@/components/states";
 import { authClient } from "@/lib/auth-client";
 import { describeFailure } from "@/lib/ledger/errors";
-import { toLedgerRole } from "@/lib/org/role";
+import { toLedgerRole } from "@fintech-ledger-sandbox/api/auth/roles";
 import { switchOrganization, useOrganizations, useOrgContext } from "@/lib/org/session";
 import { client, orpc } from "@/utils/orpc";
 

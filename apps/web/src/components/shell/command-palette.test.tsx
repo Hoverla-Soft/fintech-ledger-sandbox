@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", async () => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-vi.mock("@/components/theme-provider", () => ({
+vi.mock("next-themes", () => ({
   useTheme: () => ({ setTheme, theme: "system" }),
 }));
 

@@ -1,3 +1,5 @@
+import { decomposeDecimal, formatFromDigits } from "@/lib/ledger/amount";
+
 export interface WireReconciliation {
   readonly accountId: string;
   readonly accountName: string;
@@ -21,8 +23,8 @@ export interface WireReconciliation {
  * is exactly the place it must not.
  */
 export function driftMinorUnits(entry: WireReconciliation): bigint {
-  const recorded = decompose(entry.recordedBalance.amount);
-  const computed = decompose(entry.computedBalance.amount);
+  const recorded = decomposeDecimal(entry.recordedBalance.amount);
+  const computed = decomposeDecimal(entry.computedBalance.amount);
   const width = Math.max(recorded.fraction.length, computed.fraction.length);
 
   return toScaled(recorded, width) - toScaled(computed, width);
@@ -30,28 +32,18 @@ export function driftMinorUnits(entry: WireReconciliation): bigint {
 
 /** Renders the drift as a signed decimal at the balances' own scale. */
 export function formatDrift(entry: WireReconciliation): string {
-  const recorded = decompose(entry.recordedBalance.amount);
-  const computed = decompose(entry.computedBalance.amount);
+  const recorded = decomposeDecimal(entry.recordedBalance.amount);
+  const computed = decomposeDecimal(entry.computedBalance.amount);
   const width = Math.max(recorded.fraction.length, computed.fraction.length);
   const drift = driftMinorUnits(entry);
-
-  const negative = drift < 0n;
-  const digits = (negative ? -drift : drift).toString().padStart(width + 1, "0");
-  const sign = negative ? "-" : drift > 0n ? "+" : "";
-
-  if (width === 0) {
-    return `${sign}${digits}`;
+  const formatted = formatFromDigits(drift < 0n ? -drift : drift, width);
+  if (drift > 0n) {
+    return `+${formatted}`;
   }
-  return `${sign}${digits.slice(0, digits.length - width)}.${digits.slice(digits.length - width)}`;
-}
-
-function decompose(decimal: string): { negative: boolean; integer: string; fraction: string } {
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(decimal);
-  if (match === null) {
-    return { negative: false, integer: "0", fraction: "" };
+  if (drift < 0n) {
+    return `-${formatted}`;
   }
-  const [, sign = "", integer = "0", fraction = ""] = match;
-  return { negative: sign === "-", integer, fraction };
+  return formatted;
 }
 
 function toScaled(

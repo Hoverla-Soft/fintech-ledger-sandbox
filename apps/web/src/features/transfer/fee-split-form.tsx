@@ -24,14 +24,7 @@ import {
 } from "@/lib/ledger/idempotency";
 import { client, orpc } from "@/utils/orpc";
 
-const AMOUNT_MESSAGES: Record<string, string> = {
-  empty: "Enter an amount.",
-  too_long: "That amount is too long.",
-  malformed: "Enter a plain decimal number, like 12.50.",
-  excess_precision: "That is more decimal places than this currency allows.",
-  out_of_range: "That amount is larger than this ledger can store.",
-  unsupported_currency: "This ledger does not know that currency's decimal scale.",
-};
+import { AMOUNT_MESSAGES } from "./submission";
 
 /**
  * N-leg marketplace-style fee split.
@@ -94,8 +87,7 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
       }
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: transaction.id },
-        search: { play: true },
+        params: { transactionId: transaction.id }
       });
     },
     onError: (error) => {

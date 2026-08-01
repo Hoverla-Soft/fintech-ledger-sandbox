@@ -37,7 +37,7 @@ export function isExpectedRejection(outcome: ScenarioOutcome): boolean {
 
 export function ScenarioOutcomes({ outcomes }: { outcomes: readonly ScenarioOutcome[] }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="scenario-outcomes">
       <Table>
         <TableHeader>
           <TableRow>

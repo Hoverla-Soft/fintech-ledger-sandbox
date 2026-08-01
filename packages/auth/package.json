@@ -13,9 +13,7 @@
   "dependencies": {
     "@fintech-ledger-sandbox/db": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
-    "better-auth": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
+    "better-auth": "catalog:"
   },
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",

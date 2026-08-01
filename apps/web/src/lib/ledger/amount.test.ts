@@ -1,4 +1,4 @@
-import { CURRENCIES, minorUnitExponent } from "@fintech-ledger-sandbox/api/contracts/currencies";
+import { CURRENCIES, minorUnitExponent } from "@fintech-ledger-sandbox/core";
 import {
   MAX_DECIMAL_AMOUNT_LENGTH,
   MAX_MINOR_UNITS,

@@ -1,6 +1,12 @@
-import type { NameCursor, TimeCursor } from "@fintech-ledger-sandbox/db/repositories";
+import {
+  MAX_PAGE_SIZE,
+  type NameCursor,
+  type TimeCursor,
+} from "@fintech-ledger-sandbox/db/repositories";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+
+export { MAX_PAGE_SIZE };
 
 /**
  * Opaque pagination cursors.
@@ -33,24 +39,9 @@ export const MAX_CURSOR_LENGTH = 512;
 export const cursorSchema = z.string().min(1).max(MAX_CURSOR_LENGTH);
 
 /**
- * The largest page a caller may *ask* for.
- *
- * Declared here as well as in `packages/db` — deliberately not shared. They
- * enforce different things: this one rejects an unreasonable request at the
- * contract boundary with a `400`, so a caller asking for 10_000 is told so,
- * while the repository's own clamp is an unconditional server-side ceiling that
- * holds no matter which caller reaches it, including internal ones that never
- * pass through a schema.
- */
-export const MAX_PAGE_SIZE = 200;
-
-/**
- * The paging half of a list procedure's input, spread into its `z.object`.
- *
- * Shared so all five paginated procedures accept byte-identical paging input.
- * Five hand-written copies would drift, and a procedure whose `limit` ceiling
- * or `cursor` length differed from the others would fail requests the console
- * builds uniformly.
+ * Paging half of a list procedure's input. `MAX_PAGE_SIZE` is owned by
+ * `packages/db` (server clamp); the contract uses the same constant so a
+ * Zod `400` and the repository ceiling cannot drift.
  */
 export const pageInputShape = {
   limit: z.int().min(1).max(MAX_PAGE_SIZE).optional(),

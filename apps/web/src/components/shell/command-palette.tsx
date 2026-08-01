@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useTheme } from "@/components/theme-provider";
+import { useTheme } from "next-themes";
 import { useOrgContext } from "@/lib/org/session";
 
 import { type ConsolePath, NAV_GROUPS } from "./nav";

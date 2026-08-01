@@ -47,8 +47,7 @@ function ApprovalsRoute() {
       toast.success("Transfer approved and posted");
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: transaction.id },
-        search: { play: true },
+        params: { transactionId: transaction.id }
       });
     },
     onError: (error) => {

@@ -1,4 +1,4 @@
-import { CURRENCIES } from "@fintech-ledger-sandbox/api/contracts/currencies";
+import { CURRENCIES } from "@fintech-ledger-sandbox/core";
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
 import {
   Dialog,

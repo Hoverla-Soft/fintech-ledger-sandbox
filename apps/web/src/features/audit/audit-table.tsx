@@ -67,7 +67,6 @@ export function AuditTable({
                   <Link
                     to="/transactions/$transactionId"
                     params={{ transactionId: entry.transactionId }}
-                    search={{ play: true }}
                     className="font-mono text-xs underline-offset-4 hover:underline"
                   >
                     {entry.transactionId.slice(0, 8)}…

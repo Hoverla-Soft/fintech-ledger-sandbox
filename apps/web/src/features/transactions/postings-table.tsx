@@ -8,11 +8,13 @@ import {
   TableRow,
 } from "@fintech-ledger-sandbox/ui/components/table";
 
-export interface WirePosting {
+import { decomposeDecimal, formatFromDigits } from "@/lib/ledger/amount";
+
+import type { WirePosting as WirePostingCore } from "./total";
+
+export interface WirePosting extends WirePostingCore {
   readonly id: string;
   readonly accountId: string;
-  readonly direction: "debit" | "credit";
-  readonly amount: { readonly amount: string; readonly currency: string };
   readonly createdAt: string;
 }
 
@@ -104,7 +106,7 @@ export function sumByDirection(postings: readonly WirePosting[]): {
   credits: bigint;
   scale: number;
 } {
-  const parts = postings.map((posting) => decompose(posting.amount.amount));
+  const parts = postings.map((posting) => decomposeDecimal(posting.amount.amount));
   const scale = parts.reduce((widest, part) => Math.max(widest, part.fraction.length), 0);
 
   let debits = 0n;
@@ -121,24 +123,4 @@ export function sumByDirection(postings: readonly WirePosting[]): {
   });
 
   return { debits, credits, scale };
-}
-
-function decompose(decimal: string): { negative: boolean; integer: string; fraction: string } {
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(decimal);
-  if (match === null) {
-    return { negative: false, integer: "0", fraction: "" };
-  }
-  const [, sign = "", integer = "0", fraction = ""] = match;
-  return { negative: sign === "-", integer, fraction };
-}
-
-/** Renders an integer digit-string back at the scale it was summed at. */
-function formatFromDigits(value: bigint, scale: number): string {
-  const negative = value < 0n;
-  const digits = (negative ? -value : value).toString().padStart(scale + 1, "0");
-  const sign = negative ? "-" : "";
-  if (scale === 0) {
-    return `${sign}${digits}`;
-  }
-  return `${sign}${digits.slice(0, digits.length - scale)}.${digits.slice(digits.length - scale)}`;
 }

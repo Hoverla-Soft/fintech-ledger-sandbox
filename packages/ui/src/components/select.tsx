@@ -7,7 +7,7 @@ import { CheckIcon, ChevronDownIcon } from "lucide-react";
  *
  * The console's first use is the currency picker, and that one is doing real
  * correctness work rather than just collecting a string: it is populated from
- * the allowlist in `@fintech-ledger-sandbox/api/contracts/currencies`, which
+ * the allowlist in `@fintech-ledger-sandbox/core`, which
  * makes `422 unsupported_currency` unreachable through the UI, and it prevents
  * a user typing a code whose minor-unit exponent this ledger does not know.
  * `docs/adr/0002-money-representation.md` exists because a guessed exponent is

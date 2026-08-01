@@ -31,7 +31,7 @@ export type PreparedTransfer =
       readonly message: string;
     };
 
-const AMOUNT_MESSAGES: Record<string, string> = {
+export const AMOUNT_MESSAGES: Record<string, string> = {
   empty: "Enter an amount.",
   too_long: "That amount is too long.",
   malformed: "Enter a plain decimal number, like 12.50.",

@@ -4,10 +4,8 @@ import { Separator } from "@fintech-ledger-sandbox/ui/components/separator";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import z from "zod";
 
 import { QueryState } from "@/components/states";
-import { MoneyFlowTheater } from "@/features/theater/money-flow-theater";
 import { PostingsTable } from "@/features/transactions/postings-table";
 import { ReverseDialog } from "@/features/transactions/reverse-dialog";
 import { useOrgContext } from "@/lib/org/session";
@@ -15,20 +13,11 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/transactions/$transactionId")({
   component: TransactionDetailRoute,
-  validateSearch: z.object({
-    play: z.coerce.boolean().optional(),
-  }),
 });
 
-/**
- * One transaction and its legs.
- *
- * `?play=1` opens money-flow theater so a successful write can stage the
- * conservation proof instead of dumping the visitor on a static journal.
- */
+/** One transaction and its legs. */
 function TransactionDetailRoute() {
   const { transactionId } = Route.useParams();
-  const { play } = Route.useSearch();
   const transaction = useQuery(orpc.transactions.get.queryOptions({ input: { transactionId } }));
   const accounts = useQuery(orpc.accounts.list.queryOptions({ input: { limit: 200 } }));
   const { canWrite } = useOrgContext();
@@ -82,7 +71,6 @@ function TransactionDetailRoute() {
                 <Link
                   to="/transactions/$transactionId"
                   params={{ transactionId: data.fxTargetTransactionId }}
-                  search={{ play: true }}
                   className="underline underline-offset-4"
                 >
                   the converted transaction
@@ -120,26 +108,6 @@ function TransactionDetailRoute() {
                 new entry.
               </p>
             ) : null}
-
-            <MoneyFlowTheater
-              postings={data.postings}
-              accountNames={accountNames}
-              autoPlay={play === true}
-              headline={
-                data.reversesTransactionId
-                  ? "Reversal posted"
-                  : data.fxSourceTransactionId || data.fxTargetTransactionId
-                    ? "Exchange leg posted"
-                    : "Money moved"
-              }
-              subtitle={
-                data.reversesTransactionId
-                  ? "Mirrored legs unwind the original effect. History grows; nothing is edited."
-                  : "Each posting appears in turn. Debits and credits must finish equal."
-              }
-            />
-
-            <Separator />
 
             <dl className="grid gap-3 text-sm">
               <div className="flex justify-between">

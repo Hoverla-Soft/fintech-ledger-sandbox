@@ -6,34 +6,27 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 
-export function createAuth() {
-  const db = createDb();
+const db = createDb();
 
-  return betterAuth({
-    database: drizzleAdapter(db, {
-      provider: "pg",
-
-      schema: { ...authSchema, ...organizationSchema },
-    }),
-    trustedOrigins: [env.CORS_ORIGIN],
-    emailAndPassword: {
-      enabled: true,
+export const auth = betterAuth({
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema: { ...authSchema, ...organizationSchema },
+  }),
+  trustedOrigins: [env.CORS_ORIGIN],
+  emailAndPassword: {
+    enabled: true,
+  },
+  secret: env.BETTER_AUTH_SECRET,
+  baseURL: env.BETTER_AUTH_URL,
+  advanced: {
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: true,
+      httpOnly: true,
     },
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
-    advanced: {
-      defaultCookieAttributes: {
-        sameSite: "none",
-        secure: true,
-        httpOnly: true,
-      },
-    },
-    // Organization plugin — the tenancy source of truth (`organization`,
-    // `member`, `invitation` tables + `session.activeOrganizationId`).
-    // Role/permission enforcement and the admin/viewer mapping are Phase 4;
-    // this phase only registers the plugin and its schema.
-    plugins: [organization()],
-  });
-}
-
-export const auth = createAuth();
+  },
+  // Organization plugin — tenancy source of truth (`organization`, `member`,
+  // `invitation` + `session.activeOrganizationId`).
+  plugins: [organization()],
+});

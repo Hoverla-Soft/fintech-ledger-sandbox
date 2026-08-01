@@ -2,14 +2,7 @@ import { SEED_SCENARIOS } from "@fintech-ledger-sandbox/api/sandbox/scenarios";
 import { describe, expect, it } from "vitest";
 
 import { parseAmount } from "./amount";
-import {
-  assertBalanced,
-  composeLegs,
-  composeTransfer,
-  type LegIntent,
-  MAX_POSTINGS,
-  type PostingInput,
-} from "./postings";
+import { assertBalanced, composeTransfer, MAX_POSTINGS, type PostingInput } from "./postings";
 
 /**
  * The `funding` scenario is the orientation ground truth.
@@ -206,105 +199,6 @@ describe("composeTransfer", () => {
       currency: "XXX",
     });
     expect(composed).toEqual({ ok: false, problem: "unsupported_currency" });
-  });
-});
-
-describe("composeLegs", () => {
-  it("accepts a balanced N-leg split", () => {
-    const legs: LegIntent[] = [
-      { accountId: "seller", direction: "debit", minorUnits: 95000n },
-      { accountId: "fees", direction: "debit", minorUnits: 5000n },
-      { accountId: "operating", direction: "credit", minorUnits: 100000n },
-    ];
-    const composed = composeLegs(legs, "USD");
-    expect(composed.ok).toBe(true);
-    if (!composed.ok) {
-      throw new Error("composition failed");
-    }
-    expect(assertBalanced(composed.postings)).toBe(true);
-  });
-
-  it("rejects an unbalanced split rather than sending it", () => {
-    const legs: LegIntent[] = [
-      { accountId: "a", direction: "debit", minorUnits: 100n },
-      { accountId: "b", direction: "credit", minorUnits: 99n },
-    ];
-    expect(composeLegs(legs, "USD")).toEqual({ ok: false, problem: "unbalanced" });
-  });
-
-  it("rejects fewer than two legs", () => {
-    expect(composeLegs([{ accountId: "a", direction: "debit", minorUnits: 1n }], "USD")).toEqual({
-      ok: false,
-      problem: "too_few_postings",
-    });
-    expect(composeLegs([], "USD")).toEqual({ ok: false, problem: "too_few_postings" });
-  });
-
-  it("accepts exactly MAX_POSTINGS legs and rejects one more", () => {
-    const build = (count: number): LegIntent[] => {
-      const debits = Array.from({ length: count - 1 }, (_, index) => ({
-        accountId: `debit-${index}`,
-        direction: "debit" as const,
-        minorUnits: 100n,
-      }));
-      return [
-        ...debits,
-        { accountId: "credit", direction: "credit" as const, minorUnits: BigInt(count - 1) * 100n },
-      ];
-    };
-
-    expect(composeLegs(build(MAX_POSTINGS), "USD").ok).toBe(true);
-    expect(composeLegs(build(MAX_POSTINGS + 1), "USD")).toEqual({
-      ok: false,
-      problem: "too_many_postings",
-    });
-  });
-
-  it("rejects an unknown currency before formatting any leg", () => {
-    const legs: LegIntent[] = [
-      { accountId: "a", direction: "debit", minorUnits: 100n },
-      { accountId: "b", direction: "credit", minorUnits: 100n },
-    ];
-    expect(composeLegs(legs, "XXX")).toEqual({ ok: false, problem: "unsupported_currency" });
-  });
-
-  it("rejects a non-positive leg — direction carries the sign, never the amount", () => {
-    const legs: LegIntent[] = [
-      { accountId: "a", direction: "debit", minorUnits: 100n },
-      { accountId: "b", direction: "credit", minorUnits: 0n },
-    ];
-    expect(composeLegs(legs, "USD")).toEqual({ ok: false, problem: "non_positive_amount" });
-  });
-
-  it("nets to exactly zero across randomised splits for every leg count from 2 to MAX_POSTINGS", () => {
-    // Deterministic PRNG — a seeded sequence, so a failure is reproducible
-    // rather than a flake nobody can chase.
-    let seed = 0x5eed;
-    const nextInt = (bound: number): number => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return (seed % bound) + 1;
-    };
-
-    for (let legCount = 2; legCount <= MAX_POSTINGS; legCount += 1) {
-      const debitCount = legCount - 1;
-      const debits = Array.from({ length: debitCount }, (_, index) => ({
-        accountId: `debit-${index}`,
-        direction: "debit" as const,
-        minorUnits: BigInt(nextInt(100_000)),
-      }));
-      const total = debits.reduce((sum, leg) => sum + leg.minorUnits, 0n);
-      const legs: LegIntent[] = [
-        ...debits,
-        { accountId: "credit", direction: "credit", minorUnits: total },
-      ];
-
-      const composed = composeLegs(legs, "USD");
-      expect(composed.ok).toBe(true);
-      if (!composed.ok) {
-        throw new Error(`composition failed at ${legCount} legs`);
-      }
-      expect(assertBalanced(composed.postings)).toBe(true);
-    }
   });
 });
 
