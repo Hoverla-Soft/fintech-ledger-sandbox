@@ -40,7 +40,7 @@ export default function SignUpForm({
             // bounce them to `/organization`. Navigating to the console first
             // and letting the guard redirect keeps the "where was I going"
             // logic in exactly one place.
-            navigate({ to: redirectTo ?? "/dashboard" });
+            navigate({ to: redirectTo ?? "/" });
             toast.success("Sign up successful");
           },
           onError: (error) => {

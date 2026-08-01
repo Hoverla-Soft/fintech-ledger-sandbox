@@ -28,7 +28,7 @@ import { formatMinorUnits } from "@/lib/ledger/amount";
 import { useOrgContext } from "@/lib/org/session";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_auth/dashboard")({
+export const Route = createFileRoute("/_auth/")({
   component: DashboardRoute,
 });
 

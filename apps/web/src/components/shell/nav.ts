@@ -33,7 +33,7 @@ import {
  * iterable.
  */
 export type ConsolePath =
-  | "/dashboard"
+  | "/"
   | "/accounts"
   | "/transfer"
   | "/exchange"
@@ -59,7 +59,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Ledger",
     items: [
       {
-        to: "/dashboard",
+        to: "/",
         label: "Overview",
         icon: LayoutDashboard,
         hint: "Balances and recent activity for this organization",
@@ -135,7 +135,12 @@ export function findNavItem(pathname: string): { group: string; item: NavItem } 
 
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      const matches = pathname === item.to || pathname.startsWith(`${item.to}/`);
+      // `/` is a prefix of every path, so the overview entry must match
+      // exactly — otherwise every console screen would breadcrumb as Overview.
+      const matches =
+        item.to === "/"
+          ? pathname === "/"
+          : pathname === item.to || pathname.startsWith(`${item.to}/`);
       if (matches && (best === null || item.to.length > best.item.to.length)) {
         best = { group: group.label, item };
       }

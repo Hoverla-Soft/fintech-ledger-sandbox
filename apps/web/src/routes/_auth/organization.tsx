@@ -60,7 +60,7 @@ function OrganizationRoute() {
       await switchOrganization(created.data.id, queryClient, () => router.invalidate());
       formApi.reset();
       toast.success(`Created ${value.name}`);
-      await navigate({ to: "/dashboard" });
+      await navigate({ to: "/" });
     },
   });
 
@@ -100,7 +100,7 @@ function OrganizationRoute() {
                     onClick={() => {
                       void switchOrganization(candidate.id, queryClient, () =>
                         router.invalidate(),
-                      ).then(() => navigate({ to: "/dashboard" }));
+                      ).then(() => navigate({ to: "/" }));
                     }}
                   >
                     Switch to

@@ -10,6 +10,15 @@ describe("findNavItem", () => {
     });
   });
 
+  it("resolves the overview only on the console root", () => {
+    expect(findNavItem("/")).toEqual({
+      group: "Ledger",
+      item: expect.objectContaining({ label: "Overview", to: "/" }),
+    });
+    // `/` is a prefix of every path; a careless match would claim every screen.
+    expect(findNavItem("/accounts")?.item.label).toBe("Accounts");
+  });
+
   it("resolves a detail route to the section that owns it", () => {
     // Detail routes have no nav entry of their own. Without the prefix match
     // the breadcrumb would render blank on exactly the screens where knowing

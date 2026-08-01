@@ -35,7 +35,7 @@ export default function SignInForm({
         {
           onSuccess: () => {
             // Land where they were headed, not on a fixed page.
-            navigate({ to: redirectTo ?? "/dashboard" });
+            navigate({ to: redirectTo ?? "/" });
             toast.success("Sign in successful");
           },
           onError: (error) => {
