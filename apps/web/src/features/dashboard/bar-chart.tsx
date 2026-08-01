@@ -89,7 +89,11 @@ export function DailyBarChart({
         thirty anonymous boxes. The per-bar detail lives in the table below, which
         is a better surface for it than thirty announcements.
       */}
-      <div className="relative flex h-32 items-end gap-[2px]" role="img" aria-label={title}>
+      <div
+        className="relative flex h-32 items-end gap-0.5"
+        role="img"
+        aria-label={title}
+      >
         {/*
           Hairline, solid, one step off the surface — never dashed. A baseline and a
           midline only: more rules across a 30-slot plot would compete with the
@@ -141,7 +145,9 @@ export function DailyBarChart({
       </figcaption>
 
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-foreground">Show as table</summary>
+        <summary className="cursor-pointer text-muted-foreground">
+          Show as table
+        </summary>
         <div className="mt-2 max-h-48 overflow-y-auto">
           <table className="w-full text-left">
             <caption className="sr-only">{title}</caption>
@@ -159,7 +165,9 @@ export function DailyBarChart({
               {points.map((point) => (
                 <tr key={point.date}>
                   <td className="py-0.5">{point.date}</td>
-                  <td className="py-0.5 text-right font-mono tabular-nums">{formatValue(point)}</td>
+                  <td className="py-0.5 text-right font-mono tabular-nums">
+                    {formatValue(point)}
+                  </td>
                 </tr>
               ))}
             </tbody>
