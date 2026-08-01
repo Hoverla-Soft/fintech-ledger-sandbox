@@ -47,8 +47,8 @@ function orpcError(code: string, status: number, data: Record<string, unknown> =
 }
 
 describe("reason coverage", () => {
-  it("has copy for all 20 published reasons", () => {
-    expect(LEDGER_REASONS).toHaveLength(20);
+  it("has copy for all 24 published reasons", () => {
+    expect(LEDGER_REASONS).toHaveLength(24);
     for (const reason of LEDGER_REASONS) {
       const described = describeFailure(orpcError("UNPROCESSABLE_CONTENT", 422, { reason }));
       expect(described.reason).toBe(reason);

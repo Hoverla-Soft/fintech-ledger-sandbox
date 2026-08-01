@@ -43,6 +43,13 @@
       "when": 1785362920406,
       "tag": "0005_rare_quicksilver",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785624379118,
+      "tag": "0006_mixed_machine_man",
+      "breakpoints": true
     }
   ]
 }

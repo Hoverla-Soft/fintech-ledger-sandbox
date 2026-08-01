@@ -8,14 +8,25 @@ import type { WireAccount } from "@/features/accounts/account-display";
 import { peekOperation } from "@/lib/ledger/idempotency";
 
 const createTransaction = vi.fn();
+const submitPending = vi.fn();
 const navigate = vi.fn();
 
 vi.mock("@/utils/orpc", () => ({
   client: {
     transactions: { create: (...args: unknown[]) => createTransaction(...args) },
+    approvals: { submitPending: (...args: unknown[]) => submitPending(...args) },
   },
   orpc: {
     accounts: { list: { key: () => ["accounts", "list"] } },
+    approvals: { listPending: { key: () => ["approvals", "listPending"] } },
+    settings: {
+      get: {
+        queryOptions: () => ({
+          queryKey: ["settings", "get"],
+          queryFn: async () => ({ requireTransferApproval: false }),
+        }),
+      },
+    },
   },
 }));
 
@@ -58,6 +69,7 @@ function renderForm({ strict = false }: { strict?: boolean } = {}) {
 
 beforeEach(() => {
   createTransaction.mockReset();
+  submitPending.mockReset();
   navigate.mockReset();
   globalThis.sessionStorage.clear();
 });

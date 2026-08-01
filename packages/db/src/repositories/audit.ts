@@ -111,13 +111,33 @@ async function pageAuditTable(
   };
 }
 
+export interface AuditListFilters {
+  readonly action?: string;
+  readonly reason?: string;
+}
+
+function auditScope(orgId: string, filters: AuditListFilters = {}, outcome?: "rejected") {
+  const parts = [eq(ledgerAuditEntry.orgId, orgId)];
+  if (outcome !== undefined) {
+    parts.push(eq(ledgerAuditEntry.outcome, outcome));
+  }
+  if (filters.action !== undefined && filters.action.length > 0) {
+    parts.push(eq(ledgerAuditEntry.action, filters.action));
+  }
+  if (filters.reason !== undefined && filters.reason.length > 0) {
+    parts.push(eq(ledgerAuditEntry.reason, filters.reason));
+  }
+  return and(...parts);
+}
+
 /** The audit log for `orgId`, most recent first, one page at a time. */
 export async function listAuditEntries(
   db: Db,
   orgId: string,
   request: PageRequest<TimeCursor> = {},
+  filters: AuditListFilters = {},
 ): Promise<AuditPage> {
-  return pageAuditTable(db, eq(ledgerAuditEntry.orgId, orgId), request);
+  return pageAuditTable(db, auditScope(orgId, filters), request);
 }
 
 /**
@@ -128,10 +148,7 @@ export async function listRejections(
   db: Db,
   orgId: string,
   request: PageRequest<TimeCursor> = {},
+  filters: AuditListFilters = {},
 ): Promise<AuditPage> {
-  return pageAuditTable(
-    db,
-    and(eq(ledgerAuditEntry.orgId, orgId), eq(ledgerAuditEntry.outcome, "rejected")),
-    request,
-  );
+  return pageAuditTable(db, auditScope(orgId, filters, "rejected"), request);
 }

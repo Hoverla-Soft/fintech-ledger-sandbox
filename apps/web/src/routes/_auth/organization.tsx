@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@fintech-ledger-sandbox/ui/components/table";
 import { useForm } from "@tanstack/react-form";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
@@ -21,6 +21,7 @@ import { authClient } from "@/lib/auth-client";
 import { describeFailure } from "@/lib/ledger/errors";
 import { toLedgerRole } from "@/lib/org/role";
 import { switchOrganization, useOrganizations, useOrgContext } from "@/lib/org/session";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/organization")({
   component: OrganizationRoute,
@@ -36,6 +37,24 @@ function OrganizationRoute() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const navigate = useNavigate();
+  const settings = useQuery({
+    ...orpc.settings.get.queryOptions(),
+    enabled: org !== null,
+  });
+  const setApproval = useMutation({
+    mutationFn: (requireTransferApproval: boolean) =>
+      client.settings.setRequireTransferApproval({ requireTransferApproval }),
+    onSuccess: async (next) => {
+      await queryClient.invalidateQueries({ queryKey: orpc.settings.get.key() });
+      toast.success(
+        next.requireTransferApproval ? "Transfer approval required" : "Transfers post immediately",
+      );
+    },
+    onError: (error) => {
+      const failure = describeFailure(error);
+      toast.error(failure.title, { description: failure.detail });
+    },
+  });
 
   const form = useForm({
     defaultValues: { name: "" },
@@ -157,6 +176,7 @@ function OrganizationRoute() {
               {[
                 ["Read balances, history, audit, reconciliation", "yes", "yes"],
                 ["Create accounts / post transfers", "yes", "no"],
+                ["Approve / reject pending transfers", "yes*", "no"],
                 ["Reverse transactions", "yes", "no"],
                 ["Seed / reset sandbox", "yes", "no"],
               ].map(([cap, admin, viewer]) => (
@@ -209,6 +229,35 @@ function OrganizationRoute() {
               </TableBody>
             </Table>
           )}
+
+          <div className="space-y-2 border-t pt-4">
+            <h3 className="text-sm font-medium">Maker-checker</h3>
+            <p className="text-xs text-muted-foreground">
+              When enabled, transfers wait in Approvals for a *different* admin. Seed/demo
+              walkthrough keeps posting immediately until you turn this on. * Self-approve is
+              blocked.
+            </p>
+            {canWrite ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={setApproval.isPending || settings.isPending}
+                onClick={() =>
+                  setApproval.mutate(!(settings.data?.requireTransferApproval ?? false))
+                }
+              >
+                {settings.data?.requireTransferApproval
+                  ? "Disable transfer approval"
+                  : "Require transfer approval"}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Current:{" "}
+                {settings.data?.requireTransferApproval ? "approval required" : "immediate post"}
+              </p>
+            )}
+          </div>
 
           {canWrite ? (
             <form

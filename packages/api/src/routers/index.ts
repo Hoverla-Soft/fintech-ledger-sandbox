@@ -2,10 +2,12 @@ import type { RouterClient } from "@orpc/server";
 
 import { publicProcedure } from "../procedures";
 import { accountsRouter } from "./accounts";
+import { approvalsRouter } from "./approvals";
 import { auditRouter } from "./audit";
 import { dashboardRouter } from "./dashboard";
 import { reconciliationRouter } from "./reconciliation";
 import { sandboxRouter } from "./sandbox";
+import { settingsRouter } from "./settings";
 import { transactionsRouter } from "./transactions";
 
 export const appRouter = {
@@ -15,6 +17,8 @@ export const appRouter = {
 
   accounts: accountsRouter,
   transactions: transactionsRouter,
+  approvals: approvalsRouter,
+  settings: settingsRouter,
   reconciliation: reconciliationRouter,
   audit: auditRouter,
   dashboard: dashboardRouter,

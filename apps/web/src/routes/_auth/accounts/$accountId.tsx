@@ -25,6 +25,10 @@ import {
   AccountTypeBadge,
   isSuspenseAccount,
 } from "@/features/accounts/account-display";
+import { runningBalanceSeries } from "@/features/accounts/statement-sparkline";
+import { DailyBarChart } from "@/features/dashboard/bar-chart";
+import { barHeightPercent, maxMinorUnits } from "@/features/dashboard/summary";
+import { formatMinorUnits } from "@/lib/ledger/amount";
 import { hasPrevious } from "@/lib/pagination";
 import { orpc } from "@/utils/orpc";
 
@@ -128,58 +132,74 @@ function AccountDetailRoute() {
                   ),
                 }}
               >
-                {(page) => (
-                  <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>When</TableHead>
-                          <TableHead>Direction</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead className="text-right">Running</TableHead>
-                          <TableHead>Txn</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {page.postings.map((posting) => (
-                          <TableRow key={posting.id}>
-                            <TableCell className="whitespace-nowrap text-xs">
-                              {new Date(posting.createdAt).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={posting.direction === "debit" ? "outline" : "secondary"}
-                              >
-                                {posting.direction}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right font-mono tabular-nums">
-                              {posting.amount.amount} {posting.amount.currency}
-                            </TableCell>
-                            <TableCell className="text-right font-mono tabular-nums">
-                              {posting.runningBalance.amount}
-                            </TableCell>
-                            <TableCell>
-                              <Link
-                                to="/transactions/$transactionId"
-                                params={{ transactionId: posting.transactionId }}
-                                search={{ play: true }}
-                                className="font-mono text-xs underline-offset-4 hover:underline"
-                              >
-                                {posting.transactionId.slice(0, 8)}…
-                              </Link>
-                            </TableCell>
+                {(page) => {
+                  const series = runningBalanceSeries(page.postings);
+                  const max = series ? maxMinorUnits(series) : 0n;
+                  return (
+                    <>
+                      {series && series.length > 0 ? (
+                        <DailyBarChart
+                          title="Running balance (absolute, by day)"
+                          points={series}
+                          heightOf={(point) => barHeightPercent(point.minorUnits, max)}
+                          formatValue={(point) =>
+                            `${formatMinorUnits(point.minorUnits, data.currency)} ${data.currency} (abs)`
+                          }
+                          valueLabel="|balance|"
+                          emptyMessage="No balance history to chart on this page."
+                        />
+                      ) : null}
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>When</TableHead>
+                            <TableHead>Direction</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-right">Running</TableHead>
+                            <TableHead>Txn</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <PageControls
-                      paging={paging}
-                      nextCursor={page.nextCursor}
-                      isFetching={postings.isFetching}
-                    />
-                  </>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {page.postings.map((posting) => (
+                            <TableRow key={posting.id}>
+                              <TableCell className="whitespace-nowrap text-xs">
+                                {new Date(posting.createdAt).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={posting.direction === "debit" ? "outline" : "secondary"}
+                                >
+                                  {posting.direction}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-mono tabular-nums">
+                                {posting.amount.amount} {posting.amount.currency}
+                              </TableCell>
+                              <TableCell className="text-right font-mono tabular-nums">
+                                {posting.runningBalance.amount}
+                              </TableCell>
+                              <TableCell>
+                                <Link
+                                  to="/transactions/$transactionId"
+                                  params={{ transactionId: posting.transactionId }}
+                                  search={{ play: true }}
+                                  className="font-mono text-xs underline-offset-4 hover:underline"
+                                >
+                                  {posting.transactionId.slice(0, 8)}…
+                                </Link>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <PageControls
+                        paging={paging}
+                        nextCursor={page.nextCursor}
+                        isFetching={postings.isFetching}
+                      />
+                    </>
+                  );
+                }}
               </QueryState>
             </div>
           </div>

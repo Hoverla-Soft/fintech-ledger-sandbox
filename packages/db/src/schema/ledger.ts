@@ -69,6 +69,11 @@ import { organization } from "./organization";
 export const ledgerAccountTypeEnum = pgEnum("ledger_account_type", ["normal", "external"]);
 export const ledgerPostingDirectionEnum = pgEnum("ledger_posting_direction", ["debit", "credit"]);
 export const ledgerAuditOutcomeEnum = pgEnum("ledger_audit_outcome", ["posted", "rejected"]);
+export const ledgerPendingStatusEnum = pgEnum("ledger_pending_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
 
 export const ledgerAccount = pgTable(
   "ledger_account",
@@ -301,6 +306,42 @@ export const ledgerAuditEntry = pgTable(
     // No standalone `org_id` index here: the composite index below already
     // covers `org_id`-only lookups via its leading column.
     index("ledger_audit_entry_orgId_createdAt_idx").on(table.orgId, table.createdAt),
+  ],
+);
+
+/**
+ * Thin maker-checker queue: a balanced transfer waiting for a *different*
+ * admin to approve before `postTransaction` runs. No balances move until
+ * approval — this row is not a ledger_transaction.
+ */
+export const ledgerPendingTransfer = pgTable(
+  "ledger_pending_transfer",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    currency: text("currency").notNull(),
+    /** Wire postings: `{ accountId, direction, amount, currency }[]`. */
+    postings: jsonb("postings").notNull(),
+    status: ledgerPendingStatusEnum("status").notNull().default("pending"),
+    decidedBy: text("decided_by").references(() => user.id),
+    decidedAt: timestamp("decided_at", { precision: 3 }),
+    transactionId: text("transaction_id").references(() => ledgerTransaction.id),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("ledger_pending_transfer_orgId_key_unique").on(table.orgId, table.idempotencyKey),
+    index("ledger_pending_transfer_orgId_status_createdAt_idx").on(
+      table.orgId,
+      table.status,
+      table.createdAt,
+    ),
   ],
 );
 

@@ -43,8 +43,12 @@ export const LEDGER_REASONS = [
   "no_active_organization",
   "non_positive_amount",
   "not_a_member",
+  "pending_already_decided",
+  "pending_not_found",
   "rate_limited",
+  "rejected_by_approver",
   "same_currency_exchange",
+  "self_approve_forbidden",
   "too_few_postings",
   "transaction_not_found",
   "unbalanced_transaction",
@@ -168,10 +172,31 @@ const COPY = {
     detail: "Switch to an organization you belong to, or ask an admin for an invitation.",
     disposition: "reauthenticate",
   },
+  pending_already_decided: {
+    title: "Already decided",
+    detail: "Another admin already approved or rejected this transfer. Refresh the Approvals list.",
+    disposition: "blocked",
+  },
+  pending_not_found: {
+    title: "Pending transfer not found",
+    detail: "No open approval request with that id exists in this organization.",
+    disposition: "blocked",
+  },
   rate_limited: {
     title: "Too many requests",
     detail: "Wait a moment and try again.",
     disposition: "retryable",
+  },
+  rejected_by_approver: {
+    title: "Transfer rejected",
+    detail: "A different admin rejected this pending transfer. Nothing was posted.",
+    disposition: "blocked",
+  },
+  self_approve_forbidden: {
+    title: "A different admin must decide",
+    detail:
+      "Maker-checker blocks approving or rejecting your own submission. Ask another admin to act.",
+    disposition: "blocked",
   },
   too_few_postings: {
     title: "A transaction needs at least two legs",

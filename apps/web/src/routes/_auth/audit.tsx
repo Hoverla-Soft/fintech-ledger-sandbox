@@ -1,7 +1,10 @@
 import { Button } from "@fintech-ledger-sandbox/ui/components/button";
+import { Input } from "@fintech-ledger-sandbox/ui/components/input";
+import { Label } from "@fintech-ledger-sandbox/ui/components/label";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@fintech-ledger-sandbox/ui/components/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   CursorExpiredNotice,
@@ -39,16 +42,34 @@ function exportEntries(filename: string, entries: readonly WireAuditEntry[]) {
 }
 
 function AuditRoute() {
+  const [action, setAction] = useState("");
+  const [reason, setReason] = useState("");
+  const filters = useMemo(
+    () => ({
+      ...(action.trim() ? { action: action.trim() } : {}),
+      ...(reason.trim() ? { reason: reason.trim() } : {}),
+    }),
+    [action, reason],
+  );
+
   const allPaging = usePageState();
+  const rejectionsPaging = usePageState();
+
+  useEffect(() => {
+    allPaging.reset();
+    rejectionsPaging.reset();
+  }, [filters, allPaging.reset, rejectionsPaging.reset]);
+
   const all = useQuery(
-    orpc.audit.list.queryOptions({ input: { limit: PAGE_SIZE, ...allPaging.cursorInput } }),
+    orpc.audit.list.queryOptions({
+      input: { limit: PAGE_SIZE, ...allPaging.cursorInput, ...filters },
+    }),
   );
   useCursorRecovery(allPaging, all);
 
-  const rejectionsPaging = usePageState();
   const rejections = useQuery(
     orpc.audit.rejections.queryOptions({
-      input: { limit: PAGE_SIZE, ...rejectionsPaging.cursorInput },
+      input: { limit: PAGE_SIZE, ...rejectionsPaging.cursorInput, ...filters },
     }),
   );
   useCursorRecovery(rejectionsPaging, rejections);
@@ -61,6 +82,32 @@ function AuditRoute() {
           Every transaction this organization posted, and every one it refused. Newest first.
         </p>
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="audit-action">Action</Label>
+          <Input
+            id="audit-action"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            placeholder="e.g. post_transaction"
+            autoComplete="off"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="audit-reason">Reason</Label>
+          <Input
+            id="audit-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. insufficient_funds"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Filters apply server-side. Exact match on the stored action / reason codes.
+      </p>
 
       <Tabs defaultValue="all">
         <TabsList>
@@ -77,8 +124,8 @@ function AuditRoute() {
               isEmpty: (data) => data.entries.length === 0 && !hasPrevious(allPaging.page),
               render: (
                 <EmptyState
-                  title="Nothing recorded yet"
-                  description="Posting or refusing a transaction writes an entry here."
+                  title="No matching entries"
+                  description="Widen the filters, or post a transfer to see activity."
                   action={
                     <span className="text-sm text-muted-foreground">
                       Post a transfer to see it appear.
@@ -122,8 +169,8 @@ function AuditRoute() {
               isEmpty: (data) => data.entries.length === 0 && !hasPrevious(rejectionsPaging.page),
               render: (
                 <EmptyState
-                  title="Nothing has been refused"
-                  description="No transaction in this organization has been rejected. That is good news."
+                  title="No matching refusals"
+                  description="No rejected attempts match these filters."
                   action={
                     <span className="text-sm text-muted-foreground">
                       Refusals appear here automatically.

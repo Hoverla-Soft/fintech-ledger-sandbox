@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BookOpen,
+  CheckSquare,
   FlaskConical,
   LayoutDashboard,
   type LucideIcon,
@@ -26,6 +27,7 @@ export type ConsolePath =
   | "/exchange"
   | "/transactions"
   | "/reconciliation"
+  | "/approvals"
   | "/audit"
   | "/sandbox"
   | "/api";
@@ -86,6 +88,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         label: "Reconciliation",
         icon: Scale,
         hint: "Verify every balance against its posting history, and find drift",
+      },
+      {
+        to: "/approvals",
+        label: "Approvals",
+        icon: CheckSquare,
+        hint: "Pending transfers waiting for a second admin",
       },
       {
         to: "/audit",

@@ -27,15 +27,29 @@ const listOutput = z.object({
   nextCursor: z.string().nullable(),
 });
 
+const auditFilterShape = {
+  ...pageInputShape,
+  action: z.string().min(1).max(80).optional(),
+  reason: z.string().min(1).max(80).optional(),
+} as const;
+
 export const auditRouter = {
   list: orgProcedure
-    .input(z.object(pageInputShape))
+    .input(z.object(auditFilterShape))
     .output(listOutput)
     .handler(async ({ context, input }) => {
-      const page = await listAuditEntries(context.db, context.orgId, {
-        limit: input.limit,
-        after: decodeTimeCursorOrThrow(input.cursor),
-      });
+      const page = await listAuditEntries(
+        context.db,
+        context.orgId,
+        {
+          limit: input.limit,
+          after: decodeTimeCursorOrThrow(input.cursor),
+        },
+        {
+          ...(input.action !== undefined ? { action: input.action } : {}),
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        },
+      );
 
       return {
         entries: page.items.map(toWireAuditEntry),
@@ -44,13 +58,21 @@ export const auditRouter = {
     }),
 
   rejections: orgProcedure
-    .input(z.object(pageInputShape))
+    .input(z.object(auditFilterShape))
     .output(listOutput)
     .handler(async ({ context, input }) => {
-      const page = await listRejections(context.db, context.orgId, {
-        limit: input.limit,
-        after: decodeTimeCursorOrThrow(input.cursor),
-      });
+      const page = await listRejections(
+        context.db,
+        context.orgId,
+        {
+          limit: input.limit,
+          after: decodeTimeCursorOrThrow(input.cursor),
+        },
+        {
+          ...(input.action !== undefined ? { action: input.action } : {}),
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+        },
+      );
 
       return {
         entries: page.items.map(toWireAuditEntry),

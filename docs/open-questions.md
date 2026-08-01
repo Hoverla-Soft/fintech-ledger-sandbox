@@ -68,7 +68,7 @@ Each of these is a capability the console needs and the API does not currently p
 
 | # | Item | Status | Action needed |
 |---|---|---|---|
-| 24 | **Thin maker-checker for transfers deferred.** Portfolio Phase 3 cut valve: org role matrix + API playground + actor-rich audit export shipped first; pending→approve transfer workflow needs schema + dual-admin enforcement and was not worth diluting Phase 1–2 demo polish in this pass | Deferred | Revisit when a buyer demo explicitly needs two-control language. Spec sketch remains in the portfolio roadmap (P3-4): `pending_approval` → `posted`, block self-approve |
+| 24 | **Thin maker-checker for transfers.** Org flag `requireTransferApproval` (default off); `ledger_pending_transfer` holds submissions until a different admin approves/rejects; balances move only on approve via `postTransaction`; self-approve/reject returns `403 self_approve_forbidden` | Resolved | Shipped 2026-08-01 — Approvals nav + org toggle; see `approvals.*` / `settings.*` routers |
 
 ---
 

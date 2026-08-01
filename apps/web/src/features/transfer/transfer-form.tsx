@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@fintech-ledger-sandbox/ui/components/select";
 import { Separator } from "@fintech-ledger-sandbox/ui/components/separator";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -67,6 +67,8 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const settings = useQuery(orpc.settings.get.queryOptions());
+  const requireApproval = settings.data?.requireTransferApproval === true;
 
   // One store for the component's lifetime. `createSessionKeyStore` probes
   // `sessionStorage` and falls back to a process-wide memory store, so calling
@@ -110,26 +112,47 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
   }, [destinations, destinationId]);
 
   const post = useMutation({
-    mutationFn: (input: { idempotencyKey: string; postings: readonly PostingInput[] }) =>
-      client.transactions.create({
-        idempotencyKey: input.idempotencyKey,
-        postings: input.postings.map((posting) => ({ ...posting })),
-      }),
+    mutationFn: async (input: { idempotencyKey: string; postings: readonly PostingInput[] }) => {
+      const postings = input.postings.map((posting) => ({ ...posting }));
+      if (requireApproval) {
+        return {
+          kind: "pending" as const,
+          pending: await client.approvals.submitPending({
+            idempotencyKey: input.idempotencyKey,
+            postings,
+          }),
+        };
+      }
+      return {
+        kind: "posted" as const,
+        transaction: await client.transactions.create({
+          idempotencyKey: input.idempotencyKey,
+          postings,
+        }),
+      };
+    },
 
     // Never automatically. 5b's client default already sets this; it is
     // restated here because the cost of that default being loosened by someone
     // who has not read ADR 0006 is a double-posted transfer.
     retry: false,
 
-    onSuccess: async (transaction) => {
-      // Balances moved on both sides, and the list is the authority on what
-      // they now are.
-      await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
-      // The operation is over: release the slot so the next transfer mints a
-      // genuinely new key rather than replaying this one.
+    onSuccess: async (result) => {
       completeOperation("transfer", keyStore);
       setPendingPostings(null);
-      if (transaction.replayed) {
+      if (result.kind === "pending") {
+        await queryClient.invalidateQueries({ queryKey: orpc.approvals.listPending.key() });
+        toast.success(
+          result.pending.replayed ? "Pending request replayed" : "Submitted for approval",
+          {
+            description: "A different admin must approve before balances move.",
+          },
+        );
+        await navigate({ to: "/approvals" });
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
+      if (result.transaction.replayed) {
         toast.success("Transfer replayed", {
           description: "Same idempotency key — no second posting.",
         });
@@ -138,7 +161,7 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
       }
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: transaction.id },
+        params: { transactionId: result.transaction.id },
         search: { play: true },
       });
     },
@@ -361,12 +384,19 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
             })}
           </p>
           <p className="text-sm text-muted-foreground">
-            Check the direction before posting. A transfer cannot be edited afterwards — it can only
-            be corrected by a reversal.
+            {requireApproval
+              ? "This org requires a second admin to approve before balances move. You cannot approve your own submission."
+              : "Check the direction before posting. A transfer cannot be edited afterwards — it can only be corrected by a reversal."}
           </p>
           <div className="flex gap-2">
             <Button type="button" onClick={onConfirm} disabled={post.isPending}>
-              {post.isPending ? "Posting…" : "Post transfer"}
+              {post.isPending
+                ? requireApproval
+                  ? "Submitting…"
+                  : "Posting…"
+                : requireApproval
+                  ? "Submit for approval"
+                  : "Post transfer"}
             </Button>
             <Button
               type="button"

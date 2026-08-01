@@ -163,6 +163,14 @@ Scope note: `packages/api`'s suite covers the **API boundary** — that the acti
 - Phase 4b added the first wire-level `409` (duplicate account name), `422` (unbalanced transaction), `429` (write limit exhausted), and `403 insufficient_role` (viewer attempting a write) — until then those statuses were verified only by unit-testing `toORPCError` and by reading oRPC's status table
 - Deliberately does **not** cover Better Auth: the app is assembled with a stub context, because the claim under test is oRPC's status translation rather than authentication. `apps/server`'s own `createContext` wiring is therefore not exercised here
 
+### `packages/api/src/routers/approvals.test.ts` (Portfolio)
+- Submitting a pending transfer does **not** move balances; the row appears in `listPending`
+- Same idempotency key + same payload **replays** the pending row (`replayed: true`) without a duplicate
+- The submitter is refused on approve/reject with `403 self_approve_forbidden`
+- A second admin can approve (posts via `postTransaction`, clears the queue, updates balances) or reject (no posting, balances unchanged)
+- A same-org `viewer` is refused on submit and approve (`403 insufficient_role`)
+- `settings.get` / `settings.setRequireTransferApproval` round-trip the org flag (default `false`)
+
 ### `packages/api/src/routers/writes.test.ts`
 - **Authorization** — a `viewer` is refused `403 insufficient_role` on all three write procedures. This is `adminProcedure`'s first real coverage: Phase 4a defined it but nothing used it, so only the pure `canWrite` predicate was tested. An `owner` is admitted, exercising the `owner → admin` mapping end to end
 - `accounts.create` — zero starting balance, no `orgId` in the response; a duplicate name returns **`409 account_name_taken` rather than the unhandled 500 it produced before Phase 4b**; the same name is allowed in a *different* org, proving the constraint is `(org_id, name)` and not global; an unsupported currency is `422` rather than a guessed exponent
@@ -487,6 +495,9 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 ### `packages/api/src/routers/reads.test.ts` — history filters (2026-08-01)
 - `accountId`, `kind`, and debit-total `minAmount`/`maxAmount` filter in SQL
 - Cursor pagination under `accountId` walks without duplicates or under-fill
+
+### `apps/web/src/features/accounts/statement-sparkline.test.ts` (Portfolio)
+- Running-balance points collapse to a daily series for the statement sparkline
 
 <!-- add one block per test file, keep in sync with what actually exists -->
 
