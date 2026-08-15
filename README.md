@@ -4,6 +4,8 @@ A payments-style, double-entry, multi-tenant **fintech ledger sandbox**. Fake mo
 
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
 
+**Evaluating the engineering?** Start at the [showcase](docs/showcase/README.md): architecture diagrams, an honest security checklist, measured performance benchmarks, three deep-dive teardowns, and the engineering playbook — every claim linked to the code or test that backs it.
+
 ## 5-minute demo
 
 1. Open http://localhost:3001 and create an account (branded auth screen).
