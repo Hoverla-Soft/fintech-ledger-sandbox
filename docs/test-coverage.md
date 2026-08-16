@@ -484,5 +484,21 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 - A query that stays **mounted** through `switchOrganization` (the sidebar integrity seal's situation) refetches and renders the new org's data — the regression that motivated this file: `queryClient.clear()` removes queries but never refetches actively-observed ones, so the seal kept showing the previous org's "Verified · N accounts" until a full reload
 - A query that is **not** mounted during the switch holds no data from the previous organization afterwards (ADR 0005's isolation applied to the client cache)
 
+### API hardening phase (2026-08-16)
+
+### `apps/server/src/app.test.ts` — the first tests `apps/server` has ever had
+Until this file, `apps/server` had no test and no Vitest config: `src/index.ts` called `serve()` at module scope, so importing anything from it started a real listener. The app now lives in `src/app.ts`, separate from the process that serves it, which is what makes the composition assertable rather than mirrored — `packages/api/src/http.test.ts` builds its own lookalike app, and its docblock already recorded that `apps/server`'s own composition was uncovered.
+
+- Security headers on the JSON surface: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cross-Origin-Resource-Policy: same-origin`, and `X-Powered-By` removed
+- HSTS is **absent** outside production — the header claims "HTTPS only" and this server is plain http locally
+- CSP is `default-src 'none'` (plus `frame-ancestors`/`base-uri`/`form-action`, none of which inherit) on everything but `/api-reference`
+- `/api-reference` gets exactly its jsDelivr + inline-script relaxation, and the relaxation does **not** follow the page off its own path
+- Liveness `/` answers 200 **against an unreachable database** — proving it has no dependency, which is why the probes are registered before the oRPC catch-all that resolves a session
+- `/ready` returns 503 when Postgres is gone, and its body leaks no host, user, or credential
+- A body over the 1 MB cap is refused with 413 before parsing
+- Log redaction, asserted against the exact paths the real logger is built with: session cookie, `Authorization`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, and — the one that is not obvious — **a failed query's bound parameters**, since `DrizzleQueryError` exposes `query`/`params` as own enumerable properties and pino's default `err` serializer emits every one of them, so Better Auth's bound session tokens and password hashes were reaching the log
+
+**Not covered:** signal handling. `SIGTERM`/`SIGINT` drain and pool close are process-level, and this suite tests the app, not the listener — asserting them would mean forking a real process per case. Recorded rather than faked.
+
 <!-- add one block per test file, keep in sync with what actually exists -->
 

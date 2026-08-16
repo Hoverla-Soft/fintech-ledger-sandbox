@@ -41,6 +41,32 @@ export interface Context {
  */
 const db = createDb();
 
+/**
+ * The process-wide pool handle, for callers that need the database *without* a
+ * request — there are exactly two, both in `apps/server`: the `/ready` probe,
+ * and graceful shutdown.
+ *
+ * Exported as the instance rather than through `createContext` deliberately.
+ * `createContext` resolves a Better Auth session on every call, which means a
+ * readiness probe routed through it would authenticate nobody, once a second,
+ * forever — and would report the API unready whenever *auth* was slow rather
+ * than when the database was actually gone.
+ */
+export function getDatabase(): Db {
+  return db;
+}
+
+/**
+ * Closes the pool. Called once, from the shutdown handler in `apps/server`.
+ *
+ * The pool is owned here because this is where it is created (see above), and
+ * an owner that can open a resource but not close it is why the process used to
+ * drop live connections on exit.
+ */
+export async function closeDatabasePool(): Promise<void> {
+  await db.$client.end();
+}
+
 export type CreateContextOptions = {
   context: HonoContext;
 };

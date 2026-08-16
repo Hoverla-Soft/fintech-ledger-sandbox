@@ -1,109 +1,125 @@
-import { createContext } from "@fintech-ledger-sandbox/api/context";
-import { appRouter } from "@fintech-ledger-sandbox/api/routers/index";
-import { auth } from "@fintech-ledger-sandbox/auth";
-import { env } from "@fintech-ledger-sandbox/env/server";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { ORPCError, onError } from "@orpc/server";
-import { RPCHandler } from "@orpc/server/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-
-/**
- * Logs only *unexpected* failures.
- *
- * Both handlers previously logged every error at `console.error`, which meant
- * an ordinary `404` for a mistyped id, or a `403` for a caller without an
- * active org, produced a stack trace in the server log. That is precisely
- * what `docs/backend/error-handling.md` rules out: expected 4xx outcomes are
- * normal control flow, not incidents, and burying real faults under them is
- * how an error log stops being read at all.
- *
- * A typed `ORPCError` below 500 is an expected, already-handled domain or
- * validation outcome — the client is told what happened via its stable
- * `code`/`reason`. Anything else (an unmapped exception, a driver failure, a
- * genuine 5xx) still gets logged in full.
- */
-function logUnexpectedError(error: unknown): void {
-  if (error instanceof ORPCError && error.status < 500) {
-    return;
-  }
-  console.error(error);
-}
-
-const app = new Hono();
-
-app.use(logger());
-app.use(
-  "/*",
-  cors({
-    origin: env.CORS_ORIGIN,
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  }),
-);
-
-app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
-
-// Module-local, not exported. Nothing outside this file uses either handler,
-// and exporting them forced tsdown to emit their types into `index.d.ts` —
-// which reaches for `LedgerSession` from `packages/api`'s *source* path and
-// resolves to nothing, since internal packages export `.ts` rather than a
-// built `.d.ts` (ADR 0001). `apps/server` is an application entry point, not
-// a library; it has no public surface to declare.
-const apiHandler = new OpenAPIHandler(appRouter, {
-  plugins: [
-    new OpenAPIReferencePlugin({
-      schemaConverters: [new ZodToJsonSchemaConverter()],
-    }),
-  ],
-  interceptors: [onError(logUnexpectedError)],
-});
-
-const rpcHandler = new RPCHandler(appRouter, {
-  interceptors: [onError(logUnexpectedError)],
-});
-
-app.use("/*", async (c, next) => {
-  const context = await createContext({ context: c });
-
-  const rpcResult = await rpcHandler.handle(c.req.raw, {
-    prefix: "/rpc",
-    context: context,
-  });
-
-  if (rpcResult.matched) {
-    return c.newResponse(rpcResult.response.body, rpcResult.response);
-  }
-
-  const apiResult = await apiHandler.handle(c.req.raw, {
-    prefix: "/api-reference",
-    context: context,
-  });
-
-  if (apiResult.matched) {
-    return c.newResponse(apiResult.response.body, apiResult.response);
-  }
-
-  await next();
-});
-
-app.get("/", (c) => {
-  return c.text("OK");
-});
-
+import { closeDatabasePool } from "@fintech-ledger-sandbox/api/context";
 import { serve } from "@hono/node-server";
 
-serve(
+import { createApp } from "./app";
+import { logger } from "./logger";
+
+/**
+ * The process. Everything that answers a request lives in `./app`.
+ *
+ * This file owns exactly what a Hono app cannot: the listener, the signals that
+ * end it, and the last-resort handlers for failures that escape every request.
+ */
+
+const server = serve(
   {
-    fetch: app.fetch,
+    fetch: createApp().fetch,
     // Railway (and most PaaS) assigns the port at runtime; 3000 stays the local default.
     port: Number(process.env.PORT) || 3000,
   },
   (info) => {
-    console.log(`Server is running on http://localhost:${info.port}`);
+    logger.info({ port: info.port }, "server_started");
   },
 );
+
+/**
+ * How long to let in-flight requests finish before giving up on them.
+ *
+ * Railway sends `SIGTERM` and then `SIGKILL`s after a grace period, so a
+ * shutdown that hangs is not a shutdown — it is the same abrupt kill with extra
+ * steps. Ten seconds is comfortably longer than any request this API serves and
+ * comfortably shorter than a typical platform grace window.
+ */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+let shuttingDown = false;
+
+/**
+ * Stop accepting connections, let in-flight work finish, then close the pool.
+ *
+ * Order matters: `server.close()` first stops *new* connections while allowing
+ * live ones to complete, and only then is it safe to end the pool. Closing the
+ * pool first would fail the very requests this function exists to protect —
+ * including, in the worst case, one mid-transaction on the ledger.
+ *
+ * The guard makes this idempotent. A supervisor that sends `SIGTERM` and then
+ * `SIGINT`, or an operator pressing Ctrl-C twice, would otherwise call
+ * `pool.end()` on an already-ending pool.
+ */
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) {
+    return;
+  }
+  shuttingDown = true;
+
+  logger.info({ signal }, "shutdown_started");
+
+  const forceExit = setTimeout(() => {
+    logger.error({ signal, timeoutMs: SHUTDOWN_TIMEOUT_MS }, "shutdown_timed_out");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  // Do not let this timer be the only thing keeping the event loop alive — a
+  // clean shutdown should end the process, not wait out the full timeout.
+  forceExit.unref();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    // Idle keep-alive sockets hold the server open past `close()`; without this
+    // a browser's pooled connection can stall shutdown until the force-exit
+    // timer fires, turning every graceful stop into a 10-second one.
+    //
+    // Guarded rather than asserted: `serve()` is typed as
+    // `Server | Http2Server | Http2SecureServer`, and `closeIdleConnections`
+    // exists on the HTTP/1 `Server` but not on `Http2Server`. This app always
+    // gets the HTTP/1 one (no `createServer` override), so the branch is always
+    // taken — but a cast would quietly become a crash the day someone passes
+    // `serverOptions` for http2.
+    if ("closeIdleConnections" in server) {
+      server.closeIdleConnections();
+    }
+
+    await closeDatabasePool();
+
+    clearTimeout(forceExit);
+    logger.info({ signal }, "shutdown_complete");
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forceExit);
+    logger.error({ err: error, signal }, "shutdown_failed");
+    process.exit(1);
+  }
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    void shutdown(signal);
+  });
+}
+
+/**
+ * Last-resort handlers.
+ *
+ * Both **exit** rather than logging and continuing, and for a ledger that is
+ * the safer direction: after an unhandled rejection the process has state
+ * nobody reasoned about, and the failure mode of continuing is a server that
+ * looks healthy while some invariant no longer holds. Postgres is the authority
+ * on every balance here — an aborted transaction rolls back, so dying loses
+ * nothing that was not already lost, while limping on could write on top of a
+ * corrupted assumption.
+ *
+ * They route through `shutdown` so the pool still closes, and Railway restarts
+ * the process. Without these, Node's default is to print to stderr and exit on
+ * `uncaughtException` — with no pool close — and Node 15+ exits on unhandled
+ * rejection too, so this replaces a silent death with a logged one.
+ */
+process.on("uncaughtException", (error) => {
+  logger.fatal({ err: error }, "uncaught_exception");
+  void shutdown("uncaughtException");
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.fatal({ err: reason }, "unhandled_rejection");
+  void shutdown("unhandledRejection");
+});

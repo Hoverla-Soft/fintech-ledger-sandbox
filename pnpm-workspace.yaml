@@ -49,6 +49,15 @@ catalog:
   # End-to-end (Phase 6c). Lives in `apps/web`; replaces the manual demo
   # scripts every Phase 5 slice carried as acceptance criteria.
   "@playwright/test": ^1.62.0
+  # The structured logger `docs/development/tech-stack.md` has declared since
+  # Phase 4b and which no phase ever delivered — installed 2026-08-16, closing
+  # the ⚠️ row in `docs/showcase/security.md`. Chosen there, not here: this is
+  # the library the stack doc already named, so installing it is delivery, not
+  # a new dependency decision. No `pino-pretty`: it is a second dependency
+  # whose only job is making dev output readable, and `pino.transport` would
+  # add a worker thread per process for that. Dev readability is handled with
+  # a plain formatter instead.
+  pino: ^10.3.1
 
 # Advisories in packages nothing here depends on directly — they arrive through
 # a dependency's dependency, so no manifest edit can reach them. Both entries

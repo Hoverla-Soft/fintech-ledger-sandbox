@@ -7,7 +7,8 @@
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.mjs"
+    "start": "node dist/index.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fintech-ledger-sandbox/api": "workspace:*",
@@ -20,6 +21,7 @@
     "@orpc/zod": "catalog:",
     "better-auth": "catalog:",
     "hono": "catalog:",
+    "pino": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "@types/node": "catalog:",
     "tsdown": "^0.22.3",
     "tsx": "^4.22.5",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

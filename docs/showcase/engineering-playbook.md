@@ -105,7 +105,9 @@ The ADRs record failure analysis, not just choices — 0004's "Implementation go
 The commands a task's Verification block declares are the same commands CI runs (all but the local-only e2e line below) — [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) says so in its own header comment, and names the task template as the source of truth if they ever diverge:
 
 ```bash
-pnpm lint            # Biome 2.5.6 — lint + format in one root-level pass (biome check .)
+pnpm audit --audit-level=high   # dependency advisories (added 2026-08-16; Dependabot opens the PRs)
+pnpm lint            # Biome 2.5.6 — lint + format in one root-level pass
+                     #   (biome check --error-on-warnings . — warnings fail, not just errors)
 pnpm check-types     # tsc per workspace via turbo (strict, noUncheckedIndexedAccess from the shared base tsconfig)
 pnpm test            # Vitest 4 — core (pure unit), db + api (integration against real
                      #   Postgres via Testcontainers), web (happy-dom component suite)
@@ -118,10 +120,11 @@ The integration suites are the notable part: `packages/db` and `packages/api` te
 
 Honest gaps, on the record in [`docs/open-questions.md`](../open-questions.md):
 
-- ⚠️ **CI reports but does not gate.** Branch protection is a repo setting, not a file, so nothing in the repo can assert the check is *required* (item #17).
-- ⚠️ **`pnpm lint` exits 0 with 26 sub-error diagnostics outstanding** — Biome fails on `error` severity only, and the remaining warnings/infos are itemized by rule rather than hidden (item #16).
+- ⚠️ **CI has never run — at all.** This bullet used to say "CI reports but does not gate", which was too generous by one whole step. `gh run list` returns every run from 2026-07-28 onward as `failure` in 3–9 seconds, each annotated *"The job was not started because your account is locked due to a billing issue."* The workflow file is correct; the GitHub account is locked. So CI does not gate **and it does not report**, and every green check described on this page has only ever passed on a developer laptop (item #10). Branch protection (item #17) is a further step that cannot even be attempted until a run succeeds.
 - ⚠️ **E2e coverage is deliberately thin: 3 specs.** Specs driving account creation and transfer were written, flaked across runs on a Base UI `Select` interaction, and were **removed** — a test that answers differently for identical code is worse than no test. Those flows stay covered by the component and API suites; the browser-level gap is recorded (item #9).
-- ⚠️ **The `apps/web` suite is timing-sensitive under a fully parallel `pnpm test`** — recorded with measurements and with the explicit note that blanket retries are not an acceptable close (item #19).
+- ⚠️ **Maker-checker is enforced only in the browser.** `transactions.create` never reads the org's `requireTransferApproval` flag, so an admin can post straight past the approval queue by calling the API directly (item #25). Recorded here because it is a *security* gap on a page about engineering discipline, and omitting it would make this list flattering rather than honest.
+- ✅ **`pnpm lint` used to exit 0 with 26 sub-error diagnostics outstanding** (item #16) — closed 2026-08-15/16. All 26 are gone, and the script is now `biome check --error-on-warnings .`, so the clean state is an enforced floor rather than a snapshot. Kept here rather than deleted: a gaps list that only ever shrinks by deletion stops being a record.
+- ✅ **The `apps/web` suite's timing sensitivity** (item #19) — closed 2026-08-16 by `testTimeout: 15_000`, chosen from measurement (1.3s slowest in isolation vs 5351ms under four-way `turbo` contention) rather than by raising it until green. Deliberately *not* closed with blanket retries.
 
 ## 6. Docs are the source of truth agents read
 
