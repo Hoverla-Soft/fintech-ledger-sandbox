@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@fintech-ledger-sandbox/ui/components/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -45,6 +45,18 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  /**
+   * A fee split is a transfer — it moves money through `transactions.create`,
+   * exactly like the Transfer form — so the org's maker-checker flag applies to
+   * it. This screen ignored the flag entirely until 2026-08-16, which meant an
+   * org with approvals switched on could still post immediately just by using
+   * the other form. Fails closed for the same reason the transfer form does.
+   */
+  const settings = useQuery(orpc.settings.get.queryOptions());
+  const settingsUnknown = settings.data === undefined;
+  const requireApproval = settings.data?.requireTransferApproval === true;
+
   const keyStore = useRef(createSessionKeyStore()).current;
   const [idempotencyKey, setIdempotencyKey] = useState("");
 
@@ -61,7 +73,7 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
   }, [open, funding]);
 
   const post = useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       idempotencyKey: string;
       postings: Array<{
         accountId: string;
@@ -69,16 +81,39 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
         amount: string;
         currency: string;
       }>;
-    }) =>
-      client.transactions.create({
-        idempotencyKey: input.idempotencyKey,
-        postings: input.postings,
-      }),
+    }) => {
+      if (requireApproval) {
+        return {
+          kind: "pending" as const,
+          pending: await client.approvals.submitPending({
+            idempotencyKey: input.idempotencyKey,
+            postings: input.postings,
+          }),
+        };
+      }
+      return {
+        kind: "posted" as const,
+        transaction: await client.transactions.create({
+          idempotencyKey: input.idempotencyKey,
+          postings: input.postings,
+        }),
+      };
+    },
     retry: false,
-    onSuccess: async (transaction) => {
-      await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
+    onSuccess: async (result) => {
       completeOperation("fee-split", keyStore);
-      if (transaction.replayed) {
+
+      if (result.kind === "pending") {
+        await queryClient.invalidateQueries({ queryKey: orpc.approvals.listPending.key() });
+        toast.success("Fee split submitted for approval", {
+          description: "A different admin has to approve it before any balance moves.",
+        });
+        await navigate({ to: "/approvals" });
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
+      if (result.transaction.replayed) {
         toast.success("Fee split replayed", {
           description: "Same idempotency key — no second posting.",
         });
@@ -87,7 +122,7 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
       }
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: transaction.id },
+        params: { transactionId: result.transaction.id },
       });
     },
     onError: (error) => {
@@ -243,8 +278,22 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
         </div>
       ) : null}
 
-      <Button type="submit" disabled={post.isPending}>
-        {post.isPending ? "Posting…" : "Post fee split"}
+      {/*
+        The label states which operation the button performs. "Post fee split"
+        that silently queues for approval is the same lie as a button that
+        posts when the user expected review — and this screen has no review
+        step to reveal the difference before the money does or does not move.
+      */}
+      <Button type="submit" disabled={post.isPending || settingsUnknown}>
+        {settingsUnknown
+          ? "Checking approval policy…"
+          : post.isPending
+            ? requireApproval
+              ? "Submitting…"
+              : "Posting…"
+            : requireApproval
+              ? "Submit fee split for approval"
+              : "Post fee split"}
       </Button>
     </form>
   );

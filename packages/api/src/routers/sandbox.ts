@@ -17,10 +17,12 @@ import {
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
+import { idempotencyKeySchema } from "../contracts/idempotency";
+
 import { computeRequestHash } from "../contracts/request-hash";
 import { accountSchema, toWireAccount } from "../contracts/wire";
 import { type LedgerApiError, reasonFor, toORPCError } from "../errors";
-import { adminProcedure } from "../procedures";
+import { directPostProcedure } from "../procedures";
 import { countNonZero, planResetChunk, type ResetBalance } from "../sandbox/reset-plan";
 import {
   SEED_ACCOUNTS,
@@ -265,8 +267,8 @@ export const sandboxRouter = {
    * second rejection audit entry. No money moves and no transaction is
    * duplicated.
    */
-  seed: adminProcedure
-    .input(z.object({ idempotencyKey: z.string().min(1).max(200) }))
+  seed: directPostProcedure
+    .input(z.object({ idempotencyKey: idempotencyKeySchema }))
     .output(
       z.object({
         accounts: z.array(accountSchema),
@@ -368,8 +370,8 @@ export const sandboxRouter = {
    * alive and `active` at a zero balance, which is what lets the sandbox be
    * seeded again afterwards.
    */
-  reset: adminProcedure
-    .input(z.object({ idempotencyKey: z.string().min(1).max(200) }))
+  reset: directPostProcedure
+    .input(z.object({ idempotencyKey: idempotencyKeySchema }))
     .output(
       z.object({
         accountsZeroed: z.int(),

@@ -11,6 +11,18 @@ const createTransaction = vi.fn();
 const submitPending = vi.fn();
 const navigate = vi.fn();
 
+/**
+ * Mutable so the approval branch is reachable.
+ *
+ * This mock used to return `{ requireTransferApproval: false }` unconditionally,
+ * which is why the whole maker-checker path in this component had zero
+ * assertions behind it: every test resolved to "post directly" before reaching
+ * the branch. `undefined` models the window before `settings.get` resolves.
+ */
+let settingsResult: { requireTransferApproval: boolean } | undefined = {
+  requireTransferApproval: false,
+};
+
 vi.mock("@/utils/orpc", () => ({
   client: {
     transactions: { create: (...args: unknown[]) => createTransaction(...args) },
@@ -23,7 +35,13 @@ vi.mock("@/utils/orpc", () => ({
       get: {
         queryOptions: () => ({
           queryKey: ["settings", "get"],
-          queryFn: async () => ({ requireTransferApproval: false }),
+          queryFn: async () => {
+            if (settingsResult === undefined) {
+              // Never settles — the "still loading" state.
+              return await new Promise(() => {});
+            }
+            return settingsResult;
+          },
         }),
       },
     },
@@ -71,7 +89,56 @@ beforeEach(() => {
   createTransaction.mockReset();
   submitPending.mockReset();
   navigate.mockReset();
+  settingsResult = { requireTransferApproval: false };
   globalThis.sessionStorage.clear();
+});
+
+describe("maker-checker branch", () => {
+  it("submits to the approval queue instead of posting when the org requires approval", async () => {
+    settingsResult = { requireTransferApproval: true };
+    submitPending.mockResolvedValue({ id: "pending-1", replayed: false });
+
+    renderForm();
+    await submitTransfer({ confirmLabel: "Submit for approval" });
+
+    await waitFor(() => expect(submitPending).toHaveBeenCalledTimes(1));
+    // The whole point: no balance moves from this screen.
+    expect(createTransaction).not.toHaveBeenCalled();
+
+    const [payload] = submitPending.mock.calls[0] as [
+      { postings: ReadonlyArray<{ accountId: string; direction: string; amount: string }> },
+    ];
+    expect(payload.postings).toHaveLength(2);
+    expect(payload.postings.map((posting) => posting.direction).sort()).toEqual([
+      "credit",
+      "debit",
+    ]);
+  });
+
+  it("posts directly when the org does not require approval", async () => {
+    settingsResult = { requireTransferApproval: false };
+    createTransaction.mockResolvedValue({ id: "txn-1", replayed: false });
+
+    renderForm();
+    await submitTransfer();
+
+    await waitFor(() => expect(createTransaction).toHaveBeenCalledTimes(1));
+    expect(submitPending).not.toHaveBeenCalled();
+  });
+
+  it("refuses to guess while the approval policy is still loading", async () => {
+    // Both guesses are wrong in a way that matters: assuming "post" moves money
+    // an org wanted reviewed, assuming "queue" parks money an org expected to
+    // post and needs a second admin to release. So the form does neither.
+    settingsResult = undefined;
+
+    renderForm();
+
+    const submit = await screen.findByRole("button", { name: "Checking approval policy…" });
+    expect(submit).toBeDisabled();
+    expect(createTransaction).not.toHaveBeenCalled();
+    expect(submitPending).not.toHaveBeenCalled();
+  });
 });
 
 describe("idempotency key lifecycle", () => {
@@ -217,8 +284,11 @@ async function fillTransfer() {
   await user.type(screen.getByLabelText("Amount"), "12.50");
 }
 
-async function submitTransfer() {
+async function submitTransfer({ confirmLabel = "Post transfer" }: { confirmLabel?: string } = {}) {
   await fillTransfer();
   await userEvent.click(screen.getByRole("button", { name: "Review transfer" }));
-  await userEvent.click(screen.getByRole("button", { name: "Post transfer" }));
+  // The confirm label states which operation is about to happen — "Submit for
+  // approval" when the org requires it — so the test has to name the one it
+  // expects rather than assuming money moves.
+  await userEvent.click(screen.getByRole("button", { name: confirmLabel }));
 }

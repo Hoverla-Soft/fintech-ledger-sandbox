@@ -44,6 +44,7 @@ Emitted by middleware rather than by the error map (see ADR 0005 for the tenancy
 | `no_active_organization` | Signed in, but the session names no organization | `FORBIDDEN` | 403 |
 | `not_a_member` | The session names an organization the user has no `member` row for — **or one that does not exist** | `FORBIDDEN` | 403 |
 | `insufficient_role` | Ledger role is `viewer`, action requires `admin` | `FORBIDDEN` | 403 |
+| `approval_required` | The organization has `requireTransferApproval` on, and the caller tried to post directly (`transactions.create`) or to exchange (`transactions.exchange`). Submit through `approvals.submitPending` instead — an exchange has no approval route, so it is refused outright while the flag is on | `FORBIDDEN` | 403 |
 | `invalid_cursor` | Malformed pagination cursor | `BAD_REQUEST` | 400 |
 | `rate_limited` | The write rate limit for this organization or user is exhausted | `TOO_MANY_REQUESTS` | 429 |
 

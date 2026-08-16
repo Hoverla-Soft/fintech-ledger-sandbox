@@ -69,6 +69,49 @@ export async function recordRejection(db: Db, input: RecordRejectionInput): Prom
   });
 }
 
+/**
+ * Records a governance action that *succeeded* — currently only toggling the
+ * maker-checker requirement.
+ *
+ * Separate from `recordRejection` because that function hardcodes
+ * `outcome: "rejected"`, and the `audit.rejections` view is a filtered read of
+ * exactly that column. Writing a successful settings change through it would
+ * put "an admin turned the control off" onto the screen whose entire job is
+ * "what was refused" — under-reporting one and mis-reporting the other.
+ *
+ * `outcome: "posted"` rather than a third enum value: the action took effect,
+ * which is what that value means here, and a new enum member would need a
+ * migration to record something the existing vocabulary already expresses.
+ *
+ * Why it exists at all: disabling maker-checker previously left no trace
+ * anywhere. An adversarial pass ran flip-off → post → flip-on and the org's
+ * whole audit log afterwards was one ordinary `post_transaction` row, with
+ * nothing to distinguish it from a posting in an org that never required
+ * approval. An admin is permitted to turn the control off; the trail has to
+ * show that they did.
+ */
+export async function recordSettingChange(
+  db: Db,
+  input: {
+    readonly orgId: string;
+    readonly actorUserId: string;
+    readonly action: string;
+    readonly reason: string;
+    readonly metadata?: unknown;
+  },
+): Promise<void> {
+  await db.insert(ledgerAuditEntry).values({
+    id: randomUUID(),
+    orgId: input.orgId,
+    actorUserId: input.actorUserId,
+    action: input.action,
+    outcome: "posted",
+    reason: input.reason,
+    transactionId: null,
+    metadata: input.metadata ?? null,
+  });
+}
+
 export type AuditPage = Page<AuditEntryRow, TimeCursor>;
 
 /**

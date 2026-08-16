@@ -26,6 +26,13 @@ export { canWrite, toLedgerRole } from "./auth/roles";
 export type { Context, LedgerSession } from "./context";
 export type { LedgerApiError, LedgerErrorReason } from "./errors";
 export { toORPCError } from "./errors";
-export { adminProcedure, o, orgProcedure, protectedProcedure, publicProcedure } from "./procedures";
+export {
+  adminProcedure,
+  directPostProcedure,
+  o,
+  orgProcedure,
+  protectedProcedure,
+  publicProcedure,
+} from "./procedures";
 export type { AppRouter, AppRouterClient } from "./routers/index";
 export { appRouter } from "./routers/index";

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@fintech-ledger-sandbox/ui/components/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -81,6 +81,24 @@ export function ExchangeForm({ accounts }: { accounts: readonly WireAccount[] })
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  /**
+   * Exchange has no approval route.
+   *
+   * `ledger_pending_transfer` holds one balanced posting set; an exchange posts
+   * two linked transactions across a bridge pair, so it cannot be queued. The
+   * server therefore refuses it outright with `403 approval_required` while the
+   * org requires approval — failing closed rather than leaving this screen as
+   * the way around maker-checker.
+   *
+   * Saying so up front matters: without this the user fills in both accounts, a
+   * rate, and an amount, and only learns after submitting that the operation is
+   * unavailable to their organization at all.
+   */
+  const settings = useQuery(orpc.settings.get.queryOptions());
+  const settingsUnknown = settings.data === undefined;
+  const approvalsBlockExchange = settings.data?.requireTransferApproval === true;
+
   const keyStore = useRef(createSessionKeyStore()).current;
 
   // Minted when the form opens, never during render and never per submit — see
@@ -323,8 +341,22 @@ export function ExchangeForm({ accounts }: { accounts: readonly WireAccount[] })
         </div>
       ) : null}
 
-      <Button type="submit" disabled={post.isPending || !preview.ok}>
-        {post.isPending ? "Posting…" : "Post exchange"}
+      {approvalsBlockExchange ? (
+        <p className="text-sm text-muted-foreground">
+          This organization requires a second admin to approve transfers. An exchange posts two
+          linked transactions and cannot be routed through the approval queue, so it is unavailable
+          until approvals are turned off.
+        </p>
+      ) : null}
+      <Button
+        type="submit"
+        disabled={post.isPending || !preview.ok || settingsUnknown || approvalsBlockExchange}
+      >
+        {settingsUnknown
+          ? "Checking approval policy…"
+          : post.isPending
+            ? "Posting…"
+            : "Post exchange"}
       </Button>
     </form>
   );

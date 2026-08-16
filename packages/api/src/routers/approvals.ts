@@ -14,6 +14,8 @@ import {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { idempotencyKeySchema } from "../contracts/idempotency";
+
 import { decimalAmountSchema, parseBoundedAmount } from "../contracts/money";
 import { computeRequestHash } from "../contracts/request-hash";
 import { postedTransactionSchema, toWirePostedTransaction } from "../contracts/wire";
@@ -78,7 +80,7 @@ export const approvalsRouter = {
   submitPending: adminProcedure
     .input(
       z.object({
-        idempotencyKey: z.string().min(1).max(200),
+        idempotencyKey: idempotencyKeySchema,
         postings: z.array(pendingPostingSchema).max(MAX_POSTINGS),
       }),
     )
@@ -160,7 +162,24 @@ export const approvalsRouter = {
     }),
 
   approve: adminProcedure
-    .input(z.object({ pendingId: z.uuid(), idempotencyKey: z.string().min(1).max(200) }))
+    /**
+     * Takes no `idempotencyKey`, deliberately — it used to, and that was the bug.
+     *
+     * The key is what stops a posting happening twice, so letting the caller
+     * choose it means the caller can opt out of that protection just by sending
+     * a different string. It was not a theoretical race either: the Approvals
+     * screen minted `crypto.randomUUID()` on every click, so a double-click
+     * approved once, posted twice, and left the second transaction orphaned
+     * from the pending row it came from. The `status !== "pending"` check below
+     * could not catch it, because both calls read the row before either wrote.
+     *
+     * Deriving the key from `pending.id` moves the guarantee into the database:
+     * `UNIQUE (org_id, key)` on the reservation means one pending row can
+     * produce at most one transaction, and a second approve *replays* — same
+     * `request_hash`, same postings, so it returns the original transaction
+     * instead of posting a new one (ADR 0004).
+     */
+    .input(z.object({ pendingId: z.uuid() }))
     .output(postedTransactionSchema)
     .handler(async ({ context, input }) => {
       const pending = await getPendingTransfer(context.db, context.orgId, input.pendingId);
@@ -197,7 +216,12 @@ export const approvalsRouter = {
       const posted = await postTransaction(context.db, {
         orgId: context.orgId,
         actorId: context.actorId,
-        idempotencyKey: input.idempotencyKey,
+        // Derived, not supplied. One pending row → one key → at most one
+        // transaction, enforced by the reservation's unique constraint rather
+        // than by the status check above, which two concurrent callers can both
+        // pass. The prefix keeps it from colliding with a caller-chosen key on
+        // a direct post that happens to be a bare uuid.
+        idempotencyKey: `approve:${pending.id}`,
         requestHash: computeRequestHash(transaction.value, null),
         transaction: transaction.value,
       });

@@ -68,6 +68,22 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const settings = useQuery(orpc.settings.get.queryOptions());
+  /**
+   * Neither guess is safe, so the form does not guess.
+   *
+   * This originally read `settings.data?.requireTransferApproval === true`,
+   * which failed **open** — an in-flight or failed `settings.get` posted money
+   * immediately. Inverting it to `!== false` fixed that and introduced the
+   * mirror-image bug: an org with approvals *off* would have its transfer
+   * parked in a queue nobody watches, needing a second admin to release money
+   * the server would have posted directly.
+   *
+   * The honest answer is that until this read resolves, the form does not know
+   * which operation the button performs — so it is disabled rather than
+   * guessing. `settingsUnknown` drives that, and `requireApproval` is only ever
+   * consulted once the value is known.
+   */
+  const settingsUnknown = settings.data === undefined;
   const requireApproval = settings.data?.requireTransferApproval === true;
 
   // One store for the component's lifetime. `createSessionKeyStore` probes
@@ -361,8 +377,8 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
       ) : null}
 
       {pendingPostings === null ? (
-        <Button type="submit" disabled={post.isPending}>
-          Review transfer
+        <Button type="submit" disabled={post.isPending || settingsUnknown}>
+          {settingsUnknown ? "Checking approval policy…" : "Review transfer"}
         </Button>
       ) : (
         <div className="space-y-3 rounded-none border p-4">

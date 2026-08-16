@@ -500,5 +500,15 @@ Until this file, `apps/server` had no test and no Vitest config: `src/index.ts` 
 
 **Not covered:** signal handling. `SIGTERM`/`SIGINT` drain and pool close are process-level, and this suite tests the app, not the listener — asserting them would mean forking a real process per case. Recorded rather than faked.
 
+### Server-side maker-checker (2026-08-16)
+
+### `packages/api/src/routers/approvals.test.ts` (extended)
+- A direct `transactions.create` is refused `403 approval_required` when the org requires approval, no balance moves, and the attempt appears in `audit.rejections` — the bypass was previously invisible because the flag lived in a React component
+- `transactions.exchange` is refused the same way: `ledger_pending_transfer` holds one balanced posting set and an exchange posts two linked transactions, so there is no approval route and it fails closed rather than becoming the way around the control
+- With the flag **off**, a direct post is unchanged — the gate must be inert by default
+- **`approvals.approve` still posts while the flag is on.** The load-bearing one: approve reaches the ledger through `postTransaction`, not through the gated wire procedure. If it is ever refactored to route through `transactions.create`, this test fails instead of the org silently losing the ability to approve anything
+- Approving the same pending transfer twice in sequence yields **one** transaction — the console minted `crypto.randomUUID()` per click, so a double-click used to post twice
+- Two admins approving concurrently yield **one** transaction and one balance movement; the `status !== "pending"` check cannot catch this because both read before either writes, so the guarantee comes from the idempotency key being derived from `pending.id`
+
 <!-- add one block per test file, keep in sync with what actually exists -->
 

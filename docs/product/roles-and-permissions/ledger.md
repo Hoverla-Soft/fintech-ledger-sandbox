@@ -46,7 +46,18 @@ This mapping was chosen over reconfiguring Better Auth with custom roles (which 
 
 Seed and reset are `adminProcedure` procedures like every other write, so they are refused for a `viewer` by the same middleware and for the same reason — there is no separate sandbox-permission concept. Reset is not a privileged or destructive capability in the usual sense: it deletes nothing and posts ordinary balanced transactions, so an admin who can reset could already have posted the same compensating entries by hand. See ADR 0008.
 
-Pending-transfer approve/reject are also `adminProcedure`, plus an extra same-actor guard: the submitter cannot decide their own request (`403 self_approve_forbidden`). When org setting `requireTransferApproval` is off (the default), the transfer form posts immediately via `transactions.create` and the Approvals queue stays empty.
+**That justification stopped holding on 2026-08-16, and the first attempt to reason around it was wrong.** "Could already have posted the same entries by hand" is false once `requireTransferApproval` is on, because by-hand posting is refused. This file briefly claimed seed and reset were safe to leave ungated because neither "can direct value to a caller-chosen account". An adversarial pass disproved both against a real database: `sandbox.seed`'s funding scenario credits a `normal` account from an `external` one — which is exempt from the negative-balance invariant — and two runs under different keys took an account from 1500.00 to 3000.00, a value faucet; `sandbox.reset` drove every account in the organization to zero, the most destructive balance change the API offers. Both are now on `directPostProcedure` and refused while approvals are on.
+
+Pending-transfer approve/reject are also `adminProcedure`, plus an extra same-actor guard: the submitter cannot decide their own request (`403 self_approve_forbidden`). When org setting `requireTransferApproval` is off (the default), a transfer posts immediately via `transactions.create` and the Approvals queue stays empty.
+
+**When it is on, the server refuses a direct post** — `transactions.create` and `transactions.exchange` both return `403 approval_required`, and the attempt is written to the audit log like any other rejection. This paragraph used to describe maker-checker as *transfer-form* behaviour, and that was the defect: until 2026-08-16 the flag was read only in `apps/web`, so the control shaped what the console offered rather than what the ledger permitted, and any admin could post past the queue with a direct API call. Maker-checker exists to constrain admins, so an admin-shaped bypass is not a lesser case — it is the case.
+
+Two consequences worth stating plainly:
+
+- **Every direct balance change is gated, not just `create`.** `transactions.create` / `reverse` / `exchange` and `sandbox.seed` / `reset` all sit on `directPostProcedure`. Only `approvals.approve` is exempt, because it is the path the gate forces callers onto — it reaches the ledger through `postTransaction` rather than a gated wire procedure, and a test pins that so a future refactor cannot lock an organization out of approving anything.
+- **Reversal is gated, and the reasoning that first excluded it was wrong.** "A reversal only mirrors an existing transaction" ignores that reversing a reversal is deliberately permitted: one admin drove an account 100 → 0 → 100 → 0 → 100 with four calls, each under a fresh caller-chosen key. Any historical transfer is a reusable template for moving that pair of accounts without a second approver.
+- **Exchange is refused outright while the flag is on.** `ledger_pending_transfer` holds one balanced set of postings and an exchange posts two linked transactions, so there is no approval route for it. Refusing fails closed; the console's exchange screen says so up front rather than letting a user fill in a rate and then fail.
+- **Turning the control off is itself audited.** `set_require_transfer_approval` writes an audit entry naming the actor and direction. Without it, flip-off → post → flip-on left a single ordinary `post_transaction` row, indistinguishable from a posting in an organization that never required approval. An admin may disable the control; the trail has to show that they did.
 
 Reconciliation is deliberately readable by a `viewer`: catching drift is not a privileged act, and a viewer who can already see balances and postings can compute the same answer by hand.
 
@@ -60,6 +71,7 @@ Enforced in middleware in `packages/api/src/procedures.ts`, as a ladder of proce
 | `protectedProcedure` | a signed-in user | `401` |
 | `orgProcedure` | a signed-in user **and** a verified `member` row for the session's active organization | `401` / `403` |
 | `adminProcedure` | the above **and** `role === "admin"` | `403` |
+| `directPostProcedure` | the above **and** the organization is not requiring approval | `403 approval_required` |
 
 Two properties matter more than the table:
 

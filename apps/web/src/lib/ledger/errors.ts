@@ -32,6 +32,7 @@ export const LEDGER_REASONS = [
   "account_inactive",
   "account_name_taken",
   "account_not_found",
+  "approval_required",
   "conversion_mismatch",
   "currency_mismatch",
   "idempotency_conflict",
@@ -186,6 +187,12 @@ const COPY = {
     title: "Too many requests",
     detail: "Wait a moment and try again.",
     disposition: "retryable",
+  },
+  approval_required: {
+    title: "This organization requires approval",
+    detail:
+      "Transfers must be approved by a second admin before any balance moves. Submit it to the approval queue instead.",
+    disposition: "blocked",
   },
   rejected_by_approver: {
     title: "Transfer rejected",

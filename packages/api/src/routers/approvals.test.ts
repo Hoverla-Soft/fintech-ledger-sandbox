@@ -100,7 +100,6 @@ describe("approvals", () => {
     const selfApprove = await captureError(() =>
       asAdmin().approvals.approve({
         pendingId: pending.id,
-        idempotencyKey: randomUUID(),
       }),
     );
     expect(selfApprove.code).toBe("FORBIDDEN");
@@ -120,7 +119,6 @@ describe("approvals", () => {
 
     const posted = await approver.approvals.approve({
       pendingId: pending.id,
-      idempotencyKey: randomUUID(),
     });
     expect(posted.replayed).toBe(false);
     expect(posted.postings).toHaveLength(2);
@@ -160,10 +158,204 @@ describe("approvals", () => {
     const approve = await captureError(() =>
       viewer.approvals.approve({
         pendingId: pending.id,
-        idempotencyKey: randomUUID(),
       }),
     );
     expect(approve.code).toBe("FORBIDDEN");
+  });
+
+  it("refuses a direct post when the org requires approval, and audits the attempt", async () => {
+    // The whole point of #25: before this, the flag constrained the console and
+    // nothing else, so an admin with curl walked straight past the queue.
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+
+    const refused = await captureError(() => asAdmin().transactions.create(transfer("10.00")));
+
+    expect(refused.code).toBe("FORBIDDEN");
+    expect(refused.data.reason).toBe("approval_required");
+
+    // Nothing moved.
+    const { accounts } = await asAdmin().accounts.list({});
+    for (const account of accounts) {
+      expect(account.balance.amount).toBe("0.00");
+    }
+
+    // And the bypass attempt is on the record, like every other refusal.
+    const rejections = await asAdmin().audit.rejections({});
+    expect(rejections.entries.some((entry) => entry.reason === "approval_required")).toBe(true);
+  });
+
+  it("refuses an exchange when the org requires approval — it has no approval route", async () => {
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+
+    const refused = await captureError(() =>
+      asAdmin().transactions.exchange({
+        idempotencyKey: randomUUID(),
+        fromAccountId: wallet,
+        toAccountId: funding,
+        amount: "10.00",
+        rate: "0.92",
+        targetAmount: "9.20",
+      }),
+    );
+
+    expect(refused.code).toBe("FORBIDDEN");
+    expect(refused.data.reason).toBe("approval_required");
+  });
+
+  it("leaves the direct post untouched when the flag is off", async () => {
+    // The gate must be inert by default — the flag ships off, and every other
+    // test in this repo posts directly.
+    const posted = await asAdmin().transactions.create(transfer("10.00"));
+    expect(posted.replayed).toBe(false);
+  });
+
+  it("still posts through approve while the flag is on", async () => {
+    // The trap this guards: `approvals.approve` posts via `postTransaction`,
+    // not via `transactions.create`. If it ever routes through the wire
+    // procedure, the new gate turns every approval into a 403 and nothing in
+    // the org can ever be approved again.
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+
+    const pending = await asAdmin().approvals.submitPending(transfer("10.00"));
+    const approverId = await seedMemberIn(db, admin.orgId, "admin");
+    const approver = clientFor(db, sessionFor({ orgId: admin.orgId, userId: approverId }));
+
+    const posted = await approver.approvals.approve({ pendingId: pending.id });
+    expect(posted.replayed).toBe(false);
+  });
+
+  it("posts once when the same pending transfer is approved twice", async () => {
+    // #26. The old signature took a caller-supplied idempotency key and the
+    // console minted a fresh uuid per click, so a double-click posted twice and
+    // orphaned the second transaction. The key is now derived from the pending
+    // row, so the second approve replays instead.
+    const pending = await asAdmin().approvals.submitPending(transfer("10.00"));
+    const approverId = await seedMemberIn(db, admin.orgId, "admin");
+    const approver = clientFor(db, sessionFor({ orgId: admin.orgId, userId: approverId }));
+
+    const first = await approver.approvals.approve({ pendingId: pending.id });
+    expect(first.replayed).toBe(false);
+
+    const second = await captureError(() => approver.approvals.approve({ pendingId: pending.id }));
+    // `NOT_FOUND`, not `CONFLICT`: the handler's first check is
+    // `status !== "pending"`, so a decided row reads as absent. That is
+    // pre-existing behaviour and not what this test is about — what matters is
+    // the assertion below.
+    expect(second.code).toBe("NOT_FOUND");
+
+    const listed = await approver.transactions.list({});
+    expect(listed.transactions).toHaveLength(1);
+  });
+
+  it("posts once when two admins approve the same transfer concurrently", async () => {
+    // The race the status check cannot catch: both callers read the row before
+    // either writes. Only the derived idempotency key stops the double post.
+    const pending = await asAdmin().approvals.submitPending(transfer("10.00"));
+    const oneId = await seedMemberIn(db, admin.orgId, "admin");
+    const twoId = await seedMemberIn(db, admin.orgId, "admin");
+    const one = clientFor(db, sessionFor({ orgId: admin.orgId, userId: oneId }));
+    const two = clientFor(db, sessionFor({ orgId: admin.orgId, userId: twoId }));
+
+    await Promise.allSettled([
+      one.approvals.approve({ pendingId: pending.id }),
+      two.approvals.approve({ pendingId: pending.id }),
+    ]);
+
+    const listed = await asAdmin().transactions.list({});
+    expect(listed.transactions).toHaveLength(1);
+
+    // And the money moved exactly once — a debit raises this account, so a
+    // second posting would read 20.00.
+    const { accounts } = await asAdmin().accounts.list({});
+    const walletRow = accounts.find((account) => account.id === wallet);
+    expect(walletRow?.balance.amount).toBe("10.00");
+  });
+
+  it("refuses reverse, seed, and reset too — every direct balance change is gated", async () => {
+    // All three were proven bypasses before `directPostProcedure` existed, and
+    // all three were *omissions* rather than decisions: the gate used to be a
+    // helper each handler had to remember to call.
+    //
+    //  - reverse: reversing a reversal is permitted, so one admin drove an
+    //    account 100 → 0 → 100 → 0 → 100 with four calls, no second approver.
+    //  - seed: the funding scenario credits a normal account from an external
+    //    one; two runs took an account 1500 → 3000. A value faucet.
+    //  - reset: drove every account in the org to zero — the most destructive
+    //    balance change the API offers.
+    const posted = await asAdmin().transactions.create(transfer("10.00"));
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+
+    const reversed = await captureError(() =>
+      asAdmin().transactions.reverse({
+        idempotencyKey: randomUUID(),
+        transactionId: posted.id,
+      }),
+    );
+    expect(reversed.data.reason).toBe("approval_required");
+
+    const seeded = await captureError(() =>
+      asAdmin().sandbox.seed({ idempotencyKey: randomUUID() }),
+    );
+    expect(seeded.data.reason).toBe("approval_required");
+
+    const wiped = await captureError(() =>
+      asAdmin().sandbox.reset({ idempotencyKey: randomUUID() }),
+    );
+    expect(wiped.data.reason).toBe("approval_required");
+
+    // The balance from before the flag went on is untouched by all three.
+    const { accounts } = await asAdmin().accounts.list({});
+    expect(accounts.find((account) => account.id === wallet)?.balance.amount).toBe("10.00");
+  });
+
+  it("records who disabled the approval control, so flip-post-flip is visible", async () => {
+    // Turning the control off is an admin's right; doing it invisibly is not.
+    // Before this, flip-off → post → flip-on left a single ordinary
+    // `post_transaction` row — indistinguishable from a posting in an org that
+    // never required approval, in an org whose settings now say it does.
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: false });
+    await asAdmin().transactions.create(transfer("77.00"));
+    await asAdmin().settings.setRequireTransferApproval({ requireTransferApproval: true });
+
+    const { entries } = await asAdmin().audit.list({ limit: 200 });
+    const toggles = entries.filter((entry) => entry.action === "set_require_transfer_approval");
+
+    expect(toggles).toHaveLength(3);
+    expect(toggles.some((entry) => entry.reason === "approval_control_disabled")).toBe(true);
+    expect(toggles.some((entry) => entry.reason === "approval_control_enabled")).toBe(true);
+
+    // And it stays out of the "what was refused" view, which is a different question.
+    const { entries: rejections } = await asAdmin().audit.rejections({ limit: 200 });
+    expect(rejections.some((entry) => entry.action === "set_require_transfer_approval")).toBe(
+      false,
+    );
+  });
+
+  it("refuses a caller-supplied key in the server's reserved namespace", async () => {
+    // Denial-of-approval, closed by reserving the `approve:` prefix.
+    //
+    // A reservation is decided by (org_id, key) plus a request hash, and a
+    // *different* hash under the same key is a permanent `IdempotencyConflict`
+    // that nothing ever clears. `listPending` hands every admin the pending
+    // ids, so without this an admin could post an ordinary transfer under the
+    // key `approve:<someone else's pendingId>` and that transfer could never be
+    // approved — no race, no timing, just a button that stops working forever.
+    const pending = await asAdmin().approvals.submitPending(transfer("5.00"));
+
+    const preburn = await captureError(() =>
+      asAdmin().transactions.create({
+        idempotencyKey: `approve:${pending.id}`,
+        postings: transfer("1.00").postings,
+      }),
+    );
+    expect(preburn.code).toBe("BAD_REQUEST");
+
+    // And the approval it was aimed at still works.
+    const approverId = await seedMemberIn(db, admin.orgId, "admin");
+    const approver = clientFor(db, sessionFor({ orgId: admin.orgId, userId: approverId }));
+    const posted = await approver.approvals.approve({ pendingId: pending.id });
+    expect(posted.replayed).toBe(false);
   });
 
   it("exposes and updates the org require-transfer-approval setting", async () => {

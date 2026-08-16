@@ -1,3 +1,4 @@
+import { getOrgSettings, recordRejection } from "@fintech-ledger-sandbox/db/repositories";
 import { ORPCError, os } from "@orpc/server";
 
 import { resolveMembership } from "./auth/membership";
@@ -14,6 +15,7 @@ import { enforceLimit, orgWriteLimiter, userWriteLimiter } from "./rate-limit";
  *   protectedProcedure — a signed-in user
  *   orgProcedure       — a signed-in user acting within a verified org
  *   adminProcedure     — the above, plus write permission
+ *   directPostProcedure — the above, plus "this org is not requiring approval"
  *
  * Split out of `index.ts`, which previously mixed the builder with the
  * package's public entry point. `index.ts` re-exports everything here, so no
@@ -138,3 +140,82 @@ const applyWriteRateLimit = os
   });
 
 export const adminProcedure = orgProcedure.use(requireWrite).use(applyWriteRateLimit);
+
+/**
+ * Refuses any *direct* balance change when the org requires maker-checker
+ * approval.
+ *
+ * ## Why this is a rung on the ladder, not a call inside each handler
+ *
+ * The first version of this control was a helper each write handler called for
+ * itself. Three of them did not call it, and an adversarial pass proved all
+ * three against a real database with the flag switched on:
+ *
+ * - `transactions.reverse` — reversing a reversal is deliberately permitted, so
+ *   one admin drove an account 100 → 0 → 100 → 0 → 100 with four calls. Any
+ *   historical transfer becomes a reusable template for moving that pair of
+ *   accounts, unlimited times, with no second approver.
+ * - `sandbox.seed` — the `funding` scenario credits a `normal` account from an
+ *   `external` one, which is exempt from the negative-balance invariant. Two
+ *   calls under different run keys took an account 1500 → 3000. A value faucet.
+ * - `sandbox.reset` — drove every account in the org to zero. The most
+ *   destructive balance change this API offers was the one path that never
+ *   consulted the control.
+ *
+ * Each of those was an omission, and the reason they were possible is that the
+ * guard was something a handler had to *remember*. `docs/development/architecture.md`
+ * already states the principle this violates: which rung a procedure is built
+ * on **is** its access-control decision, and there are no ad-hoc permission
+ * checks inside handlers precisely so a permission cannot be present in one
+ * endpoint and missing in its neighbour. This puts the gate back on the ladder.
+ *
+ * ## What is deliberately NOT on this rung
+ *
+ * `approvals.approve` stays on plain `adminProcedure`. It is the path this gate
+ * forces everyone onto; gating it would mean an org that switches approvals on
+ * can never approve anything again. It posts through `postTransaction`
+ * directly rather than through a gated wire procedure, and there is a test
+ * pinning that.
+ */
+const requireNoPendingApprovalPolicy = os
+  .$context<Context & { orgId: string; actorId: string }>()
+  .middleware(async ({ context, next, path }) => {
+    const settings = await getOrgSettings(context.db, context.orgId);
+    if (!settings.requireTransferApproval) {
+      return next();
+    }
+
+    // `path` is the procedure's own route (e.g. ["transactions","reverse"]), so
+    // the audit row names what was actually attempted without each handler
+    // passing a string it could get wrong.
+    const action = path.join(".");
+
+    // Best-effort, for the same reason every other rejection audit is: the
+    // caller is already getting a correct 403, and turning an audit failure
+    // into a 500 would replace an accurate client error with a misleading one.
+    try {
+      await recordRejection(context.db, {
+        orgId: context.orgId,
+        actorUserId: context.actorId,
+        action,
+        reason: "approval_required",
+        metadata: { kind: "approval_required" },
+      });
+    } catch (auditError) {
+      console.error({ event: "rejection_audit.failed", action }, auditError);
+    }
+
+    throw new ORPCError("FORBIDDEN", {
+      message: "This organization requires a second admin to approve transfers.",
+      data: { reason: "approval_required" as const },
+    });
+  });
+
+/**
+ * The rung for every procedure that moves a balance directly.
+ *
+ * `transactions.create` / `reverse` / `exchange` and `sandbox.seed` / `reset`
+ * all build on this. Adding a sixth direct-posting procedure inherits the gate
+ * by construction rather than by anyone remembering it.
+ */
+export const directPostProcedure = adminProcedure.use(requireNoPendingApprovalPolicy);

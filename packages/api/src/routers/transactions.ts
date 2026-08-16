@@ -24,8 +24,8 @@ import {
 } from "@fintech-ledger-sandbox/db/repositories";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-
 import { decodeTimeCursorOrThrow, encodeTimeCursor, pageInputShape } from "../contracts/cursor";
+import { idempotencyKeySchema } from "../contracts/idempotency";
 import { decimalAmountSchema, parseBoundedAmount, toWireMoney } from "../contracts/money";
 import { computeExchangeRequestHash, computeRequestHash } from "../contracts/request-hash";
 import {
@@ -35,7 +35,7 @@ import {
   transactionWithPostingsSchema,
 } from "../contracts/wire";
 import { type LedgerApiError, reasonFor, toORPCError } from "../errors";
-import { adminProcedure, orgProcedure } from "../procedures";
+import { directPostProcedure, orgProcedure } from "../procedures";
 
 /**
  * Transaction and posting reads.
@@ -256,10 +256,10 @@ export const transactionsRouter = {
    * `docs/backend/error-handling.md` — actually reachable; a transfer shape
    * would make them structurally impossible and therefore untestable.
    */
-  create: adminProcedure
+  create: directPostProcedure
     .input(
       z.object({
-        idempotencyKey: z.string().min(1).max(200),
+        idempotencyKey: idempotencyKeySchema,
         postings: z
           .array(
             z.object({
@@ -307,10 +307,10 @@ export const transactionsRouter = {
    * idempotency key server-side would report a legitimate second reversal as a
    * `409` whose message would be false.
    */
-  reverse: adminProcedure
+  reverse: directPostProcedure
     .input(
       z.object({
-        idempotencyKey: z.string().min(1).max(200),
+        idempotencyKey: idempotencyKeySchema,
         transactionId: z.uuid(),
       }),
     )
@@ -364,10 +364,10 @@ export const transactionsRouter = {
    * with the account it names, which would be one more way to get a wrong
    * answer for no benefit.
    */
-  exchange: adminProcedure
+  exchange: directPostProcedure
     .input(
       z.object({
-        idempotencyKey: z.string().min(1).max(200),
+        idempotencyKey: idempotencyKeySchema,
         fromAccountId: z.uuid(),
         toAccountId: z.uuid(),
         /** In the source account's currency. */

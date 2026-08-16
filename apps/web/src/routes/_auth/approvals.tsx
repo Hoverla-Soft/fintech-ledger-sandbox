@@ -35,11 +35,10 @@ function ApprovalsRoute() {
   const pending = useQuery(orpc.approvals.listPending.queryOptions({ input: {} }));
 
   const approve = useMutation({
-    mutationFn: (pendingId: string) =>
-      client.approvals.approve({
-        pendingId,
-        idempotencyKey: crypto.randomUUID(),
-      }),
+    // No idempotency key: the server derives it from the pending row. This used
+    // to mint `crypto.randomUUID()` here, which meant every click was a new
+    // operation — so a double-click posted the transfer twice.
+    mutationFn: (pendingId: string) => client.approvals.approve({ pendingId }),
     retry: false,
     onSuccess: async (transaction) => {
       await queryClient.invalidateQueries({ queryKey: orpc.approvals.listPending.key() });
