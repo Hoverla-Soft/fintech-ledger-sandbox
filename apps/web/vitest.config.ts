@@ -43,6 +43,20 @@ export default defineConfig({
     environment: "happy-dom",
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
+    // Open question #19: this suite times out under load, never on an
+    // assertion. Measured in isolation the slowest test here is ~1.3s
+    // (`features/transfer/transfer-form.test.tsx`); the recorded failure was
+    // 5351ms against the 5000ms default, with `turbo run test` driving four
+    // package suites at once on a shared runner.
+    //
+    // So the default is not measuring "is this test correct", it is measuring
+    // "how contended was the machine" — and on CI that produces red builds
+    // nobody can act on. 15s restores the headroom the isolated numbers say
+    // this suite needs while still failing a genuine hang.
+    //
+    // Deliberately not `retry`: a retry would hide a real intermittent bug in a
+    // ledger's own suite, which is the one place that must not be papered over.
+    testTimeout: 15_000,
     env: {
       SKIP_ENV_VALIDATION: "1",
     },

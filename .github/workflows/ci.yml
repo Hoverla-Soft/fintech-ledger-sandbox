@@ -39,13 +39,13 @@ jobs:
       VITE_SERVER_URL: http://localhost:3000
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10.31.0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           cache: pnpm
@@ -60,6 +60,21 @@ jobs:
       # would sit idle beside the one Testcontainers actually uses.
       - name: Verify Docker is available for Testcontainers
         run: docker info > /dev/null
+
+      # Closes the second half of open question #18. Threshold is `high`, not
+      # `moderate`, and that is a deliberate, temporary compromise rather than a
+      # convenient one: three moderates are currently unfixable without a
+      # major-version override that would break the package asking for them
+      # (`esbuild` via drizzle-kit's deprecated @esbuild-kit chain, `uuid` via
+      # autocannon>hyperid, `hono` via packages/ui>shadcn). Gating at `moderate`
+      # today would mean a permanently red build, which teaches people to ignore
+      # the check — the same failure mode open question #17 records for CI that
+      # reports but does not gate.
+      #
+      # Each is written up in docs/open-questions.md #18. Lower this to
+      # `moderate` the moment that list is empty.
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
 
       - name: Lint
         run: pnpm lint

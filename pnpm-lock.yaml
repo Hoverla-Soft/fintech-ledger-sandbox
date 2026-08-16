@@ -58,8 +58,8 @@ catalogs:
       specifier: ^20.11.1
       version: 20.11.1
     hono:
-      specifier: ^4.12.27
-      version: 4.12.32
+      specifier: ^4.12.34
+      version: 4.13.2
     lucide-react:
       specifier: ^1.23.0
       version: 1.27.0
@@ -87,6 +87,10 @@ catalogs:
     zod:
       specifier: ^4.4.3
       version: 4.4.3
+
+overrides:
+  nanoid@<3.3.18: '>=3.3.18 <4'
+  brace-expansion@>=2.0.0 <2.1.4: '>=2.1.4 <3'
 
 importers:
 
@@ -140,7 +144,7 @@ importers:
         version: link:../../packages/env
       '@hono/node-server':
         specifier: ^2.0.8
-        version: 2.0.12(hono@4.12.32)
+        version: 2.0.12(hono@4.13.2)
       '@orpc/openapi':
         specifier: 'catalog:'
         version: 1.14.10(ws@8.21.1)
@@ -155,7 +159,7 @@ importers:
         version: 1.6.23(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@22.20.1)(happy-dom@20.11.1)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)))
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.2
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -323,7 +327,7 @@ importers:
         version: link:../config
       hono:
         specifier: 'catalog:'
-        version: 4.12.32
+        version: 4.13.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -2534,8 +2538,8 @@ packages:
     resolution: {integrity: sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw==}
     engines: {node: '>=18'}
 
-  brace-expansion@2.1.2:
-    resolution: {integrity: sha512-w5JZcKgdhDOgOwm8H+KgbosopHMuGcl6qbulwjtz3SM7I7P3yW1eAjzMPLrIE+NQ9vjgANKHWeMHnrT0OXW1oA==}
+  brace-expansion@2.1.4:
+    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
@@ -3281,6 +3285,10 @@ packages:
     resolution: {integrity: sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg==}
     engines: {node: '>=16.9.0'}
 
+  hono@4.13.2:
+    resolution: {integrity: sha512-JydRilDRkYBQMt9qR9U92mXxmbGqsqSn/IKOrh4e7/gEbn+0zSr8igTu0obwJoNGN4sez28DIql7FBHWydoJpA==}
+    engines: {node: '>=16.9.0'}
+
   hookable@6.1.1:
     resolution: {integrity: sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ==}
 
@@ -3779,8 +3787,8 @@ packages:
   nan@2.28.0:
     resolution: {integrity: sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ==}
 
-  nanoid@3.3.16:
-    resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
+  nanoid@3.3.18:
+    resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
@@ -5465,6 +5473,10 @@ snapshots:
     dependencies:
       hono: 4.12.32
 
+  '@hono/node-server@2.0.12(hono@4.13.2)':
+    dependencies:
+      hono: 4.13.2
+
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -6696,7 +6708,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  brace-expansion@2.1.2:
+  brace-expansion@2.1.4:
     dependencies:
       balanced-match: 1.0.2
 
@@ -7409,6 +7421,8 @@ snapshots:
 
   hono@4.12.32: {}
 
+  hono@4.13.2: {}
+
   hookable@6.1.1: {}
 
   http-errors@2.0.1:
@@ -7737,11 +7751,11 @@ snapshots:
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 2.1.2
+      brace-expansion: 2.1.4
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.2
+      brace-expansion: 2.1.4
 
   minimist@1.2.8: {}
 
@@ -7756,7 +7770,7 @@ snapshots:
   nan@2.28.0:
     optional: true
 
-  nanoid@3.3.16: {}
+  nanoid@3.3.18: {}
 
   nanostores@1.4.1: {}
 
@@ -7943,7 +7957,7 @@ snapshots:
 
   postcss@8.5.23:
     dependencies:
-      nanoid: 3.3.16
+      nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
 

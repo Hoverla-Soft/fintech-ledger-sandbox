@@ -8,7 +8,12 @@ catalog:
   zod: ^4.4.3
   typescript: ^6
   "@types/node": ^22.13.14
-  hono: ^4.12.27
+  # Floor is a security minimum, not a preference: 4.12.34 patches four
+  # advisories against `apps/server`'s request path. `^4.12.27` already *allowed*
+  # the fix, but the lockfile stayed resolved at 4.12.32 — a caret range does not
+  # pull a patch nobody asks for. Raise the floor so the advisory cannot come
+  # back on a fresh `pnpm install`.
+  hono: ^4.12.34
   "@orpc/server": ^1.14.6
   "@orpc/openapi": ^1.14.6
   "@orpc/zod": ^1.14.6
@@ -44,3 +49,23 @@ catalog:
   # End-to-end (Phase 6c). Lives in `apps/web`; replaces the manual demo
   # scripts every Phase 5 slice carried as acceptance criteria.
   "@playwright/test": ^1.62.0
+
+# Advisories in packages nothing here depends on directly — they arrive through
+# a dependency's dependency, so no manifest edit can reach them. Both entries
+# below are *patch* bumps inside the version their consumer already asked for,
+# which is why an override is safe here and would not be for a major.
+#
+# Reviewed on every `pnpm audit` failure: an override that outlives the advisory
+# is a pin nobody remembers agreeing to. Delete an entry once the upstream
+# dependency has moved past it on its own.
+overrides:
+  # HIGH, GHSA-2v37-7h3g-55p8 — unbounded loop when a custom generator is given
+  # size 0. Reaches us via apps/web > vite > postcss.
+  # Upper bound is load-bearing: postcss asks for nanoid ^3, and an open-ended
+  # ">=3.3.18" resolves to 6.x, which is a different (ESM-only) package.
+  nanoid@<3.3.18: ">=3.3.18 <4"
+  # HIGH, GHSA-rgw5-rvv9-x895 — ReDoS. Reaches us via packages/db >
+  # @testcontainers/postgresql > testcontainers > archiver > glob > minimatch.
+  # Dev-only, but a ReDoS in a test runner still burns CI minutes.
+  # Same upper-bound reasoning: minimatch asks for ^2.0.1.
+  brace-expansion@>=2.0.0 <2.1.4: ">=2.1.4 <3"

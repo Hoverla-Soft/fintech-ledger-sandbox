@@ -1,0 +1,45 @@
+# Closes the first half of open question #18 ("no dependency, container, or
+# secret scanning"). The other half is the `pnpm audit --audit-level=high` step
+# in ci.yml: this file opens PRs for advisories that have a fix, that step fails
+# the build for advisories that do not yet.
+#
+# Both halves were added on 2026-08-16, after the first `pnpm audit` ever run
+# here returned 9 findings — 3 of them high, one in `apps/server`'s own request
+# framework. The gap was not theoretical.
+version: 2
+
+updates:
+  # One entry, rooted at "/", NOT one per workspace. pnpm resolves all ten
+  # workspace projects from a single root `pnpm-lock.yaml`, so Dependabot reads
+  # every `apps/*` and `packages/*` manifest from here. Listing the workspaces
+  # as separate `directories` would queue jobs that look for a lockfile beside
+  # each manifest, find none, and fail — noisily in the Dependabot tab, and
+  # invisibly to anyone not looking at it.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    # A backlog nobody reviews is the same as no scanning at all.
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor travel together. Reviewing ten of these one PR at a time
+      # is what turns Dependabot into a thing people mute.
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Majors land through a task file, not an automated PR: each needs its
+      # migration notes read and `docs/development/tech-stack.md` updated, which
+      # CLAUDE.md makes the source of truth for what this project runs on.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ci.yml pins its actions to full commit SHAs, per the "pin actions/images/
+  # modules to reproducible versions" rule in docs/development/infrastructure.md.
+  # A SHA pin is immutable, which is the point — and also means it never picks
+  # up a security fix on its own. This entry is what keeps the pins moving;
+  # without it, pinning trades tag-hijack risk for staleness.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
