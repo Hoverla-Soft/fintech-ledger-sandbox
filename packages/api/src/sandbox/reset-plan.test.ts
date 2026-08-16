@@ -165,8 +165,8 @@ describe("planResetChunk — the chunk boundary", () => {
 
     expect(chunk?.accountsZeroed).toBe(RESET_CHUNK_SIZE);
     expect(chunk?.suspense).not.toBeNull();
-    // 99 account legs plus the suspense leg is exactly MAX_POSTINGS.
-    expect(chunk!.legs.length + 1).toBe(100);
+    // 99 account legs plus the suspense leg is exactly MAX_POSTINGS (100).
+    expect(chunk?.legs).toHaveLength(99);
     expect(signedSum(chunk as ResetChunk)).toBe(0n);
   });
 

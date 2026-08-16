@@ -30,7 +30,7 @@ function collectProcedures(node: unknown, path: readonly string[] = []): FoundPr
 
   if ("~orpc" in node) {
     const definition = (node as Record<string, unknown>)["~orpc"] as Record<string, unknown>;
-    return [{ path: path.join("."), inputSchema: definition["inputSchema"] }];
+    return [{ path: path.join("."), inputSchema: definition.inputSchema }];
   }
 
   return Object.entries(node).flatMap(([key, value]) => collectProcedures(value, [...path, key]));
@@ -46,10 +46,10 @@ function collectKeys(schema: unknown, depth = 0): string[] {
 
   // Zod 4 exposes an object schema's fields on `.shape`; unwrap
   // optional/nullable/default wrappers via the inner type on `_def`.
-  const inner = (candidate["_def"] as Record<string, unknown> | undefined)?.["innerType"];
+  const inner = (candidate._def as Record<string, unknown> | undefined)?.innerType;
   const fromInner = inner === undefined ? [] : collectKeys(inner, depth + 1);
 
-  const shape = candidate["shape"];
+  const shape = candidate.shape;
   if (typeof shape !== "object" || shape === null) {
     return fromInner;
   }

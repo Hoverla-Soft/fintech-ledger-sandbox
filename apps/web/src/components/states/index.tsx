@@ -133,7 +133,7 @@ export function QueryState<T>({
     // this, so say so rather than rendering a misleading empty state.
     return <ErrorState error={new Error("No data")} onRetry={() => query.refetch()} />;
   }
-  if (empty && empty.isEmpty(query.data)) {
+  if (empty?.isEmpty(query.data)) {
     return empty.render;
   }
   return children(query.data);

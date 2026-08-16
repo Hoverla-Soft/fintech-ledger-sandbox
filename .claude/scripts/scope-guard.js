@@ -7,8 +7,8 @@
 // Fails open (exits 0) on anything unexpected — a broken hook should never be the reason
 // a legitimate edit gets stuck; the Scope check is a guardrail, not the last line of defense.
 
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const { matches } = require("./glob-match.js");
 
 function readStdin() {
@@ -82,7 +82,7 @@ function main() {
     process.exit(0); // no scope declared, nothing to enforce
   }
 
-  const filePath = (input.tool_input && input.tool_input.file_path) || "";
+  const filePath = input.tool_input?.file_path || "";
   if (!filePath) {
     process.exit(0);
   }
@@ -93,7 +93,7 @@ function main() {
   if (!allowed) {
     process.stderr.write(
       `Blocked: "${relativePath}" is outside the active task's declared Scope (${scopeData.taskFile || "unknown task"}).\n` +
-        `Allowed paths:\n${scope.map((s) => "  - " + s).join("\n")}\n\n` +
+        `Allowed paths:\n${scope.map((s) => `  - ${s}`).join("\n")}\n\n` +
         `If this file genuinely needs to change, stop and update the Scope section in ${scopeData.taskFile || "the task file"} first, then continue — don't just retry the same edit.`,
     );
     process.exit(2);

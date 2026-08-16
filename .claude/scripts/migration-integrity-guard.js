@@ -3,8 +3,8 @@
 // history only; comparing it with an applied database journal remains a
 // separate, environment-specific check.
 
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const IGNORED_DIRECTORIES = new Set([".git", "node_modules", "dist", "build", ".next"]);
 
@@ -150,7 +150,7 @@ function main() {
       process.exit(0);
     }
     if (!["Edit", "Write"].includes(input.tool_name || "")) process.exit(0);
-    const filePath = (input.tool_input && input.tool_input.file_path) || "";
+    const filePath = input.tool_input?.file_path || "";
     if (!filePath || !isMigrationRelated(filePath)) process.exit(0);
   }
 

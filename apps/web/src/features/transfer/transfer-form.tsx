@@ -161,7 +161,7 @@ export function TransferForm({ accounts }: { accounts: readonly WireAccount[] })
       }
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: result.transaction.id }
+        params: { transactionId: result.transaction.id },
       });
     },
 

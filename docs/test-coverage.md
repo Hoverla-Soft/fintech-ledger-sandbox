@@ -480,5 +480,9 @@ Closes open questions #6 and #7. `transactions.list` was already paginated and s
 ### `apps/web/src/features/accounts/statement-sparkline.test.ts` (Portfolio)
 - Running-balance points collapse to a daily series for the statement sparkline
 
+### `apps/web/src/lib/org/session.test.tsx` — org-switch cache hygiene (2026-08-15)
+- A query that stays **mounted** through `switchOrganization` (the sidebar integrity seal's situation) refetches and renders the new org's data — the regression that motivated this file: `queryClient.clear()` removes queries but never refetches actively-observed ones, so the seal kept showing the previous org's "Verified · N accounts" until a full reload
+- A query that is **not** mounted during the switch holds no data from the previous organization afterwards (ADR 0005's isolation applied to the client cache)
+
 <!-- add one block per test file, keep in sync with what actually exists -->
 

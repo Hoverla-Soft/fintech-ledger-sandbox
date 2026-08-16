@@ -1,6 +1,5 @@
-import type { QueryClient } from "@tanstack/react-query";
-
 import { canWrite, type LedgerRole, toLedgerRole } from "@fintech-ledger-sandbox/api/auth/roles";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -59,13 +58,23 @@ export function useOrganizations() {
 /**
  * Switches the acting organization.
  *
- * **Clearing the cache is not optional.** TanStack Query keys are built from
+ * **Wiping the cache is not optional.** TanStack Query keys are built from
  * the procedure path and its input, and no ledger procedure takes an `orgId`
  * (`packages/api/src/routers/no-org-input.test.ts` asserts none ever will). So
  * `accounts.list` in org A and `accounts.list` in org B are the *same key*.
- * Without a clear, switching orgs renders the previous tenant's accounts and
+ * Without a wipe, switching orgs renders the previous tenant's accounts and
  * balances from cache — data the server would never have sent — until each
  * query happens to refetch.
+ *
+ * `resetQueries`, deliberately not `clear`. `clear()` removes queries from
+ * the cache but does **not** refetch actively-observed ones — a component
+ * that stays mounted through the switch (the sidebar's integrity seal is the
+ * standing example) keeps rendering the removed query's last result, showing
+ * the previous org's data until a full reload. `resetQueries` drops every
+ * query's data *and* refetches the active ones under the new session, which
+ * is the whole point of the switch. `signOutAndClear` below keeps `clear()`
+ * on purpose: sign-out navigates out of the console, so nothing stays
+ * mounted, and a reset there would fire unauthenticated refetches instead.
  *
  * `router.invalidate` then re-runs route loaders and guards, so a route that
  * is no longer reachable under the new org re-evaluates instead of sitting
@@ -77,7 +86,7 @@ export async function switchOrganization(
   invalidateRouter: () => Promise<void> | void,
 ): Promise<void> {
   await authClient.organization.setActive({ organizationId });
-  queryClient.clear();
+  await queryClient.resetQueries();
   await invalidateRouter();
 }
 

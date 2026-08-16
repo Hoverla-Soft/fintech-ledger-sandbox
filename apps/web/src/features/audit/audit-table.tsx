@@ -16,11 +16,7 @@ import {
   type WireAuditEntry,
 } from "./entry-display";
 
-export function AuditTable({
-  entries,
-}: {
-  entries: readonly WireAuditEntry[];
-}) {
+export function AuditTable({ entries }: { entries: readonly WireAuditEntry[] }) {
   return (
     <Table>
       <TableHeader>
@@ -40,10 +36,7 @@ export function AuditTable({
               <TableCell className="whitespace-nowrap">
                 {new Date(entry.createdAt).toLocaleString()}
               </TableCell>
-              <TableCell
-                className="max-w-32 truncate font-mono text-xs"
-                title={entry.actorUserId}
-              >
+              <TableCell className="max-w-32 truncate font-mono text-xs" title={entry.actorUserId}>
                 {entry.actorUserId.slice(0, 8)}…
               </TableCell>
               <TableCell>

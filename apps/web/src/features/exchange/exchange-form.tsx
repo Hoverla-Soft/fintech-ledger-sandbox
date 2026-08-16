@@ -137,7 +137,7 @@ export function ExchangeForm({ accounts }: { accounts: readonly WireAccount[] })
       // its detail page links forward to the target through the FX link.
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: result.source.id }
+        params: { transactionId: result.source.id },
       });
     },
 

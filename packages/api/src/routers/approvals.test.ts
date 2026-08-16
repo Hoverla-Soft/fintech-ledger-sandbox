@@ -54,7 +54,9 @@ function transfer(amount: string, key = randomUUID()) {
   };
 }
 
-async function captureError(run: () => Promise<unknown>): Promise<ORPCError<string, any>> {
+async function captureError(
+  run: () => Promise<unknown>,
+): Promise<ORPCError<string, Record<string, unknown>>> {
   try {
     await run();
   } catch (error) {

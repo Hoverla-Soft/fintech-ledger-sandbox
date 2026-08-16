@@ -60,7 +60,9 @@ function asAdmin() {
   return clientFor(db, sessionFor(admin));
 }
 
-async function captureError(run: () => Promise<unknown>): Promise<ORPCError<string, any>> {
+async function captureError(
+  run: () => Promise<unknown>,
+): Promise<ORPCError<string, Record<string, unknown>>> {
   try {
     await run();
   } catch (error) {
@@ -313,12 +315,12 @@ describe("sandbox.reset — histories a per-transaction reversal model would fai
     });
 
     // The double reversal re-applied the original, so the ledger is not at zero.
-    expect((await balancesOf())["Wallet"]).toBe("100.00");
+    expect((await balancesOf()).Wallet).toBe("100.00");
 
     await resetToCompletion();
 
-    expect((await balancesOf())["Wallet"]).toBe("0.00");
-    expect((await balancesOf())["Funding"]).toBe("0.00");
+    expect((await balancesOf()).Wallet).toBe("0.00");
+    expect((await balancesOf()).Funding).toBe("0.00");
   });
 });
 
@@ -420,12 +422,12 @@ describe("the sandbox loop", () => {
       await client.sandbox.seed({ idempotencyKey: randomUUID() });
 
       expect((await client.reconciliation.verify({})).allReconciled).toBe(true);
-      expect((await balancesOf())["Operating"], `lap ${lap} funded`).not.toBe("0.00");
+      expect((await balancesOf()).Operating, `lap ${lap} funded`).not.toBe("0.00");
 
       await resetToCompletion(client);
 
       expect((await client.reconciliation.verify({})).allReconciled).toBe(true);
-      expect((await balancesOf())["Operating"], `lap ${lap} unwound`).toBe("0.00");
+      expect((await balancesOf()).Operating, `lap ${lap} unwound`).toBe("0.00");
     }
   });
 });

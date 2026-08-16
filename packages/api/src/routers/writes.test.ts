@@ -79,7 +79,9 @@ function withdraw(amount: string, key = randomUUID()) {
   };
 }
 
-async function captureError(run: () => Promise<unknown>): Promise<ORPCError<string, any>> {
+async function captureError(
+  run: () => Promise<unknown>,
+): Promise<ORPCError<string, Record<string, unknown>>> {
   try {
     await run();
   } catch (error) {
@@ -563,7 +565,7 @@ describe("rate limiting", () => {
   // to show that one actor cannot starve their colleagues.
 
   it("trips the per-user limit first for a single actor", async () => {
-    const errors: ORPCError<string, any>[] = [];
+    const errors: ORPCError<string, Record<string, unknown>>[] = [];
 
     for (let i = 0; i < 40; i += 1) {
       try {

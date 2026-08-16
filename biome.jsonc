@@ -38,7 +38,12 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      // Same rule set as the deprecated `"recommended": true` this replaces —
+      // verified by diffing diagnostics on a multi-group violation probe before
+      // and after the change (2026-08-15). `preset` is the 2.5.6 schema's
+      // non-deprecated spelling; anything stricter than "recommended" is a
+      // policy decision, not a migration.
+      "preset": "recommended"
     }
   },
   "javascript": {

@@ -19,9 +19,11 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import autocannon from "autocannon";
 
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: standalone script, never run through a turbo task — turbo.json's env graph doesn't apply to it
 const BASE = process.env.BENCH_URL ?? "http://127.0.0.1:3010";
 // Better-Auth rejects auth POSTs without a trusted Origin; must match the
 // server's CORS_ORIGIN (see the run command in docs/showcase/benchmarks.md).
+// biome-ignore lint/suspicious/noUndeclaredEnvVars: standalone script, never run through a turbo task — turbo.json's env graph doesn't apply to it
 const ORIGIN = process.env.BENCH_ORIGIN ?? "http://127.0.0.1:3011";
 const API = `${BASE}/api-reference`;
 const RUN_ID = Date.now().toString(36);

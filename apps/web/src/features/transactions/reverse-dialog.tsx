@@ -98,7 +98,7 @@ export function ReverseDialog({
       onReversed?.();
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: created.id }
+        params: { transactionId: created.id },
       });
     },
 

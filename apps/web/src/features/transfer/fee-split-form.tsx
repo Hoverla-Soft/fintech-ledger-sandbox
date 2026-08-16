@@ -87,7 +87,7 @@ export function FeeSplitForm({ accounts }: { accounts: readonly WireAccount[] })
       }
       await navigate({
         to: "/transactions/$transactionId",
-        params: { transactionId: transaction.id }
+        params: { transactionId: transaction.id },
       });
     },
     onError: (error) => {

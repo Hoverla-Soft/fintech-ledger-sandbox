@@ -4,8 +4,8 @@
 // This only reminds — it emits hookSpecificOutput.additionalContext on exit 0, it never blocks.
 // Fails open (exits 0, silent) on anything unexpected.
 
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const { matches } = require("./glob-match.js");
 
 function readStdin() {
@@ -45,7 +45,7 @@ function main() {
   }
 
   const routes = Array.isArray(routesData.routes) ? routesData.routes : [];
-  const filePath = (input.tool_input && input.tool_input.file_path) || "";
+  const filePath = input.tool_input?.file_path || "";
   if (!filePath) {
     process.exit(0);
   }

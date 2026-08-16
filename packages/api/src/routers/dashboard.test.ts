@@ -269,15 +269,17 @@ describe("cost", () => {
       const pool = db.$client;
       const original = pool.query.bind(pool);
       let calls = 0;
-      // biome-ignore lint/suspicious/noExplicitAny: pg's `query` has 6 overloads; re-typing them here would add nothing to the assertion.
-      (pool as any).query = (...args: unknown[]) => {
+      // pg's `query` has 6 overloads; a structural cast to a single writable
+      // slot is enough for counting calls and re-types nothing else.
+      const patchable = pool as unknown as { query: unknown };
+      patchable.query = (...args: unknown[]) => {
         calls += 1;
         return (original as (...a: unknown[]) => unknown)(...args);
       };
       try {
         await client().dashboard.summary({});
       } finally {
-        (pool as any).query = original;
+        patchable.query = original;
       }
       return calls;
     };
