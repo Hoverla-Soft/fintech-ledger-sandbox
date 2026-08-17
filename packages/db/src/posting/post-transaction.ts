@@ -15,9 +15,15 @@ import {
   type Transaction,
 } from "@fintech-ledger-sandbox/core";
 import { and, eq, inArray } from "drizzle-orm";
-import type { AccountInactive, AccountNotFound, IdempotencyConflict } from "../errors";
+import type {
+  AccountInactive,
+  AccountNotFound,
+  IdempotencyConflict,
+  TransactionAlreadyReversed,
+} from "../errors";
 import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
+import { getPostgresConstraint, isUniqueViolation } from "../internal/pg-errors";
 import { recordRejection } from "../repositories/audit";
 import {
   ledgerAccount,
@@ -76,6 +82,7 @@ export type PostTransactionError =
   | AccountNotFound
   | AccountInactive
   | IdempotencyConflict
+  | TransactionAlreadyReversed
   | LedgerError;
 
 /** The subset of domain errors that can actually surface from *inside* the locked section of the routine below. */
@@ -83,7 +90,8 @@ type DomainRejectionReason =
   | AccountNotFound
   | AccountInactive
   | CurrencyMismatch
-  | InsufficientFunds;
+  | InsufficientFunds
+  | TransactionAlreadyReversed;
 
 /**
  * Thrown from inside the `db.transaction(...)` callback to force a full
@@ -173,18 +181,43 @@ async function applyLeg(tx: PostingTransaction, input: ApplyLegInput): Promise<P
   }
 
   const transactionId = randomUUID();
-  const [insertedTransaction] = await tx
-    .insert(ledgerTransaction)
-    .values({
-      id: transactionId,
-      orgId: input.orgId,
-      currency: input.transaction.currency,
-      reversesTransactionId: input.reversesTransactionId ?? null,
-      fxSourceTransactionId: input.fxSourceTransactionId ?? null,
-      fxRate: input.fxRate ?? null,
-      createdBy: input.actorId,
-    })
-    .returning();
+  let insertedTransaction: typeof ledgerTransaction.$inferSelect | undefined;
+  try {
+    [insertedTransaction] = await tx
+      .insert(ledgerTransaction)
+      .values({
+        id: transactionId,
+        orgId: input.orgId,
+        currency: input.transaction.currency,
+        reversesTransactionId: input.reversesTransactionId ?? null,
+        fxSourceTransactionId: input.fxSourceTransactionId ?? null,
+        fxRate: input.fxRate ?? null,
+        createdBy: input.actorId,
+      })
+      .returning();
+  } catch (error) {
+    // The partial unique index on `reverses_transaction_id` (migration 0007)
+    // is what makes "a transaction is reversible at most once" a fact rather
+    // than a convention. Turning its violation into a typed rejection matters
+    // for the same reason every other refusal here is typed: an unmapped
+    // `23505` would surface as a 500, and a 500 is the one outcome this
+    // ledger's audit trail cannot explain.
+    //
+    // The constraint name is checked, not just the SQLSTATE. `ledger_transaction`
+    // carries a *second* partial unique index — `fxSourceTransactionId` — and
+    // reporting an FX pairing bug as "already reversed" would send whoever
+    // debugs it to the wrong half of the file.
+    if (
+      isUniqueViolation(error) &&
+      getPostgresConstraint(error) === "ledger_transaction_reversesTransactionId_idx"
+    ) {
+      throw new DomainRejection({
+        kind: "TransactionAlreadyReversed",
+        transactionId: input.reversesTransactionId ?? "",
+      });
+    }
+    throw error;
+  }
 
   if (insertedTransaction === undefined) {
     throw new Error(`insert into ledger_transaction "${transactionId}" returned no row`);
@@ -524,6 +557,8 @@ function rejectionReasonCode(reason: DomainRejectionReason): string {
       return "currency_mismatch";
     case "InsufficientFunds":
       return "insufficient_funds";
+    case "TransactionAlreadyReversed":
+      return "already_reversed";
   }
 }
 
@@ -535,6 +570,8 @@ function serializeRejectionMetadata(reason: DomainRejectionReason): Record<strin
       return { kind: reason.kind, accountId: reason.accountId };
     case "CurrencyMismatch":
       return { kind: reason.kind, expected: reason.expected, actual: reason.actual };
+    case "TransactionAlreadyReversed":
+      return { kind: reason.kind, transactionId: reason.transactionId };
     case "InsufficientFunds":
       return {
         kind: reason.kind,

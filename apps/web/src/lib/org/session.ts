@@ -1,7 +1,9 @@
-import { canWrite, type LedgerRole, toLedgerRole } from "@fintech-ledger-sandbox/api/auth/roles";
+import { canWrite, type LedgerRole } from "@fintech-ledger-sandbox/api/auth/roles";
 import type { QueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 
 /**
  * Reading and changing the acting organization.
@@ -30,20 +32,30 @@ export interface OrgContext {
 /**
  * The active organization and the caller's role in it.
  *
- * `role` is an affordance hint only (open question #1). Fail-closed to
- * `viewer` while the member row is loading.
+ * `role` now comes from `session.context`, which returns what `requireOrg`
+ * resolved for this request — the same derivation every write is authorized by.
+ * It used to be re-derived here by running the shared `toLedgerRole` over Better
+ * Auth's member row, which worked but kept two copies of one rule and could go
+ * stale in a way the server's per-request lookup never does (open question #1).
+ *
+ * Still an affordance hint, and that has not changed: this decides what the UI
+ * offers, never what the API permits. Fail-closed to `viewer` until the answer
+ * arrives, so a slow or failed read hides write affordances rather than
+ * showing ones the server would refuse.
  */
 export function useOrgContext(): OrgContext {
   const { data: organization, isPending: orgPending } = authClient.useActiveOrganization();
-  const { data: member, isPending: memberPending } = authClient.useActiveMember();
+  const { data: context, isPending: contextPending } = useQuery(
+    orpc.session.context.queryOptions({ input: {} }),
+  );
 
-  const role = toLedgerRole(member?.role);
+  const role: LedgerRole = context?.role ?? "viewer";
 
   return {
     org: organization ? { id: organization.id, name: organization.name } : null,
     role,
     canWrite: canWrite(role),
-    isPending: orgPending || memberPending,
+    isPending: orgPending || contextPending,
   };
 }
 

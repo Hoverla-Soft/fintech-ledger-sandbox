@@ -31,6 +31,7 @@
 export const LEDGER_REASONS = [
   "account_inactive",
   "account_name_taken",
+  "already_reversed",
   "account_not_found",
   "approval_required",
   "conversion_mismatch",
@@ -187,6 +188,12 @@ const COPY = {
     title: "Too many requests",
     detail: "Wait a moment and try again.",
     disposition: "retryable",
+  },
+  already_reversed: {
+    title: "Already reversed",
+    detail:
+      "Another admin reversed this transaction first. Nothing was posted — a second reversal would double the correction.",
+    disposition: "blocked",
   },
   approval_required: {
     title: "This organization requires approval",

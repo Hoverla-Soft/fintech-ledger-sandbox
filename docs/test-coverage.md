@@ -510,5 +510,21 @@ Until this file, `apps/server` had no test and no Vitest config: `src/index.ts` 
 - Approving the same pending transfer twice in sequence yields **one** transaction — the console minted `crypto.randomUUID()` per click, so a double-click used to post twice
 - Two admins approving concurrently yield **one** transaction and one balance movement; the `status !== "pending"` check cannot catch this because both read before either writes, so the guarantee comes from the idempotency key being derived from `pending.id`
 
+### `session.context` and reversal uniqueness (2026-08-16)
+
+### `packages/api/src/routers/session.test.ts`
+- Returns the caller's own `userId`, `orgId`, and ledger role, from the same `requireOrg` resolution every write is authorized by
+- A Better Auth `member` maps to `viewer` and **can call it** — deliberately `orgProcedure`, since refusing a viewer the answer to "what am I" would leave the console unable to hide a write affordance
+- `owner` maps to `admin`
+- A session naming an org the caller does not belong to gets the same `403` every org-scoped read gives — this procedure must not become a way to probe which org ids exist
+- A session with no active org is refused
+
+### `packages/api/src/routers/writes.test.ts` (extended) — reversal uniqueness
+- A second reversal of the same original is refused `409 already_reversed`, **with the wallet funded first** so the refusal is attributable to the unique index rather than to `insufficient_funds` from the balance invariant
+- Reversing a *reversal* still works and re-applies the original effect — the chain targets a different transaction id, so migration `0007` does not touch it
+
+### `packages/api/src/routers/reads.test.ts` (rewritten) — `reversedBy`
+- **This case asserted the opposite until 2026-08-16.** It proved a transaction could be reversed twice, which was the reason `reversedBy` is a list. It now asserts the second reversal is refused even when the balance would allow it, and that `reversedBy` holds exactly the one reversal. The field stays an array on the wire (length ≤ 1) because narrowing it would break the published contract for no gain
+
 <!-- add one block per test file, keep in sync with what actually exists -->
 

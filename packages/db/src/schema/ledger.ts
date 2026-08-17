@@ -175,11 +175,31 @@ export const ledgerTransaction = pgTable(
     // The index then holds only rows the lookup can ever match.
     //
     // Deliberately NOT unique: a transaction may be reversed more than once.
-    // `transactions.reverse` performs no existing-reversal check and nothing
-    // in the schema forbids a second one, so the read side returns a *list*
-    // of reversals (see the 6b task file, D3). Adding UNIQUE here would be a
-    // product decision that silently invalidates existing data.
-    index("ledger_transaction_reversesTransactionId_idx")
+    // **UNIQUE since 2026-08-16.** One transaction may be reversed at most once.
+    //
+    // This was a plain index, with the note that "adding UNIQUE here would be a
+    // product decision that silently invalidates existing data". The decision is
+    // now made, and ADR 0006's consequences had already named this exact fix:
+    // without it, two reversals of the same original under two different keys
+    // both succeed whenever balances allow, and **double the correction** — the
+    // ledger ends up further from the truth than before anyone corrected it.
+    //
+    // What this does NOT block is a reversal *chain*. Reversing a reversal
+    // targets a different transaction id, so T → R1 → R2 is untouched; that is
+    // legitimate undo/redo and ADR 0006's reasoning for permitting it stands.
+    // The constraint only forbids two rows pointing at the *same* original.
+    //
+    // `reversedBy` deliberately stays a list on the wire even though it can now
+    // hold at most one element. Narrowing it to a scalar would be a breaking
+    // change to the published contract for no gain, and the console already
+    // renders a count.
+    //
+    // **Deploying this against existing data can fail, on purpose.** If any org
+    // already contains a double-reversed transaction, `CREATE UNIQUE INDEX`
+    // aborts rather than choosing a row to discard. That is the correct
+    // behaviour — see `docs/backend/error-handling.md` for the pre-flight query
+    // and what to do about a hit.
+    uniqueIndex("ledger_transaction_reversesTransactionId_idx")
       .on(table.reversesTransactionId)
       .where(sql`${table.reversesTransactionId} is not null`),
     // Reverse direction of the FX self-FK: "what did this transaction convert

@@ -40,3 +40,28 @@ export function getPostgresErrorCode(error: unknown, depth = 0): string | undefi
 export function isUniqueViolation(error: unknown): boolean {
   return getPostgresErrorCode(error) === POSTGRES_UNIQUE_VIOLATION;
 }
+
+/**
+ * The constraint or index name a unique violation names, if any.
+ *
+ * SQLSTATE alone is not enough where a table carries more than one unique
+ * index. `ledger_transaction` has two partial ones — `reverses_transaction_id`
+ * and `fx_source_transaction_id` — so a caller that only checked for `23505`
+ * would report an FX pairing bug as "already reversed" and send whoever debugs
+ * it to the wrong half of the file.
+ *
+ * Same `cause`-chain walk as the code lookup above, and fragile against a
+ * drizzle-orm upgrade in the same documented way (ADR 0004).
+ */
+export function getPostgresConstraint(error: unknown, depth = 0): string | undefined {
+  if (depth > 5 || typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  if ("constraint" in error && typeof (error as { constraint: unknown }).constraint === "string") {
+    return (error as { constraint: string }).constraint;
+  }
+  if ("cause" in error) {
+    return getPostgresConstraint((error as { cause: unknown }).cause, depth + 1);
+  }
+  return undefined;
+}

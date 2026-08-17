@@ -74,7 +74,26 @@ export interface AccountInactive {
   readonly accountId: string;
 }
 
+/**
+ * A second reversal of a transaction that has already been reversed.
+ *
+ * Enforced by the partial unique index on `reverses_transaction_id` (migration
+ * `0007`) rather than by a read-then-write check, which two concurrent
+ * reversals could both pass. ADR 0006's consequences named this as the fix:
+ * without it, both reversals succeed whenever balances allow and *double the
+ * correction*, leaving the ledger further from the truth than before anyone
+ * tried to fix it.
+ *
+ * Distinct from a reversal **chain** — reversing a reversal targets a different
+ * transaction id and stays permitted.
+ */
+export interface TransactionAlreadyReversed {
+  readonly kind: "TransactionAlreadyReversed";
+  readonly transactionId: string;
+}
+
 export type PersistenceError =
+  | TransactionAlreadyReversed
   | AccountNotFound
   | AccountInactive
   | AccountAlreadyExists

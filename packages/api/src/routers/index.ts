@@ -7,6 +7,7 @@ import { auditRouter } from "./audit";
 import { dashboardRouter } from "./dashboard";
 import { reconciliationRouter } from "./reconciliation";
 import { sandboxRouter } from "./sandbox";
+import { sessionRouter } from "./session";
 import { settingsRouter } from "./settings";
 import { transactionsRouter } from "./transactions";
 
@@ -15,6 +16,7 @@ export const appRouter = {
     return "OK";
   }),
 
+  session: sessionRouter,
   accounts: accountsRouter,
   transactions: transactionsRouter,
   approvals: approvalsRouter,

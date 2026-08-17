@@ -44,6 +44,7 @@ Emitted by middleware rather than by the error map (see ADR 0005 for the tenancy
 | `no_active_organization` | Signed in, but the session names no organization | `FORBIDDEN` | 403 |
 | `not_a_member` | The session names an organization the user has no `member` row for — **or one that does not exist** | `FORBIDDEN` | 403 |
 | `insufficient_role` | Ledger role is `viewer`, action requires `admin` | `FORBIDDEN` | 403 |
+| `already_reversed` | The transaction has already been reversed. Enforced by a partial unique index on `reverses_transaction_id` (migration `0007`), not a read-then-write check, so two concurrent reversers cannot both pass it. Reversing a *reversal* is unaffected — that targets a different id | `CONFLICT` | 409 |
 | `approval_required` | The organization has `requireTransferApproval` on, and the caller tried to post directly (`transactions.create`) or to exchange (`transactions.exchange`). Submit through `approvals.submitPending` instead — an exchange has no approval route, so it is refused outright while the flag is on | `FORBIDDEN` | 403 |
 | `invalid_cursor` | Malformed pagination cursor | `BAD_REQUEST` | 400 |
 | `rate_limited` | The write rate limit for this organization or user is exhausted | `TOO_MANY_REQUESTS` | 429 |
@@ -147,3 +148,19 @@ Status as of Phase 4a. Items still open name what would close them rather than b
 - [x] Secret and sensitive-data redaction has an automated test — **closed 2026-08-16.** pino's `redact` is configured on the logger itself (`apps/server/src/logger.ts`), not left to call sites, and `apps/server/src/app.test.ts` asserts it for session cookies, `Authorization`, `DATABASE_URL`, and `BETTER_AUTH_SECRET`. The case worth knowing: `drizzle-orm`'s `DrizzleQueryError` exposes `query` and `params` as own enumerable properties and pino's default `err` serializer emits every own enumerable property, so before `err.query`/`err.params` were added **any** failed statement logged its bound values — including the session tokens and password hashes Better Auth's Drizzle adapter binds. Verified empirically against pino 10.3.1 before the paths were added. Note the limit: `redact` is path-based and cannot reach a secret interpolated into a message string, so the real control remains never logging `env` or `process.env`.
 - [x] Dev and production log thresholds/formats are configured — **closed 2026-08-16.** pino emits one JSON line per event in every environment (one format everywhere, so a line read locally is the line parsed downstream); level is `info` in production, `debug` locally, and `LOG_LEVEL` overrides both. Read from `process.env` rather than the validated schema deliberately: an unset or misspelled value must fall back to the default, not fail boot.
 - [x] Monitoring captures unexpected errors, and graceful shutdown covers fatal process failures — **closed 2026-08-16**, with the same by-design caveat. Error monitoring stays explicitly `none` per `tech-stack.md` — a decision for a fake-money sandbox. Graceful shutdown now exists (`apps/server/src/index.ts`): `SIGTERM`/`SIGINT` stop new connections, drain in-flight requests, close idle keep-alive sockets, then end the pool — in that order, because ending the pool first would fail the requests the drain exists to protect. It is idempotent and force-exits after 10s so a stuck drain cannot outlive the platform's grace window. `uncaughtException`/`unhandledRejection` route through the same path and exit: after an unhandled rejection the process holds state nobody reasoned about, and since Postgres is the authority on every balance, an aborted transaction has already rolled back — dying loses nothing, limping on could write atop a corrupted assumption.
+
+## Deploying migration `0007` against existing data
+
+`0007` makes `ledger_transaction_reversesTransactionId_idx` unique. `CREATE UNIQUE INDEX` **aborts** if any organization already contains a transaction that was reversed more than once, and that is deliberate — the alternative is choosing a reversal to discard, which is not a decision a migration gets to make about a ledger.
+
+Check before deploying:
+
+```sql
+SELECT reverses_transaction_id, count(*)
+FROM ledger_transaction
+WHERE reverses_transaction_id IS NOT NULL
+GROUP BY reverses_transaction_id
+HAVING count(*) > 1;
+```
+
+Empty result: the migration applies cleanly. Any rows: those originals were double-corrected and their balances already reflect it. Resolve each one deliberately — post a compensating transaction so the net effect is a single correction, leaving both reversals in history, because postings are append-only and deleting one is not an option (invariant #8, enforced by the immutability triggers in `0002`). Only then apply `0007`.

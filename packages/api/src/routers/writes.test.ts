@@ -464,6 +464,67 @@ describe("transactions.create", () => {
 });
 
 describe("transactions.reverse", () => {
+  it("refuses a second reversal of the same original", async () => {
+    // ADR 0006 recorded this in its consequences and named the fix: without a
+    // unique index on `reverses_transaction_id`, two reversals of one original
+    // under two different keys both succeed whenever balances allow, and
+    // **double the correction** — leaving the ledger further from the truth
+    // than before anyone tried to fix it. Migration 0007 makes it a constraint
+    // rather than a convention, so two concurrent reversers cannot both pass a
+    // read-then-write check.
+    // The wallet is funded first, and that detail is load-bearing. Each reversal
+    // debits the wallet again, so an unfunded double reversal is refused for
+    // `insufficient_funds` — by the balance invariant, not by anything
+    // reversal-specific. Funding removes that excuse, so what refuses the second
+    // call here is the constraint and nothing else.
+    await asAdmin().transactions.create(transfer("500.00"));
+    const original = await asAdmin().transactions.create(transfer("100.00"));
+
+    await asAdmin().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.id,
+    });
+
+    const second = await captureError(() =>
+      asAdmin().transactions.reverse({
+        idempotencyKey: randomUUID(),
+        transactionId: original.id,
+      }),
+    );
+
+    // A typed 409, not an unmapped 500 — a 500 is the one outcome this
+    // ledger's audit trail cannot explain.
+    expect(second.code).toBe("CONFLICT");
+    expect(second.data.reason).toBe("already_reversed");
+
+    // The correction happened exactly once: 500 funded + 100 posted - 100 reversed.
+    const { accounts } = await asAdmin().accounts.list({});
+    expect(accounts.find((account) => account.id === wallet)?.balance.amount).toBe("500.00");
+  });
+
+  it("still allows reversing a reversal — the chain is untouched", async () => {
+    // The constraint forbids two rows pointing at the *same* original. A chain
+    // targets a different transaction id each step, so legitimate undo/redo
+    // keeps working; blocking it would forbid a valid operation.
+    const original = await asAdmin().transactions.create(transfer("100.00"));
+
+    const first = await asAdmin().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.id,
+    });
+
+    const second = await asAdmin().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: first.id,
+    });
+
+    expect(second.reversesTransactionId).toBe(first.id);
+
+    // Undo of the undo re-applies the original effect.
+    const { accounts } = await asAdmin().accounts.list({});
+    expect(accounts.find((account) => account.id === wallet)?.balance.amount).toBe("100.00");
+  });
+
   it("mirrors a transaction, links it, and restores balances", async () => {
     const original = await asAdmin().transactions.create(transfer("100.00"));
 

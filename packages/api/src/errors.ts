@@ -41,6 +41,7 @@ export type LedgerErrorReason =
   | "account_name_taken"
   | "transaction_not_found"
   | "idempotency_conflict"
+  | "already_reversed"
   | "insufficient_funds"
   | "currency_mismatch"
   | "unsupported_currency"
@@ -67,6 +68,7 @@ const MESSAGES: Record<LedgerErrorReason, string> = {
   account_inactive: "That account is inactive and cannot be posted to.",
   account_name_taken: "An account with that name already exists in this organization.",
   transaction_not_found: "Transaction not found.",
+  already_reversed: "This transaction has already been reversed.",
   idempotency_conflict: "This idempotency key was already used with a different request payload.",
   insufficient_funds: "The source account has insufficient funds for this transfer.",
   currency_mismatch: "All postings in a transaction must share one currency.",
@@ -111,6 +113,12 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
       return { code: "NOT_FOUND", reason: "transaction_not_found" };
     case "IdempotencyConflict":
       return { code: "CONFLICT", reason: "idempotency_conflict" };
+    // 409 for the same reason `AccountAlreadyExists` is: a collision with
+    // existing state, not a malformed request. The caller's payload was fine —
+    // someone already reversed this transaction, possibly between their read
+    // and their write.
+    case "TransactionAlreadyReversed":
+      return { code: "CONFLICT", reason: "already_reversed" };
     case "InsufficientFunds":
       return { code: "UNPROCESSABLE_CONTENT", reason: "insufficient_funds" };
     case "CurrencyMismatch":

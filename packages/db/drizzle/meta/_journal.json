@@ -50,6 +50,13 @@
       "when": 1785624379118,
       "tag": "0006_mixed_machine_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786922446607,
+      "tag": "0007_nosy_blockbuster",
+      "breakpoints": true
     }
   ]
 }

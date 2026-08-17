@@ -338,19 +338,20 @@ describe("reversedBy (Phase 6b, open question #3)", () => {
     expect(reversalRow?.reversedBy).toEqual([]);
   });
 
-  it("reports BOTH reversals when a transaction is reversed twice", async () => {
-    // The assertion that forces `reversedBy` to be a list. Nothing forbids a
-    // second reversal — no unique constraint on the column, no check in
-    // `transactions.reverse` — so a boolean or a single id would be correct
-    // here until the second call and silently wrong afterwards.
+  it("refuses a second reversal even when the balance would allow it", async () => {
+    // **This test asserted the opposite until 2026-08-16**, and the change is
+    // the point. It used to prove that a transaction could be reversed twice
+    // and that `reversedBy` therefore had to be a list. Migration `0007` makes
+    // that impossible: a partial unique index on `reverses_transaction_id`
+    // means one original yields at most one reversal. ADR 0006's consequences
+    // had named this fix and recorded that Phase 6b was scoped not to ship it.
     //
-    // The wallet is funded first, and that detail is load-bearing. Each
-    // reversal debits the wallet again, so reversing a 5.00 credit twice
-    // against an unfunded wallet is refused for `insufficient_funds` — by the
-    // balance invariant, not by any reversal-specific rule. Double reversal is
-    // therefore *possible but not always affordable*, which is exactly why it
-    // cannot be modelled as a boolean: whether a second one exists depends on
-    // the balance at the time, not on anything structural.
+    // The wallet is funded first, and that detail is still load-bearing —
+    // inherited from the old version of this test. Each reversal debits the
+    // wallet again, so an unfunded second reversal is refused for
+    // `insufficient_funds` by the balance invariant rather than by anything
+    // reversal-specific. Funding removes that excuse, so the refusal below is
+    // attributable to the constraint and to nothing else.
     await postTransfer(db, tenant, fundingId, walletId, "100.00");
     const originalId = await postTransfer(db, tenant, fundingId, walletId, "5.00");
 
@@ -358,16 +359,19 @@ describe("reversedBy (Phase 6b, open question #3)", () => {
       idempotencyKey: randomUUID(),
       transactionId: originalId,
     });
-    const second = await client().transactions.reverse({
-      idempotencyKey: randomUUID(),
-      transactionId: originalId,
-    });
 
-    expect(first.id).not.toBe(second.id);
+    await expect(
+      client().transactions.reverse({
+        idempotencyKey: randomUUID(),
+        transactionId: originalId,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
 
+    // `reversedBy` stays an array on the wire even though it can now hold at
+    // most one element — narrowing it to a scalar would be a breaking change to
+    // the published contract for no gain.
     const transaction = await client().transactions.get({ transactionId: originalId });
-    expect(transaction.reversedBy).toHaveLength(2);
-    expect([...transaction.reversedBy].sort()).toEqual([first.id, second.id].sort());
+    expect(transaction.reversedBy).toEqual([first.id]);
   });
 });
 
