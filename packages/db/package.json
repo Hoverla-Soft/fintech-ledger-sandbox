@@ -42,13 +42,13 @@
     "@fintech-ledger-sandbox/env": "workspace:*",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.2",
-    "pg": "^8.22.0",
+    "pg": "^8.23.0",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",
     "@testcontainers/postgresql": "catalog:",
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.21.0",
     "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
     "vitest": "catalog:"

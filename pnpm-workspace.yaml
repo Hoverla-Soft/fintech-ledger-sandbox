@@ -14,41 +14,41 @@ catalog:
   # pull a patch nobody asks for. Raise the floor so the advisory cannot come
   # back on a fresh `pnpm install`.
   hono: ^4.12.34
-  "@orpc/server": ^1.14.6
-  "@orpc/openapi": ^1.14.6
-  "@orpc/zod": ^1.14.6
-  better-auth: 1.6.23
-  lucide-react: ^1.23.0
+  "@orpc/server": ^1.15.0
+  "@orpc/openapi": ^1.15.0
+  "@orpc/zod": ^1.15.0
+  better-auth: 1.6.27
+  lucide-react: ^1.31.0
   next-themes: ^0.4.6
   react: ^19.2.7
   react-dom: ^19.2.7
-  sonner: ^2.0.7
-  "@orpc/client": ^1.14.6
+  sonner: ^2.0.8
+  "@orpc/client": ^1.15.0
   # Versioned in lockstep with @orpc/server (same 1.14.x release train), so it
   # cannot drift from the server it plugs into. See ADR 0007.
-  "@orpc/experimental-ratelimit": ^1.14.12
-  "@types/react": ^19.2.17
-  "@types/react-dom": ^19.2.3
+  "@orpc/experimental-ratelimit": ^1.15.0
+  "@types/react": ^19.2.18
+  "@types/react-dom": ^19.2.4
   tailwindcss: ^4.3.2
   vitest: ^4.1.10
-  "@testcontainers/postgresql": ^12.0.4
+  "@testcontainers/postgresql": ^12.1.0
   # The `apps/web` console suite (Phase 5a). `packages/*` suites are Node-environment
   # and need none of this; the console's highest-risk behaviours are DOM-bound
   # ("the dialog closes only after the request resolves", "submit is disabled in
   # flight", "the form stays open with the reason inline"), so they need a real
   # document. See docs/development/tech-stack.md → Testing framework.
-  happy-dom: ^20.11.1
+  happy-dom: ^20.11.2
   # v16 is the first line supporting React 19's createRoot/act contract.
   "@testing-library/react": ^16.3.2
-  "@testing-library/user-event": ^14.6.1
-  "@testing-library/jest-dom": ^7.0.0
+  "@testing-library/user-event": ^14.6.4
+  "@testing-library/jest-dom": ^7.0.1
   # Linter *and* formatter, one binary (Phase 6a). Catalogued so all 8 workspace
   # packages resolve the identical version — a formatter that differs by package
   # would rewrite the same file two ways depending on who ran it last.
-  "@biomejs/biome": ^2.5.6
+  "@biomejs/biome": ^2.5.8
   # End-to-end (Phase 6c). Lives in `apps/web`; replaces the manual demo
   # scripts every Phase 5 slice carried as acceptance criteria.
-  "@playwright/test": ^1.62.0
+  "@playwright/test": ^1.62.1
   # The structured logger `docs/development/tech-stack.md` has declared since
   # Phase 4b and which no phase ever delivered — installed 2026-08-16, closing
   # the ⚠️ row in `docs/showcase/security.md`. Chosen there, not here: this is

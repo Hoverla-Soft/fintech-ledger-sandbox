@@ -38,7 +38,7 @@
     "@fintech-ledger-sandbox/config": "workspace:*",
     "@types/node": "catalog:",
     "autocannon": "^8.0.0",
-    "turbo": "^2.10.2",
+    "turbo": "^2.10.9",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
