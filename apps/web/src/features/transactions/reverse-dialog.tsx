@@ -41,12 +41,17 @@ export const CONFIRMATION_WORD = "REVERSE";
  * what is actually true of *this* transaction, which is what
  * `docs/adr/0006-write-endpoint-contract.md` assumed all along.
  *
- * What has **not** changed: reversing is still permitted and still not
- * deduplicated, so the warning informs rather than blocks. Whether a second
- * reversal succeeds depends on the balance at the time — reversing a credit
- * twice can be refused for `insufficient_funds` — so the dialog never promises
- * an outcome it does not control. Typing the confirmation word keeps this a
- * deliberate act rather than a reflex.
+ * **What changed on 2026-08-16, and what this comment used to get wrong.** It
+ * said reversing was "still permitted and still not deduplicated". Migration
+ * `0007` made the partial unique index on `reverses_transaction_id` unique, so
+ * a transaction is now reversible at most once and a second attempt is refused
+ * with `409 already_reversed`. Reversing a *reversal* is still permitted — that
+ * targets a different id, and is legitimate undo/redo.
+ *
+ * The warning still informs rather than blocks, but for a different reason than
+ * before: the server is the arbiter (open question #1), so the console states
+ * the rule and lets the refusal come from the place that enforces it. Typing
+ * the confirmation word keeps this a deliberate act rather than a reflex.
  */
 export function ReverseDialog({
   transactionId,
@@ -147,24 +152,38 @@ export function ReverseDialog({
           </AlertDialogHeader>
 
           <div className="space-y-2 rounded-none border border-destructive/50 p-3 text-sm">
+            {/*
+             * Both branches used to warn that "reversals are not deduplicated"
+             * and that a second one "will succeed". That stopped being true on
+             * 2026-08-16, when open question #3 was closed by migration
+             * `0007`: a partial unique index on `reverses_transaction_id`
+             * makes a transaction reversible at most once, and a second
+             * attempt is refused with `409 already_reversed`.
+             *
+             * Left uncorrected it was worse than stale — a false statement
+             * about a money operation, on that operation's own confirmation
+             * screen, warning in the wrong direction: it told an admin a
+             * double correction would go through when the server now refuses
+             * it.
+             */}
             {reversedBy.length > 0 ? (
               <>
                 <p className="font-medium text-destructive" data-testid="already-reversed">
-                  {reversedBy.length === 1
-                    ? "This transaction has already been reversed."
-                    : `This transaction has already been reversed ${reversedBy.length} times.`}
+                  This transaction has already been reversed.
                 </p>
                 <p className="text-muted-foreground">
-                  Reversing again posts <em>another</em> mirrored transaction and applies the
-                  correction a further time. Reversals are not deduplicated, so this will succeed.
+                  A transaction can be reversed only once, so this will be refused. To undo the
+                  reversal itself, open it and reverse <em>that</em> — a correction is always a new
+                  entry.
                 </p>
               </>
             ) : (
               <>
-                <p className="font-medium text-destructive">Reversals are not deduplicated.</p>
+                <p className="font-medium">This can be done only once.</p>
                 <p className="text-muted-foreground">
-                  Nothing has reversed this transaction yet. Reversing it more than once would
-                  succeed every time and apply the correction each time.
+                  Reversing posts a mirrored transaction and applies the correction. A second
+                  reversal of this same transaction will be refused, so the correction cannot be
+                  applied twice by accident.
                 </p>
               </>
             )}

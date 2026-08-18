@@ -216,7 +216,8 @@ function AuditRoute() {
 function AccountCreationCaveat() {
   return (
     <p className="text-xs text-muted-foreground">
-      Creating an account is not recorded here — only transactions and refusals are.
+      Creating an account is not recorded here. Closing or reopening one is — it changes whether
+      money can move, which is the line this log draws.
     </p>
   );
 }

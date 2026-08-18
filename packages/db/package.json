@@ -20,6 +20,9 @@
     "./errors": {
       "default": "./src/errors.ts"
     },
+    "./limits": {
+      "default": "./src/limits.ts"
+    },
     "./testing": {
       "default": "./src/test/setup.ts"
     }

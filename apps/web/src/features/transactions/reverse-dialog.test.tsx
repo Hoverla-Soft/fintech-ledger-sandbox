@@ -111,18 +111,19 @@ describe("confirmation friction", () => {
     expect(reverseTransaction).not.toHaveBeenCalled();
   });
 
-  it("still states that reversals are not deduplicated", async () => {
-    // This assertion predates 6b, when the dialog could only disclose its own
-    // blindness ("this console cannot tell whether this transaction has
-    // already been reversed"). `reversedBy` removed the blindness but changed
-    // nothing about the API: reversing is still permitted and still not
-    // deduplicated, so that warning must survive. The "cannot tell" framing is
-    // covered by its own describe block below, which asserts it is gone.
+  it("states that a transaction can be reversed only once", async () => {
+    // This assertion is the inverse of the one it replaces, and the inversion
+    // is the point. It used to require the words "not deduplicated", which was
+    // true through 6b. Migration `0007` (open question #3) made the partial
+    // unique index on `reverses_transaction_id` unique, so a second reversal is
+    // now refused with `409 already_reversed` — and the old copy became a false
+    // statement about a money operation, on that operation's own confirmation
+    // screen. Rewritten rather than deleted, so the rule stays pinned.
     renderDialog();
     await userEvent.click(screen.getByRole("button", { name: "Reverse" }));
 
-    expect(screen.getByText(/not deduplicated/i)).toBeInTheDocument();
-    expect(screen.getByText(/apply the correction each time/i)).toBeInTheDocument();
+    expect(screen.getByText(/only once/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not deduplicated/i)).not.toBeInTheDocument();
   });
 });
 
@@ -176,7 +177,9 @@ describe("already-reversed warning (Phase 6b, open question #3)", () => {
     await open();
 
     expect(screen.queryByTestId("already-reversed")).not.toBeInTheDocument();
-    expect(screen.getByText(/Nothing has reversed this transaction yet/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/second reversal of this same transaction will be refused/),
+    ).toBeInTheDocument();
   });
 
   it("states plainly that the transaction was already reversed", async () => {
@@ -191,19 +194,31 @@ describe("already-reversed warning (Phase 6b, open question #3)", () => {
     expect(screen.queryByText(/cannot tell whether/)).not.toBeInTheDocument();
   });
 
-  it("counts the reversals when there is more than one", async () => {
-    // The rendering that a boolean `reversed` flag could not have produced.
+  it("does not invent a count, even given a list longer than the constraint allows", async () => {
+    // This used to assert "already been reversed 2 times", which the wire type
+    // still permits — `reversedBy` stays an array, because narrowing it to a
+    // scalar would break the published contract (open question #3).
+    //
+    // But since migration `0007` the database refuses a second reversal of the
+    // same transaction, so a length above 1 is unreachable rather than merely
+    // rare. Rendering a count for an unreachable state is dead output that
+    // reads as if the ledger allows something it does not, so the copy states
+    // the rule instead — and this test pins that even an anomalous list does
+    // not resurrect the tally.
     renderDialog(TXN, ["reversal-1", "reversal-2"]);
     await open();
 
     expect(screen.getByTestId("already-reversed")).toHaveTextContent(
-      "This transaction has already been reversed 2 times.",
+      "This transaction has already been reversed.",
     );
+    expect(screen.queryByText(/2 times/)).not.toBeInTheDocument();
   });
 
-  it("warns but does not block — reversing again is still permitted", async () => {
-    // The API does not deduplicate reversals, so the console must not pretend
-    // to. This is a warning, not a guard.
+  it("warns but does not block — the server is the arbiter", async () => {
+    // The console tells the user a second reversal will be refused; it does not
+    // refuse on the server's behalf. Same rule as every other affordance here
+    // (open question #1): the UI decides what to *offer*, never what the API
+    // permits, and the `409 already_reversed` is what actually stops it.
     reverseTransaction.mockResolvedValue({ id: "new-reversal" });
     renderDialog(TXN, ["reversal-1"]);
     await openAndConfirm();

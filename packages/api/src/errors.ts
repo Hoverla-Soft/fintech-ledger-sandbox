@@ -39,6 +39,7 @@ export type LedgerErrorReason =
   | "account_not_found"
   | "account_inactive"
   | "account_name_taken"
+  | "account_not_empty"
   | "transaction_not_found"
   | "idempotency_conflict"
   | "already_reversed"
@@ -68,6 +69,8 @@ const MESSAGES: Record<LedgerErrorReason, string> = {
   account_not_found: "Account not found.",
   account_inactive: "That account is inactive and cannot be posted to.",
   account_name_taken: "An account with that name already exists in this organization.",
+  account_not_empty:
+    "An account must hold a zero balance before it can be closed. Move the remaining balance first.",
   transaction_not_found: "Transaction not found.",
   already_reversed: "This transaction has already been reversed.",
   idempotency_conflict: "This idempotency key was already used with a different request payload.",
@@ -112,6 +115,11 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
     // is a collision with existing state, not a malformed request.
     case "AccountAlreadyExists":
       return { code: "CONFLICT", reason: "account_name_taken" };
+    // 422, not 409. The request is well-formed and collides with nothing; the
+    // account is simply not in a state where closing it is allowed, which is
+    // the same shape as `AccountInactive` above.
+    case "AccountNotEmpty":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "account_not_empty" };
     case "TransactionNotFound":
       return { code: "NOT_FOUND", reason: "transaction_not_found" };
     case "IdempotencyConflict":

@@ -25,6 +25,7 @@ import type {
 import type { Db } from "../index";
 import { toCurrency, toMoney } from "../internal/money";
 import { getPostgresConstraint, isUniqueViolation } from "../internal/pg-errors";
+import { MAX_MINOR_UNITS } from "../limits";
 import { recordRejection } from "../repositories/audit";
 import {
   ledgerAccount,
@@ -36,26 +37,6 @@ import {
 import { lockAccounts } from "./lock-accounts";
 import { reserveIdempotencyKey } from "./reserve-key";
 import type { PostingTransaction } from "./types";
-
-/**
- * The largest magnitude a minor-unit value can take and still be storable.
- *
- * `ledger_account.balance` and `ledger_posting.amount` are Postgres `bigint`
- * (int8), whose range is ±(2^63 − 1). `Money` is backed by a JavaScript
- * `bigint` and is happily unbounded, so nothing in the domain protects these
- * columns — this is the boundary that does.
- *
- * **Owned here, in the package that owns the columns**, and re-exported by
- * `packages/api/src/contracts/money.ts` so the request-side amount check and
- * the balance check below cannot drift apart. Same arrangement as
- * `MAX_PAGE_SIZE`, which this package owns and `contracts/cursor.ts`
- * re-exports for the same reason.
- *
- * Applied to *magnitude*, so `−2^63` is refused even though int8 can hold it.
- * Off by one, deliberately: matching the inbound amount check keeps one rule
- * rather than two that differ by one in a direction nobody will remember.
- */
-export const MAX_MINOR_UNITS = 9_223_372_036_854_775_807n;
 
 /** Whether a computed balance is outside what `ledger_account.balance` can store. */
 function exceedsStorableRange(amount: Money): boolean {

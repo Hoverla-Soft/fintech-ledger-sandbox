@@ -1,9 +1,12 @@
 import { parseCurrency } from "@fintech-ledger-sandbox/core";
+import type { Db } from "@fintech-ledger-sandbox/db";
 import {
   createAccount,
   getAccountById,
   pageAccountPostings,
   pageAccounts,
+  recordSettingChange,
+  setAccountActive,
 } from "@fintech-ledger-sandbox/db/repositories";
 import { z } from "zod";
 
@@ -34,6 +37,38 @@ const accountPostingSchema = z.object({
   createdAt: z.string(),
 });
 
+/**
+ * The shared half of `deactivate` / `reactivate`.
+ *
+ * One function rather than two handlers so the audit write cannot be present on
+ * one path and missing on the other — the omission that #25 recorded when a
+ * permission helper existed but three handlers forgot to call it.
+ */
+async function setActive(
+  context: { db: Db; orgId: string; actorId: string },
+  accountId: string,
+  active: boolean,
+) {
+  const updated = await setAccountActive(context.db, {
+    orgId: context.orgId,
+    accountId,
+    active,
+  });
+  if (!updated.ok) {
+    throw toORPCError(updated.error);
+  }
+
+  await recordSettingChange(context.db, {
+    orgId: context.orgId,
+    actorUserId: context.actorId,
+    action: active ? "reactivate_account" : "deactivate_account",
+    reason: active ? "account_reopened" : "account_closed",
+    metadata: { accountId },
+  });
+
+  return toWireAccount(updated.value);
+}
+
 export const accountsRouter = {
   create: adminProcedure
     .input(
@@ -63,6 +98,38 @@ export const accountsRouter = {
 
       return toWireAccount(created.value);
     }),
+
+  /**
+   * Closes an account, and reopens one.
+   *
+   * `active` has been enforced under the posting lock since Phase 3 and
+   * reported on the wire since Phase 5, but nothing could *set* it — the state
+   * was reachable only by raw SQL (`docs/open-questions.md` #8). These two are
+   * that missing write, and nothing else: the refusal they produce
+   * (`422 account_inactive` on a later posting) already existed and is
+   * unchanged.
+   *
+   * Closing requires a zero balance. A closed account still counts toward every
+   * whole-org total and toward reconciliation, so closing a funded one would
+   * leave money that is simultaneously on the books and unreachable. The rule
+   * lives in the repository's conditional `UPDATE` rather than here, because a
+   * balance read in this handler is stale the moment a concurrent transfer
+   * commits.
+   *
+   * Audited, unlike `create`. The distinction is whether the action changes
+   * what money can do: creating an empty account changes nothing, while closing
+   * one makes every future posting to it fail — a control change, in the same
+   * family as toggling `requireTransferApproval`.
+   */
+  deactivate: adminProcedure
+    .input(z.object({ accountId: z.uuid() }))
+    .output(accountSchema)
+    .handler(async ({ context, input }) => setActive(context, input.accountId, false)),
+
+  reactivate: adminProcedure
+    .input(z.object({ accountId: z.uuid() }))
+    .output(accountSchema)
+    .handler(async ({ context, input }) => setActive(context, input.accountId, true)),
 
   list: orgProcedure
     .input(z.object(pageInputShape))

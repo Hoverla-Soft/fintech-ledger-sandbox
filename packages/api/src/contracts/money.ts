@@ -5,7 +5,7 @@ import {
   type Result,
   type UnsupportedCurrency,
 } from "@fintech-ledger-sandbox/core";
-import { MAX_MINOR_UNITS } from "@fintech-ledger-sandbox/db/posting";
+import { MAX_MINOR_UNITS } from "@fintech-ledger-sandbox/db/limits";
 import { z } from "zod";
 
 /**
@@ -80,6 +80,13 @@ export const decimalAmountSchema = z
  * `MAX_PAGE_SIZE` in `contracts/cursor.ts` is the same arrangement for the same
  * reason. `apps/web` keeps importing it from here, so the console never reaches
  * past the API package.
+ *
+ * **From `db/limits`, never `db/posting`.** This line is browser-reachable —
+ * `apps/web/src/lib/ledger/amount.ts` imports from this module — and importing
+ * it from `db/posting` pulled `post-transaction`, `reserve-key`,
+ * `repositories/audit`, drizzle and the Postgres driver into the console's
+ * bundle, which killed `/transfer` on `node:crypto has been externalized for
+ * browser compatibility`. `db/limits` imports nothing, and must stay that way.
  */
 export { MAX_MINOR_UNITS };
 

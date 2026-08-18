@@ -9,7 +9,7 @@ import {
 } from "@fintech-ledger-sandbox/core";
 import { and, asc, eq, gt, or } from "drizzle-orm";
 
-import type { AccountAlreadyExists, AccountNotFound } from "../errors";
+import type { AccountAlreadyExists, AccountNotEmpty, AccountNotFound } from "../errors";
 import type { Db } from "../index";
 import { toCurrency } from "../internal/money";
 import { getPostgresErrorCode, POSTGRES_UNIQUE_VIOLATION } from "../internal/pg-errors";
@@ -191,6 +191,58 @@ export async function getAccountById(
   }
 
   return ok(toAccountRow(row));
+}
+
+/**
+ * Opens or closes an account.
+ *
+ * The only writer of `active`. Until now the column could be read on the wire
+ * and enforced under the posting lock, but nothing could *set* it — the state
+ * was reachable only by raw SQL, which is what `writes.test.ts` had to do
+ * (`docs/open-questions.md` #8).
+ *
+ * **One conditional `UPDATE`, not a read-then-write.** Closing carries
+ * `AND balance = 0` in the `WHERE`, so Postgres takes the row lock and
+ * evaluates the predicate against committed state: a concurrent
+ * `postTransaction` either commits first and the close then correctly fails, or
+ * it blocks behind this update. Checking the balance in a separate statement
+ * would leave a window for a posting to land between the check and the write,
+ * closing an account that had just been funded.
+ *
+ * Reopening carries no balance condition. An inactive account's balance is
+ * whatever it was; there is nothing to protect on the way back in.
+ *
+ * Idempotent by construction: closing a closed account matches the same row and
+ * returns it. The caller asked for an end state and got it, and reporting a
+ * conflict would make a retried request look like a failure.
+ */
+export async function setAccountActive(
+  db: Db,
+  input: { readonly orgId: string; readonly accountId: string; readonly active: boolean },
+): Promise<Result<LedgerAccountRow, AccountNotFound | AccountNotEmpty>> {
+  const conditions = [eq(ledgerAccount.orgId, input.orgId), eq(ledgerAccount.id, input.accountId)];
+  if (!input.active) {
+    conditions.push(eq(ledgerAccount.balance, 0n));
+  }
+
+  const [updated] = await db
+    .update(ledgerAccount)
+    .set({ active: input.active })
+    .where(and(...conditions))
+    .returning();
+
+  if (updated !== undefined) {
+    return ok(toAccountRow(updated));
+  }
+
+  // The update matched nothing. Only now is a second read worth doing, and only
+  // to explain *why* — the call has already written nothing either way, so a
+  // posting racing this read can at worst produce a slightly stale reason.
+  const existing = await getAccountById(db, input.orgId, input.accountId);
+  if (!existing.ok) {
+    return existing;
+  }
+  return err({ kind: "AccountNotEmpty", accountId: input.accountId });
 }
 
 function toAccountRow(row: typeof ledgerAccount.$inferSelect): LedgerAccountRow {

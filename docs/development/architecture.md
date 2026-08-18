@@ -27,6 +27,9 @@ Internal workspace packages are consumed through their package name and public `
 - A consumer imports another package only through its public entry point (`@fintech-ledger-sandbox/<pkg>` or a declared subpath export), never by reaching into internal file paths.
 - The dependency graph is acyclic and one-way (above). `packages/core` imports nothing from siblings.
 - TypeScript `paths` must not redirect a package import in a way that hides broken exports.
+- **A subpath export that `apps/web` can reach, transitively, carries its whole module graph into the browser bundle.** Source-level exports make this sharper than a dist-build contract would: importing one constant from `@fintech-ledger-sandbox/db/posting` pulls `post-transaction.ts`, and therefore drizzle, the Postgres driver, and `node:crypto`, into the console. So a value that both a server package and the browser need lives in its own **import-free leaf module** with its own export — `packages/db/src/limits.ts` (`@fintech-ledger-sandbox/db/limits`) is the worked example, and its header says why it must import nothing.
+
+  This is stated because neither `pnpm check-types` nor `pnpm build` catches it: Vite *warns* — `Module "node:crypto" has been externalized for browser compatibility` — and produces a bundle anyway, and `apps/web`'s component suite runs in happy-dom under Node, where the import resolves. It took a real browser to find (`apps/web/e2e/transfer.e2e.ts`, 2026-08-18), on a screen that was simply broken. When adding a cross-package import that `apps/web` can reach, check the build output for that warning.
 
 ### Shared UI boundary
 

@@ -124,11 +124,31 @@ export interface BalanceLimitExceeded {
   readonly resulting: Money;
 }
 
+/**
+ * An account was asked to be closed while it still holds a balance.
+ *
+ * Closing a funded account would strand the money: postings to it are refused
+ * once `active` is false, but the balance keeps counting toward every whole-org
+ * total and toward reconciliation. The account would be simultaneously
+ * unusable and still on the books, which is the worst of both — so the balance
+ * has to be moved out first.
+ *
+ * Detected by the `AND balance = 0` predicate on the conditional `UPDATE` in
+ * `repositories/accounts.ts`, not by a read-then-write: a check followed by a
+ * separate update lets a posting land between the two and close an account that
+ * was funded a millisecond ago.
+ */
+export interface AccountNotEmpty {
+  readonly kind: "AccountNotEmpty";
+  readonly accountId: string;
+}
+
 export type PersistenceError =
   | TransactionAlreadyReversed
   | AccountNotFound
   | AccountInactive
   | AccountAlreadyExists
+  | AccountNotEmpty
   | TransactionNotFound
   | BalanceLimitExceeded
   | IdempotencyConflict;

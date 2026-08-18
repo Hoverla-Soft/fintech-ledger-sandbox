@@ -8,7 +8,7 @@ Two ledger roles. They are **derived** from Better Auth's organization roles, no
 
 | Role | Description |
 |---|---|
-| `admin` | All reads and all writes within its own organization: create accounts, post transactions, issue reversals. Cannot act outside its organization. |
+| `admin` | All reads and all writes within its own organization: create accounts, close and reopen them, post transactions, issue reversals. Cannot act outside its organization. |
 | `viewer` | Read-only within its own organization: balances, transactions, postings, reconciliation, audit log, rejections. Cannot act outside its organization. |
 
 Neither role is global. There is no super-user, and no role grants any visibility across organizations — that is invariant #5, and it is enforced structurally rather than by role (see "Enforcement").
@@ -37,6 +37,7 @@ This mapping was chosen over reconfiguring Better Auth with custom roles (which 
 | Verify reconciliation | yes | yes | Phase 4a |
 | Read the audit log and rejections | yes | yes | Phase 4a |
 | Create an account | yes | no | Phase 4b |
+| Close / reopen an account | yes | no | 2026-08-18 |
 | Post a transaction | yes | no | Phase 4b |
 | Reverse a transaction | yes | no | Phase 4b |
 | Seed / reset the sandbox | yes | no | Phase 4c |

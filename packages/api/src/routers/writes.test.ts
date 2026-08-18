@@ -191,6 +191,76 @@ describe("accounts.create", () => {
   });
 });
 
+describe("accounts.deactivate / reactivate (open question #8)", () => {
+  it("closes an empty account and reopens it", async () => {
+    const closed = await asAdmin().accounts.deactivate({ accountId: wallet });
+    expect(closed.active).toBe(false);
+    expect((await asAdmin().accounts.get({ accountId: wallet })).active).toBe(false);
+
+    const reopened = await asAdmin().accounts.reactivate({ accountId: wallet });
+    expect(reopened.active).toBe(true);
+
+    // The real proof that reopening worked is that money moves again — the
+    // column flipping back is only the mechanism.
+    await expect(asAdmin().transactions.create(transfer("10.00"))).resolves.toBeDefined();
+  });
+
+  it("refuses to close an account that still holds a balance", async () => {
+    await asAdmin().transactions.create(transfer("100.00"));
+
+    const error = await captureError(() => asAdmin().accounts.deactivate({ accountId: wallet }));
+
+    expect(error.status).toBe(422);
+    expect(error.data).toEqual({ reason: "account_not_empty" });
+    // Refused means nothing changed, not "changed and then complained".
+    expect((await asAdmin().accounts.get({ accountId: wallet })).active).toBe(true);
+  });
+
+  it("closes the same account twice without reporting a conflict", async () => {
+    // The caller asked for an end state and got it. A 409 on the second call
+    // would make a retried request — the ordinary response to a dropped
+    // connection — look like a failure.
+    await asAdmin().accounts.deactivate({ accountId: wallet });
+    const again = await asAdmin().accounts.deactivate({ accountId: wallet });
+    expect(again.active).toBe(false);
+  });
+
+  it("reports another org's account as 404, never 422", async () => {
+    // Same indistinguishability rule as every other account lookup: a
+    // cross-org id must not learn that the row exists elsewhere, and
+    // `account_not_empty` would tell it exactly that.
+    const other = await seedTenant(db, "Other Closer", "admin");
+    const theirs = await seedAccount(db, other.orgId, "normal", "Theirs");
+
+    const error = await captureError(() => asAdmin().accounts.deactivate({ accountId: theirs }));
+
+    expect(error.status).toBe(404);
+    expect(error.data).toEqual({ reason: "account_not_found" });
+  });
+
+  it("refuses a viewer before the handler runs", async () => {
+    const viewerId = await seedMemberIn(db, admin.orgId, "member");
+    const viewer = clientFor(db, sessionFor({ orgId: admin.orgId, userId: viewerId }));
+
+    const error = await captureError(() => viewer.accounts.deactivate({ accountId: wallet }));
+
+    expect(error.status).toBe(403);
+    expect(error.data).toMatchObject({ reason: "insufficient_role" });
+  });
+
+  it("records both actions in the audit log", async () => {
+    // Closing an account changes whether money can move, which is what makes
+    // it auditable where `accounts.create` is not.
+    await asAdmin().accounts.deactivate({ accountId: wallet });
+    await asAdmin().accounts.reactivate({ accountId: wallet });
+
+    const { entries } = await asAdmin().audit.list({});
+    const actions = entries.map((entry) => entry.action);
+    expect(actions).toContain("deactivate_account");
+    expect(actions).toContain("reactivate_account");
+  });
+});
+
 describe("transactions.create", () => {
   it("posts a balanced transfer and returns resulting balances", async () => {
     // Fund the wallet first: crediting `funding` (external) is allowed to go
@@ -395,12 +465,12 @@ describe("transactions.create", () => {
     });
 
     it("rejects posting to an inactive account with 422, not 404", async () => {
-      // No deactivate endpoint exists yet, so the row is flipped directly —
-      // which is exactly why the check lives under the row lock rather than in
-      // a handler.
-      await asAdmin().transactions.create(transfer("100.00"));
-      const { sql } = await import("drizzle-orm");
-      await db.execute(sql`UPDATE ledger_account SET active = false WHERE id = ${wallet}`);
+      // Closed through the real procedure since open question #8 was fixed.
+      // This used to flip the row with raw SQL, because no deactivate endpoint
+      // existed — the hack was the clearest evidence of the gap, so its removal
+      // is the clearest evidence the gap is closed. No funding transfer first:
+      // `wallet` starts at zero, and closing it once funded is now refused.
+      await asAdmin().accounts.deactivate({ accountId: wallet });
 
       const error = await captureError(() => asAdmin().transactions.create(transfer("10.00")));
 

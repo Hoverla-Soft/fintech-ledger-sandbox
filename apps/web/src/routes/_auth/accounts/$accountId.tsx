@@ -9,8 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@fintech-ledger-sandbox/ui/components/table";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 import {
   CursorExpiredNotice,
@@ -24,19 +25,83 @@ import {
   AccountStatusBadge,
   AccountTypeBadge,
   isSuspenseAccount,
+  type WireAccount,
 } from "@/features/accounts/account-display";
 import { runningBalanceSeries } from "@/features/accounts/statement-sparkline";
 import { DailyBarChart } from "@/features/dashboard/bar-chart";
 import { barHeightPercent, maxMinorUnits } from "@/features/dashboard/summary";
-import { formatMinorUnits } from "@/lib/ledger/amount";
+import { formatMinorUnits, parseAmount } from "@/lib/ledger/amount";
+import { describeFailure } from "@/lib/ledger/errors";
+import { useOrgContext } from "@/lib/org/session";
 import { hasPrevious } from "@/lib/pagination";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/accounts/$accountId")({
   component: AccountDetailRoute,
 });
 
 const PAGE_SIZE = 25;
+
+/**
+ * Close / Reopen, for admins.
+ *
+ * The disabled state on a funded account is an **affordance hint**, not the
+ * rule: the server refuses with `422 account_not_empty` regardless of what this
+ * button does, so a viewer with devtools gains nothing. It exists so the reason
+ * is visible before the click rather than as a toast afterwards.
+ *
+ * No confirmation modal. Closing is reversible by the button right next to it,
+ * and a modal guarding a reversible action is friction without safety.
+ */
+function AccountLifecycleAction({ account }: { account: WireAccount }) {
+  const { canWrite } = useOrgContext();
+  const queryClient = useQueryClient();
+
+  const parsed = parseAmount(account.balance.amount, account.currency);
+  const isEmpty = parsed.ok && parsed.minorUnits === 0n;
+
+  const toggle = useMutation({
+    mutationFn: () =>
+      account.active
+        ? client.accounts.deactivate({ accountId: account.id })
+        : client.accounts.reactivate({ accountId: account.id }),
+    retry: false,
+    onSuccess: async (updated) => {
+      await queryClient.invalidateQueries({ queryKey: orpc.accounts.get.key() });
+      await queryClient.invalidateQueries({ queryKey: orpc.accounts.list.key() });
+      toast.success(updated.active ? "Account reopened" : "Account closed");
+    },
+    onError: (error) => {
+      const failure = describeFailure(error);
+      toast.error(failure.title, { description: failure.detail });
+    },
+  });
+
+  if (!canWrite) {
+    return null;
+  }
+
+  const blocked = account.active && !isEmpty;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={blocked || toggle.isPending}
+      title={
+        blocked
+          ? "Move the remaining balance out before closing this account"
+          : account.active
+            ? "Close this account to new postings"
+            : "Reopen this account"
+      }
+      onClick={() => toggle.mutate()}
+    >
+      {account.active ? "Close" : "Reopen"}
+    </Button>
+  );
+}
 
 /**
  * One account as a statement: header facts plus posting timeline with running
@@ -72,9 +137,10 @@ function AccountDetailRoute() {
                   </p>
                 ) : null}
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <AccountTypeBadge type={data.type} />
                 <AccountStatusBadge active={data.active} />
+                <AccountLifecycleAction account={data} />
               </div>
             </div>
 

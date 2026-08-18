@@ -35,6 +35,8 @@ const ACTION_LABELS = new Map<string, string>([
   ["post_transaction", "Posted a transaction"],
   ["reverse_transaction", "Reversed a transaction"],
   ["create_account", "Created an account"],
+  ["deactivate_account", "Closed an account"],
+  ["reactivate_account", "Reopened an account"],
 ]);
 
 /**

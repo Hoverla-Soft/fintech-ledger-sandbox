@@ -18,4 +18,9 @@ export type {
   PostTransactionError,
   PostTransactionInput,
 } from "./post-transaction";
-export { MAX_MINOR_UNITS, postExchange, postTransaction } from "./post-transaction";
+// `MAX_MINOR_UNITS` is deliberately NOT re-exported here. It lives in
+// `../limits`, and routing a browser-reachable constant through this module —
+// which pulls in drizzle, the Postgres driver, and `node:crypto` — is exactly
+// what put the database layer into the console's bundle and broke `/transfer`.
+// Import it from `@fintech-ledger-sandbox/db/limits`.
+export { postExchange, postTransaction } from "./post-transaction";

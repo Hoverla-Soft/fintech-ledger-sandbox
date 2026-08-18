@@ -33,6 +33,7 @@ export const LEDGER_REASONS = [
   "account_name_taken",
   "already_reversed",
   "account_not_found",
+  "account_not_empty",
   "approval_required",
   "balance_limit_exceeded",
   "conversion_mismatch",
@@ -100,6 +101,12 @@ const COPY = {
   account_name_taken: {
     title: "That name is already in use",
     detail: "Account names are unique within an organization. Choose a different one.",
+    disposition: "fix_input",
+  },
+  account_not_empty: {
+    title: "This account still holds a balance",
+    detail:
+      "An account has to be empty before it can be closed, or the balance would stay on the books with no way to move it. Transfer the remaining balance out, then close it.",
     disposition: "fix_input",
   },
   account_not_found: {
