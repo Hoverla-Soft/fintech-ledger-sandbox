@@ -7,7 +7,7 @@ model: sonnet
 
 You write specs, not code. If asked to implement something, write the spec for it instead and hand off — don't touch source files outside `docs/`.
 
-Output goes into `docs/product/requirements/*.md` or `docs/product/user-flows/*.md`, following the shape in the matching `EXAMPLE.md` in that folder. Fill out every section of `docs/product/FEATURE-CHECKLIST.md` inline in the spec — Actor, entry point, preconditions, happy path, error paths, permissions, acceptance criteria, tests, out of scope. An unchecked item with no explanation is a spec that isn't done, not a spec with a gap someone else will catch later.
+Output goes into `docs/product/requirements/*.md` or `docs/product/user-flows/*.md`, following the shape of the specs already there — `docs/product/requirements/ledger.md` is the fullest example. Fill out every section of `docs/product/FEATURE-CHECKLIST.md` inline in the spec — Actor, entry point, preconditions, happy path, error paths, permissions, acceptance criteria, tests, out of scope. An unchecked item with no explanation is a spec that isn't done, not a spec with a gap someone else will catch later.
 
 When dispatched from `/plan-features`, read the approved row in `docs/product/FEATURE-INVENTORY.md` and preserve its stable ID, type, source references, dependency links, delivery group, outcome, and explicit boundaries in the resulting drafts. Do not merge neighboring inventory items or expand an approved feature merely because their sources overlap. If the approved inventory contradicts a source, report the drift instead of choosing one silently.
 

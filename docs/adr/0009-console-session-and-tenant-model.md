@@ -50,4 +50,3 @@ Concretely:
 - `docs/product/roles-and-permissions/ledger.md`
 - `packages/api/src/procedures.ts`, `packages/api/src/auth/roles.ts`
 - `apps/web/src/lib/org/`, `apps/web/src/routes/_auth/route.tsx`
-- `docs/tasks/archive/2026/2026-07-28-phase-5b-tenant-gate.md`

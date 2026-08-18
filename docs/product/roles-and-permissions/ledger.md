@@ -26,7 +26,7 @@ Better Auth's organization plugin issues `owner` / `admin` / `member`. `ledger.m
 
 **The mapping fails closed.** An unrecognized role string — a value a future Better Auth version introduces, a typo, a hand-edited column — becomes `viewer`, never `admin`. Better Auth also permits multiple roles in one column as a comma-separated list (`"admin,member"`); any single write role in that list is sufficient, so a multi-role member is not silently demoted.
 
-This mapping was chosen over reconfiguring Better Auth with custom roles (which would require migrating every existing `member.role` value) and over rewriting `ledger.md` to adopt the library's vocabulary (the product spec is the durable source of truth; it does not bend to a dependency). See ADR 0005 and `docs/tasks/archive/2026/2026-07-27-phase-3-persistence-ledger-db.md`.
+This mapping was chosen over reconfiguring Better Auth with custom roles (which would require migrating every existing `member.role` value) and over rewriting `ledger.md` to adopt the library's vocabulary (the product spec is the durable source of truth; it does not bend to a dependency). See ADR 0005.
 
 ## Permission matrix
 

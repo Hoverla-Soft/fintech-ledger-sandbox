@@ -156,7 +156,7 @@ The concurrency claims are tested with actual parallel writers against actual Po
 
 ## Step 4: reconciliation re-proves it, any time
 
-Because the balance is materialized, nothing *forces* it to stay equal to the posting history — so the system carries its own auditor. `reconcileAccounts` (built in Phase 3 alongside [ADR 0003](../../adr/0003-balance-and-concurrency.md), surfaced in the console in [phase 5f](../../tasks/archive/2026/2026-07-28-phase-5f-reconciliation-and-sandbox.md)) recomputes each account from first principles, in SQL, using the same sign convention `core` defined:
+Because the balance is materialized, nothing *forces* it to stay equal to the posting history — so the system carries its own auditor. `reconcileAccounts` (built in Phase 3 alongside [ADR 0003](../../adr/0003-balance-and-concurrency.md), surfaced in the console in phase 5f) recomputes each account from first principles, in SQL, using the same sign convention `core` defined:
 
 ```ts
 function signedPostingSum() {
