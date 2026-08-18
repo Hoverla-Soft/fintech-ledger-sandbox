@@ -73,23 +73,41 @@ export async function insertPendingTransfer(
   input: InsertPendingInput,
 ): Promise<Result<PendingTransferRow, { kind: "IdempotencyConflict"; idempotencyKey: string }>> {
   try {
-    const [inserted] = await db
-      .insert(ledgerPendingTransfer)
-      .values({
-        id: randomUUID(),
-        orgId: input.orgId,
-        createdBy: input.createdBy,
-        idempotencyKey: input.idempotencyKey,
-        requestHash: input.requestHash,
-        currency: input.currency,
-        postings: input.postings,
-        status: "pending",
-      })
-      .returning();
+    // The insert runs inside its own `transaction(...)` — a real transaction at
+    // the top level, a SAVEPOINT when `db` is already one — so that a duplicate
+    // key rolls back this statement alone.
+    //
+    // Without it, the read-back in the `catch` below only works when nothing
+    // else has a transaction open: the failed insert aborts its own implicit
+    // transaction, which then ends, leaving the connection usable. Inside an
+    // enclosing transaction the failure aborts *that*, and the read-back comes
+    // back `25P02 current transaction is aborted` rather than reporting the
+    // replay it exists to report. Every org-scoped request now has one open
+    // (`withOrgScope`), so this is load-bearing rather than defensive.
+    //
+    // Same shape and same fix as `posting/reserve-key.ts`, whose doc comment
+    // covers why a plain blocking insert is preferred to `ON CONFLICT` here.
+    const inserted = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(ledgerPendingTransfer)
+        .values({
+          id: randomUUID(),
+          orgId: input.orgId,
+          createdBy: input.createdBy,
+          idempotencyKey: input.idempotencyKey,
+          requestHash: input.requestHash,
+          currency: input.currency,
+          postings: input.postings,
+          status: "pending",
+        })
+        .returning();
 
-    if (inserted === undefined) {
-      throw new Error("insert pending transfer returned no row");
-    }
+      if (row === undefined) {
+        throw new Error("insert pending transfer returned no row");
+      }
+      return row;
+    });
+
     return ok(toRow(inserted));
   } catch (error) {
     // drizzle wraps the pg DatabaseError; plain `"code" in error` misses 23505.

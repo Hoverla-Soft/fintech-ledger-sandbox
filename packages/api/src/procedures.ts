@@ -1,3 +1,4 @@
+import { type Db, withOrgScope } from "@fintech-ledger-sandbox/db";
 import { getOrgSettings, recordRejection } from "@fintech-ledger-sandbox/db/repositories";
 import { ORPCError, os } from "@orpc/server";
 
@@ -82,13 +83,38 @@ const requireOrg = o.middleware(async ({ context, next }) => {
     });
   }
 
-  return next({
-    context: {
-      orgId: membership.orgId,
-      actorId: session.userId,
-      role: membership.role,
-    },
-  });
+  // Everything past this point runs as `ledger_app`, pinned to the org that
+  // `resolveMembership` just vouched for, so Postgres enforces invariant #5
+  // alongside the repositories rather than trusting them (migration 0008,
+  // `withOrgScope`). The membership lookup above deliberately stays outside the
+  // scope: it reads `member`, which is not an org-scoped ledger table, and it is
+  // what *decides* the scope.
+  //
+  // `withOrgScope` commits whether or not the handler throws — see its doc
+  // comment. That is what keeps `postTransaction`'s post-rollback rejection
+  // audit durable now that a request has an enclosing transaction.
+  //
+  // Held in a local before returning: returning the call directly would let the
+  // middleware's expected return type contextually fix `withOrgScope`'s type
+  // parameter, which is the same inference the explicit `next` type argument
+  // below protects.
+  const result = await withOrgScope(db, membership.orgId, (scopedDb) =>
+    // The context addition is written as an explicit type argument rather than
+    // left to inference. `next`'s own parameter type is a conditional, which is
+    // not an inference site, so routing the call through a generic wrapper
+    // leaves it at its `Record<never, never>` default — and every downstream
+    // handler loses `orgId`, `actorId`, and `role` from its context type.
+    next<{ db: Db; orgId: string; actorId: string; role: LedgerRole }>({
+      context: {
+        db: scopedDb,
+        orgId: membership.orgId,
+        actorId: session.userId,
+        role: membership.role,
+      },
+    }),
+  );
+
+  return result;
 });
 
 export const orgProcedure = protectedProcedure.use(requireOrg);

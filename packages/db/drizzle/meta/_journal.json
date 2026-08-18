@@ -57,6 +57,13 @@
       "when": 1786922446607,
       "tag": "0007_nosy_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787095246607,
+      "tag": "0008_row_level_tenancy",
+      "breakpoints": true
     }
   ]
 }

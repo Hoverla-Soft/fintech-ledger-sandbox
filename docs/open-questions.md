@@ -42,14 +42,6 @@ Closed rows are deleted rather than rewritten; the index at the bottom keeps the
 
 ---
 
-## Database-level tenancy (opened 2026-08-16)
-
-| # | Item | Status | Action needed |
-|---|---|---|---|
-| 30 | **Tenant isolation is enforced in `packages/api`, not in Postgres.** ADR 0005 governs the API layer: every repository query filters on `org_id`, and composite `(id, org_id)` foreign keys make a structurally cross-org *write* rejectable by the database. But a caller that talks to `packages/db` directly — a future job, a script, a migration helper — derives `org_id` itself, and nothing at the database level stops it *reading* across tenants | **Deliberately deferred**, with the shape written down | **Today this guards a caller that does not exist**: nothing outside `packages/api` uses `packages/db`. So it is defense in depth against a future mistake rather than a live hole, which is why it is recorded instead of built. If it is ever done, the fix is row-level security, and these are the constraints that make it more than a migration: (1) **`FORCE ROW LEVEL SECURITY` is required** — the table owner bypasses RLS otherwise, and the app connects as the owner today; (2) every transaction must `SET LOCAL app.current_org_id`, including inside `postTransaction`, or every query returns nothing; (3) **three paths need an explicit exemption** — Drizzle migrations, the Testcontainers harness (`packages/db/src/test/setup.ts` truncates every table between tests), and `sandbox.reset`, which deliberately reads every account in the org; (4) `listAccounts` stays unbounded for server-side callers (#7), so the policy has to admit it. Worth doing if the showcase wants to demonstrate DB-enforced tenancy rather than middleware-enforced; not worth doing as a bug fix |
-
----
-
 ## Resolved (index only — kept so cross-references still resolve)
 
 Full reasoning for each is in git history; the durable decisions live in the ADRs, `docs/development/architecture.md`, and the docs each row names.
@@ -78,6 +70,7 @@ Full reasoning for each is in git history; the durable decisions live in the ADR
 | 27 | A per-amount bound is not a per-balance bound | 2026-08-17 — `applyLeg` → `422 balance_limit_exceeded`; `MAX_MINOR_UNITS` in `db/limits` |
 | 28 | Operational hardening absent in `apps/server` | 2026-08-17 — drain/close, `/ready`, 1 MB body limit, three timeouts |
 | 29 | `approvals.listPending` truncates at 100 rows with no cursor | 2026-08-17 — ascending cursor on `(created_at, id)` |
+| 30 | Tenant isolation is enforced in `packages/api`, not in Postgres | 2026-08-18 — row-level security on seven tables + `withOrgScope`; migration `0008`, ADR 0005 amendment |
 
 ---
 

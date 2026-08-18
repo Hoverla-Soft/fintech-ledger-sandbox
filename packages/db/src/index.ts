@@ -90,3 +90,5 @@ export function createDb(connectionString: string = env.DATABASE_URL) {
  * from Phase 4) type their dependency against.
  */
 export type Db = ReturnType<typeof createDb>;
+
+export { withOrgScope } from "./tenancy";

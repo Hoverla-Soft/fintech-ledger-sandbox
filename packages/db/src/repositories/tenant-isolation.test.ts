@@ -1,10 +1,23 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createPosting, Transaction } from "@fintech-ledger-sandbox/core";
+import { sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 
 import { postTransaction } from "../posting/post-transaction";
-import { buildTransfer, money, seedAccount, seedTenant, unwrap } from "../test/fixtures";
+import { ledgerAccount } from "../schema/ledger";
+import { withOrgScope } from "../tenancy";
+import {
+  buildTransfer,
+  getRootCauseMessage,
+  money,
+  seedAccount,
+  seedTenant,
+  unwrap,
+} from "../test/fixtures";
 import { connectTestDatabase } from "../test/setup";
 import { getAccountById, listAccounts } from "./accounts";
 import { listAuditEntries, listRejections } from "./audit";
@@ -272,6 +285,135 @@ describe("tenant isolation (invariant #5)", () => {
       expect((await listAuditEntries(database.db, orgId)).items).toEqual([]);
       expect((await listRejections(database.db, orgId)).items).toEqual([]);
       expect(await reconcileAccounts(database.db, orgId)).toEqual([]);
+    });
+  });
+  /**
+   * Every test above proves the *repositories* filter correctly. These prove
+   * the database would refuse even if they did not — the half of invariant #5
+   * that `docs/open-questions.md` #30 left open until migration 0008.
+   *
+   * Each one deliberately issues SQL with **no** `org_id` predicate at all.
+   * That is the only way to distinguish "the query filtered" from "the policy
+   * filtered", and a suite that never asks the unfiltered question cannot tell
+   * whether row-level security is switched on or quietly inert.
+   */
+  describe("row-level security (open question #30)", () => {
+    /** Reads every `ledger_account` row the caller is permitted to see, with no predicate whatsoever. */
+    const allAccountNames = async (client: {
+      select: (typeof database.db)["select"];
+    }): Promise<string[]> => {
+      const rows = await client.select({ name: ledgerAccount.name }).from(ledgerAccount);
+      return rows.map((row) => row.name).sort();
+    };
+
+    it("an unfiltered read inside a scope returns only that org's rows", async () => {
+      const { orgId: orgAId } = await seedTenant(database.db, "OrgA");
+      const { orgId: orgBId } = await seedTenant(database.db, "OrgB");
+      await seedAccount(database.db, orgAId, "normal", "A-only");
+      await seedAccount(database.db, orgBId, "normal", "B-only");
+
+      // The control: as the owner, outside any scope, both rows are visible —
+      // so the assertion below is about the policy, not about the fixtures.
+      expect(await allAccountNames(database.db)).toEqual(["A-only", "B-only"]);
+
+      expect(await withOrgScope(database.db, orgAId, allAccountNames)).toEqual(["A-only"]);
+      expect(await withOrgScope(database.db, orgBId, allAccountNames)).toEqual(["B-only"]);
+    });
+
+    it("runs as the unprivileged role inside the scope and reverts after it", async () => {
+      const { orgId } = await seedTenant(database.db, "Role");
+
+      const inside = await withOrgScope(database.db, orgId, async (scoped) => {
+        const result = await scoped.execute(sql`SELECT current_user AS role`);
+        return (result.rows[0] as { role: string }).role;
+      });
+      expect(inside).toBe("ledger_app");
+
+      // `SET LOCAL` reverts at COMMIT, so the pooled connection is not left
+      // switched — the next request must not inherit this one's role.
+      const after = await database.db.execute(sql`SELECT current_user AS role`);
+      expect((after.rows[0] as { role: string }).role).not.toBe("ledger_app");
+    });
+
+    it("refuses to write a row belonging to another org", async () => {
+      const { orgId: orgAId } = await seedTenant(database.db, "OrgA");
+      const { orgId: orgBId } = await seedTenant(database.db, "OrgB");
+
+      const smuggle = withOrgScope(database.db, orgAId, (scoped) =>
+        scoped.insert(ledgerAccount).values({
+          id: randomUUID(),
+          orgId: orgBId,
+          name: "Smuggled",
+          currency: "USD",
+          type: "normal",
+        }),
+      );
+
+      // Asserted on the root cause, not on `DrizzleQueryError.message`, which
+      // is only the echoed SQL — the policy violation lives on `.cause`.
+      await expect(smuggle).rejects.toThrow();
+      const cause = await smuggle.catch((error: unknown) => getRootCauseMessage(error));
+      expect(cause).toMatch(/row-level security/i);
+
+      expect(await allAccountNames(database.db)).toEqual([]);
+    });
+
+    it("sees nothing at all when the role is active but no org is set", async () => {
+      const { orgId } = await seedTenant(database.db, "Unset");
+      await seedAccount(database.db, orgId, "normal", "Hidden");
+
+      // `current_setting(..., true)` is NULL when unset, and `org_id = NULL` is
+      // NULL rather than true — so an unscoped query as `ledger_app` matches no
+      // rows. Failing closed is the whole point: a caller that forgets to scope
+      // gets nothing, not everyone's data.
+      const visible = await database.db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('role', 'ledger_app', true)`);
+        return allAccountNames(tx as unknown as typeof database.db);
+      });
+
+      expect(visible).toEqual([]);
+    });
+
+    it("re-applies migration 0008 without error", async () => {
+      // The role and its grant are cluster-wide, not database-scoped, so a
+      // second database in the same cluster meets both already created. Both
+      // guards in 0008 exist for that case; this is what proves they work,
+      // since drizzle's migrator would never re-run the file on its own.
+      const migration = await readFile(
+        path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          "../../drizzle/0008_row_level_tenancy.sql",
+        ),
+        "utf8",
+      );
+
+      for (const statement of migration.split("--> statement-breakpoint")) {
+        if (statement.trim() !== "") {
+          await database.db.execute(sql.raw(statement));
+        }
+      }
+
+      const { orgId } = await seedTenant(database.db, "Reapplied");
+      await seedAccount(database.db, orgId, "normal", "Still isolated");
+      expect(await withOrgScope(database.db, orgId, allAccountNames)).toEqual(["Still isolated"]);
+    });
+
+    it("still commits the work when the scoped callback throws", async () => {
+      const { orgId } = await seedTenant(database.db, "Commit");
+
+      // `postTransaction` writes its rejection audit *after* rolling back, and
+      // the API handler then throws. If `withOrgScope` rolled back on a throw,
+      // that audit row — and this account — would vanish with it.
+      await expect(
+        withOrgScope(database.db, orgId, async (scoped) => {
+          await scoped
+            .insert(ledgerAccount)
+            .values({ id: randomUUID(), orgId, name: "Survivor", currency: "USD", type: "normal" });
+          throw new Error("handler failed after a durable write");
+        }),
+      ).rejects.toThrow("handler failed after a durable write");
+
+      expect(await allAccountNames(database.db)).toEqual(["Survivor"]);
     });
   });
 });

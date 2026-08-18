@@ -96,6 +96,14 @@ Scope note: `packages/db`'s suite is **integration**, not unit — real Postgres
 - `postTransaction`: a transaction referencing an account id that belongs to another org is rejected with the same `AccountNotFound` a missing id would produce, posts nothing under the calling org, leaves the foreign account's balance untouched, and records its rejection audit entry under the *calling* org, never the account's real owner
 - Boundary: a brand-new org with no accounts or transactions gets empty lists everywhere (accounts, transactions, audit, rejections, reconciliation), never an error
 
+**Row-level security (open question #30, 2026-08-18).** The bullets above prove the *repositories* filter; these prove the database would refuse even if they did not, so each deliberately issues SQL with **no** `org_id` predicate — the only question whose answer distinguishes "the query filtered" from "the policy filtered".
+- An unfiltered `SELECT` inside `withOrgScope(db, orgA)` returns only org A's rows, and inside org B's scope only org B's — against a control read as the owner, outside any scope, which sees both
+- Inside a scope the session is `ledger_app`, and `current_user` is back to the owner once the scope closes, so a pooled connection never hands the next request a switched role
+- An `INSERT` naming another org's `org_id` is refused by the policy (asserted on the Postgres message via `getRootCauseMessage`, since `DrizzleQueryError.message` is only the echoed SQL) and writes nothing
+- As `ledger_app` with **no** org set, an unfiltered read returns zero rows rather than every row — `current_setting(..., true)` is NULL when unset and `org_id = NULL` is not true, so forgetting to scope fails closed
+- `withOrgScope` commits work done before a throw, then rethrows. Load-bearing: `postTransaction` writes its rejection audit *after* rolling back, and a scope that rolled back on the handler's `ORPCError` would erase it. Pinned here directly and, in `packages/api`, by every existing test that asserts a rejection reason survives a refused write (`writes.test.ts` insufficient-funds / balance-limit / idempotency-conflict, `reads.test.ts` `audit.rejections`)
+- Migration `0008` re-applies cleanly, which is what proves its two `IF NOT EXISTS` guards work — the role and its grant are cluster-wide, so a second database in the same cluster meets both already created, and drizzle's migrator would never re-run the file on its own
+
 ### `packages/db/src/schema/ledger-immutability.test.ts`
 - Invariant #8 (immutable history): a direct `UPDATE` on `ledger_posting` is rejected by the database trigger and leaves the row unchanged; a direct `DELETE` is rejected and leaves the row in place
 - `TRUNCATE TABLE ledger_posting` is rejected too — a real gap found in review, since `TRUNCATE` never fires row-level triggers in Postgres and needs its own statement-level trigger (`drizzle/0002_ledger_posting_immutability_trigger.sql`)
