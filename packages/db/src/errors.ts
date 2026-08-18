@@ -1,3 +1,5 @@
+import type { Money } from "@fintech-ledger-sandbox/core";
+
 /**
  * Persistence-layer errors for `packages/db`.
  *
@@ -92,12 +94,43 @@ export interface TransactionAlreadyReversed {
   readonly transactionId: string;
 }
 
+/**
+ * A posting would leave an account holding more than `ledger_account.balance`
+ * can store.
+ *
+ * The gap this closes (`docs/open-questions.md` #27) is that **a per-amount
+ * bound is not a per-balance bound**. `packages/api`'s `parseBoundedAmount`
+ * already refuses a single posting outside int8's range, but two amounts that
+ * are each storable can accumulate into one that is not. Verified rather than
+ * assumed: two transfers, one at int8's ceiling and one of `0.01`, produced
+ * `22003 value "9223372036854775808" is out of range for type bigint` from the
+ * balance `UPDATE` — a raw driver error, so a 500, and the audit log recorded
+ * nothing at all.
+ *
+ * Typed here rather than sniffed for SQLSTATE `22003` at the API boundary, for
+ * the reason `AccountAlreadyExists` gives: the `cause`-chain unwrap that
+ * requires is module-private to `posting/reserve-key.ts` and already recorded
+ * in ADR 0004 as fragile against a drizzle-orm upgrade. And detecting it
+ * *before* the write, under the row lock the balance update already holds,
+ * means the refusal is an ordinary `DomainRejection` — which rolls the
+ * transaction back and writes a rejection audit row, like every other refusal
+ * in this ledger.
+ */
+export interface BalanceLimitExceeded {
+  readonly kind: "BalanceLimitExceeded";
+  readonly accountId: string;
+  readonly balance: Money;
+  readonly delta: Money;
+  readonly resulting: Money;
+}
+
 export type PersistenceError =
   | TransactionAlreadyReversed
   | AccountNotFound
   | AccountInactive
   | AccountAlreadyExists
   | TransactionNotFound
+  | BalanceLimitExceeded
   | IdempotencyConflict;
 
 export function isPersistenceError(

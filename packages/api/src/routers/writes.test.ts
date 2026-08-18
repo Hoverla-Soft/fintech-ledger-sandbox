@@ -357,6 +357,43 @@ describe("transactions.create", () => {
       expect(await rejectionReasons()).toContain("insufficient_funds");
     });
 
+    /**
+     * `MAX_MINOR_UNITS` (int8's ceiling) rendered as a 2-exponent USD amount.
+     * Each posting below passes `parseBoundedAmount` on its own — the point is
+     * that the *balance they accumulate into* is what overflows.
+     */
+    const CEILING_USD = "92233720368547758.07";
+
+    it("refuses a posting that would push a balance past what the column can hold", async () => {
+      // Open question #27. A per-amount bound is not a per-balance bound: both
+      // of these amounts are individually storable, and their sum is not.
+      // Before this was fixed the second call reached Postgres, raised `22003`,
+      // and surfaced as an unaudited 500 — the one refusal in this ledger the
+      // audit trail could not explain.
+      await asAdmin().transactions.create(transfer(CEILING_USD));
+
+      const error = await captureError(() => asAdmin().transactions.create(transfer("0.01")));
+
+      expect(error.status).toBe(422);
+      expect(error.data).toEqual({ reason: "balance_limit_exceeded" });
+    });
+
+    it("writes nothing when a balance would overflow, and records why", async () => {
+      await asAdmin().transactions.create(transfer(CEILING_USD));
+      const before = await asAdmin().transactions.list({});
+
+      await captureError(() => asAdmin().transactions.create(transfer("0.01")));
+
+      // The balance is untouched, the refused transaction was never written,
+      // and the rejection is on the record — the three properties that make
+      // this a domain refusal rather than a crash.
+      const account = await asAdmin().accounts.get({ accountId: wallet });
+      expect(account.balance.amount).toBe(CEILING_USD);
+      const after = await asAdmin().transactions.list({});
+      expect(after.transactions).toHaveLength(before.transactions.length);
+      expect(await rejectionReasons()).toContain("balance_limit_exceeded");
+    });
+
     it("rejects posting to an inactive account with 422, not 404", async () => {
       // No deactivate endpoint exists yet, so the row is flipped directly —
       // which is exactly why the check lives under the row lock rather than in

@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto";
 
 import { err, ok, type Result } from "@fintech-ledger-sandbox/core";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, or } from "drizzle-orm";
 
 import type { Db } from "../index";
 import { isUniqueViolation } from "../internal/pg-errors";
 import { ledgerPendingTransfer } from "../schema/ledger";
+import {
+  clampPageSize,
+  type Page,
+  type PageRequest,
+  splitPage,
+  type TimeCursor,
+} from "./pagination";
 
 export type PendingStatus = "pending" | "approved" | "rejected";
 
@@ -108,18 +115,66 @@ export async function insertPendingTransfer(
   }
 }
 
+const DEFAULT_LIMIT = 50;
+
+export type PendingTransferPage = Page<PendingTransferRow, TimeCursor>;
+
+/**
+ * The approvals queue for `orgId`, one page at a time.
+ *
+ * Ordering is **ascending** on `(created_at, id)` — oldest first — so the
+ * cursor predicate is `>`, unlike the audit log's `<`. That is not symmetry for
+ * its own sake: an approvals queue is FIFO, and the submission that has waited
+ * longest is the one most in need of a decision. Newest-first would bury it.
+ *
+ * This used to be a bare `.limit(100)` with no cursor (`docs/open-questions.md`
+ * #29), which is a different thing from "the first hundred": the 101st pending
+ * transfer was not on a later page, it was invisible, on the one screen whose
+ * entire job is showing what is waiting on you.
+ *
+ * The existing `(org_id, status, created_at)` index covers the walk. It has no
+ * `id` column, matching `ledger_audit_entry_orgId_createdAt_idx`, which omits
+ * its tiebreaker too — the tie group at millisecond precision is a handful of
+ * rows Postgres sorts after the index scan, not a reason for a migration over a
+ * populated table.
+ */
 export async function listPendingTransfers(
   db: Db,
   orgId: string,
+  request: PageRequest<TimeCursor> = {},
   status: PendingStatus = "pending",
-): Promise<readonly PendingTransferRow[]> {
+): Promise<PendingTransferPage> {
+  const limit = clampPageSize(request.limit, DEFAULT_LIMIT);
+  const after = request.after;
+
+  const scope = and(
+    eq(ledgerPendingTransfer.orgId, orgId),
+    eq(ledgerPendingTransfer.status, status),
+  );
+  const cursorFilter = after
+    ? or(
+        gt(ledgerPendingTransfer.createdAt, after.createdAt),
+        and(
+          eq(ledgerPendingTransfer.createdAt, after.createdAt),
+          gt(ledgerPendingTransfer.id, after.id),
+        ),
+      )
+    : undefined;
+
   const rows = await db
     .select()
     .from(ledgerPendingTransfer)
-    .where(and(eq(ledgerPendingTransfer.orgId, orgId), eq(ledgerPendingTransfer.status, status)))
+    .where(cursorFilter ? and(scope, cursorFilter) : scope)
     .orderBy(asc(ledgerPendingTransfer.createdAt), asc(ledgerPendingTransfer.id))
-    .limit(100);
-  return rows.map(toRow);
+    .limit(limit + 1);
+
+  const { pageRows, hasMore, lastRow } = splitPage(rows, limit);
+
+  return {
+    items: pageRows.map(toRow),
+    nextCursor:
+      hasMore && lastRow !== undefined ? { createdAt: lastRow.createdAt, id: lastRow.id } : null,
+  };
 }
 
 export async function getPendingTransfer(

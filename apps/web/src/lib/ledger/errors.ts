@@ -34,6 +34,7 @@ export const LEDGER_REASONS = [
   "already_reversed",
   "account_not_found",
   "approval_required",
+  "balance_limit_exceeded",
   "conversion_mismatch",
   "currency_mismatch",
   "idempotency_conflict",
@@ -140,6 +141,12 @@ const COPY = {
     title: "Not enough funds",
     detail:
       "This would take the source account below zero, which is not allowed for a normal account. Nothing was posted. Lower the amount or fund the account first.",
+    disposition: "fix_input",
+  },
+  balance_limit_exceeded: {
+    title: "Amount too large for this account's balance",
+    detail:
+      "The resulting balance would be larger than the ledger can store. Nothing was posted. Lower the amount, or move some of the balance elsewhere first.",
     disposition: "fix_input",
   },
   insufficient_role: {

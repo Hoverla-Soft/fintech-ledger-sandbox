@@ -312,10 +312,112 @@ describe("reconciliation.verify pagination (open question #7)", () => {
   });
 });
 
+describe("approvals.listPending pagination (open question #29)", () => {
+  /**
+   * Submits `count` transfers into the maker-checker queue.
+   *
+   * Through the real `submitPending` rather than hand-inserted rows: the point
+   * of #29 is that the *queue* was unwalkable, and a queue filled by anything
+   * other than the production submit path is not the queue.
+   */
+  async function submitPending(count: number): Promise<string[]> {
+    const funding = await seedAccount(db, tenant.orgId, "external", "Queue Funding");
+    const wallet = await seedAccount(db, tenant.orgId, "normal", "Queue Wallet");
+    const ids: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const submitted = await client().approvals.submitPending({
+        idempotencyKey: randomUUID(),
+        postings: [
+          { accountId: wallet, direction: "debit", amount: "1.00", currency: "USD" },
+          { accountId: funding, direction: "credit", amount: "1.00", currency: "USD" },
+        ],
+      });
+      ids.push(submitted.id);
+    }
+    return ids;
+  }
+
+  it("walks the whole queue exactly once, past the old 100-row ceiling", async () => {
+    // `listPendingTransfers` was `.limit(100)` with no cursor, so the 101st
+    // submission was not on page two — it was invisible. Proving that with 101
+    // real submissions would be slow; what actually has to hold is that a walk
+    // terminates having seen every row, at a page size smaller than the queue.
+    const submitted = await submitPending(6);
+
+    const walked = await walkAll(async (cursor) => {
+      const page = await client().approvals.listPending({
+        limit: 2,
+        ...(cursor === null ? {} : { cursor }),
+      });
+      return { ids: page.pending.map((row) => row.id), nextCursor: page.nextCursor };
+    });
+
+    expect(walked).toHaveLength(submitted.length);
+    expect(new Set(walked).size).toBe(submitted.length);
+    expect(new Set(walked)).toEqual(new Set(submitted));
+  });
+
+  it("orders oldest first, so the longest-waiting submission is on page one", async () => {
+    // The direction is load-bearing and is the opposite of the audit log's.
+    // An approvals queue is FIFO: newest-first would bury the submission that
+    // has waited longest under everything submitted since.
+    //
+    // Asserted as strictly increasing on the composite `(createdAt, id)` sort
+    // key rather than on submission order. Six inserts in a tight loop can
+    // share a millisecond, and then submission order is decided by the `id`
+    // tiebreaker — so comparing against the submitted sequence would flake.
+    // This is the ordering contract itself, and it is never trivially true.
+    await submitPending(6);
+
+    const rows: { createdAt: number; id: string }[] = [];
+    await walkAll(async (cursor) => {
+      const page = await client().approvals.listPending({
+        limit: 2,
+        ...(cursor === null ? {} : { cursor }),
+      });
+      for (const row of page.pending) {
+        rows.push({ createdAt: Date.parse(row.createdAt), id: row.id });
+      }
+      return { ids: page.pending.map((row) => row.id), nextCursor: page.nextCursor };
+    });
+
+    expect(rows).toHaveLength(6);
+    for (let index = 1; index < rows.length; index += 1) {
+      const previous = rows[index - 1];
+      const current = rows[index];
+      expect(previous).toBeDefined();
+      expect(current).toBeDefined();
+      if (previous === undefined || current === undefined) {
+        continue;
+      }
+      const ascending =
+        current.createdAt > previous.createdAt ||
+        (current.createdAt === previous.createdAt && current.id > previous.id);
+      expect(ascending).toBe(true);
+    }
+  });
+
+  it("returns a cursor while rows remain and null on the last page", async () => {
+    await submitPending(5);
+
+    const first = await client().approvals.listPending({ limit: 3 });
+    expect(first.pending).toHaveLength(3);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await client().approvals.listPending({
+      limit: 3,
+      cursor: first.nextCursor ?? "",
+    });
+    expect(second.pending).toHaveLength(2);
+    expect(second.nextCursor).toBeNull();
+  });
+});
+
 describe("every paginated procedure rejects a malformed cursor identically", () => {
-  // One `reason` code across all five, because the console keys its "that page
+  // One `reason` code across all six, because the console keys its "that page
   // link expired, here is page one" recovery off it. A procedure that spelled
-  // it differently would silently render an empty list instead.
+  // it differently would silently render an empty list instead — and on
+  // `approvals.listPending` an empty list reads as "nothing is waiting on you".
   const badCursor = "!!!not-a-cursor!!!";
 
   it.each([
@@ -324,6 +426,7 @@ describe("every paginated procedure rejects a malformed cursor identically", () 
     ["audit.rejections", (cursor: string) => client().audit.rejections({ cursor })],
     ["reconciliation.verify", (cursor: string) => client().reconciliation.verify({ cursor })],
     ["transactions.list", (cursor: string) => client().transactions.list({ cursor })],
+    ["approvals.listPending", (cursor: string) => client().approvals.listPending({ cursor })],
   ])("%s returns 400 invalid_cursor, not an empty page", async (_label, call) => {
     await expect(call(badCursor)).rejects.toMatchObject({
       status: 400,
@@ -336,6 +439,7 @@ describe("every paginated procedure rejects a malformed cursor identically", () 
     ["audit.list", (limit: number) => client().audit.list({ limit })],
     ["audit.rejections", (limit: number) => client().audit.rejections({ limit })],
     ["reconciliation.verify", (limit: number) => client().reconciliation.verify({ limit })],
+    ["approvals.listPending", (limit: number) => client().approvals.listPending({ limit })],
   ])("%s rejects an out-of-range limit at the contract boundary", async (_label, call) => {
     await expect(call(0)).rejects.toMatchObject({ status: 400 });
     await expect(call(10_000)).rejects.toMatchObject({ status: 400 });

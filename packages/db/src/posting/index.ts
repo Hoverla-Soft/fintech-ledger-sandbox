@@ -18,4 +18,4 @@ export type {
   PostTransactionError,
   PostTransactionInput,
 } from "./post-transaction";
-export { postExchange, postTransaction } from "./post-transaction";
+export { MAX_MINOR_UNITS, postExchange, postTransaction } from "./post-transaction";

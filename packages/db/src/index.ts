@@ -25,8 +25,60 @@ import * as schema from "./schema";
  * tests — through an explicitly injected `createDb()` instance, so the
  * singleton has no consumer to preserve.
  */
+/**
+ * How long Postgres will let a single statement run before aborting it.
+ *
+ * Server-side (`statement_timeout`), deliberately, not node-postgres'
+ * client-side `query_timeout`: the client-side one only makes the driver stop
+ * waiting, while the server keeps executing the statement and keeps holding
+ * whatever locks it took. That is the opposite of what a timeout is for here.
+ *
+ * Ten seconds and not one. `reserve-key.ts` uses a plain blocking `INSERT` on
+ * purpose so that the loser of an idempotency race waits for the winner to
+ * commit — a bound tight enough to fire during that wait would turn a correct
+ * serialization into a spurious error. A bound is still right at this length
+ * because `postTransaction` runs inside a single transaction, so an abort
+ * rolls the whole thing back rather than partially, and every caller holds an
+ * idempotency key that makes the retry safe: an abort costs a retry, not a
+ * correctness violation. Re-check this argument before any code blocks on a
+ * lock *outside* a transaction.
+ */
+const STATEMENT_TIMEOUT_MS = 10_000;
+
+/**
+ * How long a session may sit idle *inside* an open transaction before Postgres
+ * kills it, releasing its locks.
+ *
+ * Longer than `STATEMENT_TIMEOUT_MS` on purpose. This one catches an
+ * *abandoned* transaction — a client that opened one and went away — whereas
+ * `statement_timeout` catches a slow one. A legitimate transaction runs several
+ * statements, so setting this at or below the statement bound would kill
+ * transactions that are merely working.
+ */
+const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000;
+
+/**
+ * How long to wait for a new connection before giving up.
+ *
+ * Without it, connecting to a Postgres that is gone hangs indefinitely, and
+ * `apps/server`'s `/ready` probe queries the database — so a hang there
+ * produces a probe that never answers rather than one that reports unhealthy.
+ * That is the same wrong failure direction as the liveness bug already fixed in
+ * `apps/server` (see `docs/open-questions.md` #28): a supervisor can act on
+ * "unhealthy", not on "still waiting".
+ */
+const CONNECTION_TIMEOUT_MS = 5_000;
+
 export function createDb(connectionString: string = env.DATABASE_URL) {
-  return drizzle(connectionString, { schema });
+  return drizzle({
+    connection: {
+      connectionString,
+      statement_timeout: STATEMENT_TIMEOUT_MS,
+      idle_in_transaction_session_timeout: IDLE_IN_TRANSACTION_TIMEOUT_MS,
+      connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    },
+    schema,
+  });
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   type Result,
   type UnsupportedCurrency,
 } from "@fintech-ledger-sandbox/core";
+import { MAX_MINOR_UNITS } from "@fintech-ledger-sandbox/db/posting";
 import { z } from "zod";
 
 /**
@@ -70,8 +71,17 @@ export const decimalAmountSchema = z
  * The two bounds guard different things and both are needed: the length cap
  * bounds *parsing cost* before `BigInt` sees the string, this bounds
  * *storability* after it.
+ *
+ * **Re-exported, not redeclared.** `packages/db` owns it, because it owns the
+ * columns whose range it describes, and it enforces the matching bound on the
+ * *accumulated balance* (open question #27) — a per-amount bound is not a
+ * per-balance bound, and two literals of 2^63 − 1 that drift would mean the
+ * request check and the balance check disagreeing about what is storable.
+ * `MAX_PAGE_SIZE` in `contracts/cursor.ts` is the same arrangement for the same
+ * reason. `apps/web` keeps importing it from here, so the console never reaches
+ * past the API package.
  */
-export const MAX_MINOR_UNITS = 9_223_372_036_854_775_807n;
+export { MAX_MINOR_UNITS };
 
 /**
  * Parses a decimal amount and rejects anything the ledger's columns cannot

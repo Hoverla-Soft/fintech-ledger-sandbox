@@ -72,6 +72,21 @@
       "formatter": { "enabled": false }
     },
     {
+      // Vendored verbatim from `shadcn@4.16.1`'s `dist/tailwind.css` so
+      // `packages/ui` no longer carries the shadcn CLI — 32 production packages,
+      // including `@modelcontextprotocol/sdk` and a second `hono` — to serve one
+      // `@import` of a constant file (`docs/open-questions.md` #18).
+      //
+      // Formatting is off because the file's whole value is being byte-identical
+      // to upstream: reformatting it turns every future version bump into a diff
+      // against our own formatter instead of a clean replace. Same reasoning as
+      // `guard-routes.json` above and `packages/db/drizzle` in `files.includes` —
+      // a file we do not author is a file we do not reflow. It contains no
+      // JavaScript, so no lint rule has anything to say about it either way.
+      "includes": ["packages/ui/src/styles/shadcn-tailwind.css"],
+      "formatter": { "enabled": false }
+    },
+    {
       // `packages/ui` holds design-system primitives sourced from the shadcn
       // registry (docs/development/tech-stack.md → "Component library"). They are
       // thin passthroughs that spread `...props`, so these four rules cannot see

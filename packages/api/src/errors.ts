@@ -43,6 +43,7 @@ export type LedgerErrorReason =
   | "idempotency_conflict"
   | "already_reversed"
   | "insufficient_funds"
+  | "balance_limit_exceeded"
   | "currency_mismatch"
   | "unsupported_currency"
   | "invalid_amount"
@@ -71,6 +72,8 @@ const MESSAGES: Record<LedgerErrorReason, string> = {
   already_reversed: "This transaction has already been reversed.",
   idempotency_conflict: "This idempotency key was already used with a different request payload.",
   insufficient_funds: "The source account has insufficient funds for this transfer.",
+  balance_limit_exceeded:
+    "This posting would take an account balance beyond the largest value the ledger can store.",
   currency_mismatch: "All postings in a transaction must share one currency.",
   unsupported_currency: "That currency is not supported.",
   invalid_amount: "The amount is not a valid monetary value.",
@@ -121,6 +124,13 @@ function classify(error: LedgerApiError): { code: string; reason: LedgerErrorRea
       return { code: "CONFLICT", reason: "already_reversed" };
     case "InsufficientFunds":
       return { code: "UNPROCESSABLE_CONTENT", reason: "insufficient_funds" };
+    // 422 alongside the other domain refusals, not a 500. The request is
+    // well-formed and every individual amount is storable; what it asks for is
+    // a balance the ledger cannot hold. Open question #27: this was the only
+    // refusal here that reached the caller as an unmapped driver error, which
+    // made it the only one the audit log could not explain.
+    case "BalanceLimitExceeded":
+      return { code: "UNPROCESSABLE_CONTENT", reason: "balance_limit_exceeded" };
     case "CurrencyMismatch":
       return { code: "UNPROCESSABLE_CONTENT", reason: "currency_mismatch" };
     case "UnsupportedCurrency":

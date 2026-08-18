@@ -14,6 +14,7 @@ import {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { decodeTimeCursorOrThrow, encodeTimeCursor, pageInputShape } from "../contracts/cursor";
 import { idempotencyKeySchema } from "../contracts/idempotency";
 
 import { decimalAmountSchema, parseBoundedAmount } from "../contracts/money";
@@ -153,12 +154,33 @@ export const approvalsRouter = {
       return toWirePending(inserted.value, before !== null);
     }),
 
+  /**
+   * The approvals queue, oldest first, cursor-paginated.
+   *
+   * It used to take no input and return at most 100 rows (`docs/open-questions.md`
+   * #29). The 101st pending transfer was not on a later page — it was
+   * unreachable, on the screen whose entire purpose is "what is waiting on
+   * you". Same class of bug as #6 and #7, and closed the same way.
+   *
+   * Stays on `orgProcedure` rather than `adminProcedure`: a viewer cannot
+   * approve, but refusing them sight of the queue would hide the reason their
+   * transfer has not moved. Deciding is still admin-only, on `approve`/`reject`.
+   */
   listPending: orgProcedure
-    .input(z.object({}).optional())
-    .output(z.object({ pending: z.array(pendingTransferSchema) }))
-    .handler(async ({ context }) => {
-      const rows = await listPendingTransfers(context.db, context.orgId, "pending");
-      return { pending: rows.map((row) => toWirePending(row, false)) };
+    .input(z.object(pageInputShape))
+    .output(
+      z.object({ pending: z.array(pendingTransferSchema), nextCursor: z.string().nullable() }),
+    )
+    .handler(async ({ context, input }) => {
+      const page = await listPendingTransfers(context.db, context.orgId, {
+        limit: input.limit,
+        after: decodeTimeCursorOrThrow(input.cursor),
+      });
+
+      return {
+        pending: page.items.map((row) => toWirePending(row, false)),
+        nextCursor: page.nextCursor === null ? null : encodeTimeCursor(page.nextCursor),
+      };
     }),
 
   approve: adminProcedure

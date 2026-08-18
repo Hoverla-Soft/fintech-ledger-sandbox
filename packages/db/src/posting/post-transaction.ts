@@ -18,6 +18,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type {
   AccountInactive,
   AccountNotFound,
+  BalanceLimitExceeded,
   IdempotencyConflict,
   TransactionAlreadyReversed,
 } from "../errors";
@@ -35,6 +36,32 @@ import {
 import { lockAccounts } from "./lock-accounts";
 import { reserveIdempotencyKey } from "./reserve-key";
 import type { PostingTransaction } from "./types";
+
+/**
+ * The largest magnitude a minor-unit value can take and still be storable.
+ *
+ * `ledger_account.balance` and `ledger_posting.amount` are Postgres `bigint`
+ * (int8), whose range is ±(2^63 − 1). `Money` is backed by a JavaScript
+ * `bigint` and is happily unbounded, so nothing in the domain protects these
+ * columns — this is the boundary that does.
+ *
+ * **Owned here, in the package that owns the columns**, and re-exported by
+ * `packages/api/src/contracts/money.ts` so the request-side amount check and
+ * the balance check below cannot drift apart. Same arrangement as
+ * `MAX_PAGE_SIZE`, which this package owns and `contracts/cursor.ts`
+ * re-exports for the same reason.
+ *
+ * Applied to *magnitude*, so `−2^63` is refused even though int8 can hold it.
+ * Off by one, deliberately: matching the inbound amount check keeps one rule
+ * rather than two that differ by one in a direction nobody will remember.
+ */
+export const MAX_MINOR_UNITS = 9_223_372_036_854_775_807n;
+
+/** Whether a computed balance is outside what `ledger_account.balance` can store. */
+function exceedsStorableRange(amount: Money): boolean {
+  const magnitude = amount.minorUnits < 0n ? -amount.minorUnits : amount.minorUnits;
+  return magnitude > MAX_MINOR_UNITS;
+}
 
 export interface PostedPosting {
   readonly id: string;
@@ -81,6 +108,7 @@ export interface PostTransactionInput {
 export type PostTransactionError =
   | AccountNotFound
   | AccountInactive
+  | BalanceLimitExceeded
   | IdempotencyConflict
   | TransactionAlreadyReversed
   | LedgerError;
@@ -89,6 +117,7 @@ export type PostTransactionError =
 type DomainRejectionReason =
   | AccountNotFound
   | AccountInactive
+  | BalanceLimitExceeded
   | CurrencyMismatch
   | InsufficientFunds
   | TransactionAlreadyReversed;
@@ -175,6 +204,27 @@ async function applyLeg(tx: PostingTransaction, input: ApplyLegInput): Promise<P
     const applied = applyDelta(account, balance, delta);
     if (!applied.ok) {
       throw new DomainRejection(applied.error);
+    }
+
+    // Checked here rather than left to the `UPDATE` below, which is where it
+    // used to surface: Postgres raised `22003` from the balance write, nothing
+    // mapped it, and the caller got an unaudited 500 (open question #27).
+    // Refusing it under the row lock that already serializes this balance makes
+    // it an ordinary `DomainRejection` — rolled back whole, with a rejection
+    // audit row naming the reason, like every other refusal here.
+    //
+    // Deliberately in `applyLeg` and not in each handler: every direct posting
+    // path — create, reverse, both exchange legs, an approval, a seed — routes
+    // through this function, so a seventh caller inherits the bound rather than
+    // having to remember it.
+    if (exceedsStorableRange(applied.value)) {
+      throw new DomainRejection({
+        kind: "BalanceLimitExceeded",
+        accountId,
+        balance,
+        delta,
+        resulting: applied.value,
+      });
     }
 
     resultingBalances.set(accountId, applied.value);
@@ -557,6 +607,8 @@ function rejectionReasonCode(reason: DomainRejectionReason): string {
       return "currency_mismatch";
     case "InsufficientFunds":
       return "insufficient_funds";
+    case "BalanceLimitExceeded":
+      return "balance_limit_exceeded";
     case "TransactionAlreadyReversed":
       return "already_reversed";
   }
@@ -572,7 +624,11 @@ function serializeRejectionMetadata(reason: DomainRejectionReason): Record<strin
       return { kind: reason.kind, expected: reason.expected, actual: reason.actual };
     case "TransactionAlreadyReversed":
       return { kind: reason.kind, transactionId: reason.transactionId };
+    // Same shape as `InsufficientFunds` — both are "this balance movement was
+    // refused", and an operator reading the audit log wants the same three
+    // numbers either way.
     case "InsufficientFunds":
+    case "BalanceLimitExceeded":
       return {
         kind: reason.kind,
         accountId: reason.accountId,

@@ -2,11 +2,40 @@
 
 The source of truth for optional project skills and Claude Code plugins. Fill this during `/init-project` and whenever an extension is installed, upgraded, disabled, or removed. A framework best-practice skill is advisory until it passes the compatibility and integration checks below.
 
+## Repo-native machinery — not optional, not an "extension"
+
+Everything under `.claude/` except `settings.local.json` is tracked in git and is part of the constitution `CLAUDE.md` describes, not an optional add-on. It is listed here so the table below is not empty in a way that reads as "nothing is installed":
+
+- **10 review guard skills** — `.claude/skills/*/SKILL.md`. Routed automatically after `Edit`/`Write` by `.claude/scripts/guard-router.js`; the path→skill mapping is `.claude/guard-routes.json`, which is the authority for which guard runs where.
+- **14 agents** — `.claude/agents/*.md`.
+- **6 commands** — `.claude/commands/*.md`: `/work-task`, `/feature-loop`, `/plan-features`, `/document-feature`, `/team-feature-loop`, `/init-project`.
+- **3 hook scripts** — `.claude/scripts/`: `scope-guard.js` (`PreToolUse`, blocking — enforces a task's declared Scope), `migration-integrity-guard.js` and `guard-router.js` (`PostToolUse`). Wired in `.claude/settings.json`.
+
+These do not go through the audit-before-installation process below; they are reviewed as ordinary repository changes.
+
 ## Installed extensions
 
 | Extension | Kind / scope | Source | Version / commit | Applies to | Trigger / invocation | Integration | Status |
 |---|---|---|---|---|---|---|---|
-| {{name}} | {{project skill / project plugin / local / user}} | {{marketplace/repository/path}} | {{version/SHA}} | {{framework + major version + paths}} | {{automatic description / `/name` / `/plugin:name`}} | {{agents, commands, guard routes}} | {{proposed / audited / verified / disabled}} |
+| `ponytail` | Plugin, enabled at **project** scope in `.claude/settings.json` (`"enabledPlugins": { "ponytail@ponytail": true }`) | GitHub `DietrichGebert/ponytail`, via a marketplace named `ponytail` | 4.8.4 | Framework-agnostic. Advisory prose only — it ships no framework rules, no dependency assumptions, and no path gating | `/ponytail`, `/ponytail-review`, `/ponytail-audit`, and a `SessionStart` hook that activates it for the whole session | None. It is not attached to any agent, is not in `.claude/guard-routes.json`, and does not run in the quality gate | **Audited, with a caveat — see below** |
+
+### Known defect: the plugin is enabled at project scope but sourced at user scope
+
+`.claude/settings.json` is tracked in git and enables `ponytail@ponytail`. The marketplace that resolves `@ponytail` is declared **only** in the developer's personal `~/.claude/settings.json`. A fresh clone on another machine therefore enables a plugin it cannot resolve.
+
+This is the same class of contradiction `docs/open-questions.md` #12 recorded for `work-systems.md`: a tracked file asserting something the repository cannot deliver on its own. Two honest fixes, both a decision rather than a chore:
+
+1. Declare the marketplace in the project's `.claude/settings.json` so the enablement resolves for everyone — which makes a third-party plugin a project dependency, and it is currently used by exactly one developer.
+2. Remove the `enabledPlugins` entry and let each developer enable it at user scope, which is where its source already lives.
+
+Until one is chosen, treat `ponytail` as a **personal** extension that happens to be enabled by a tracked file. Its output is advisory; it does not override this constitution, `docs/development/tech-stack.md`, or any guard.
+
+### Scope rule
+
+A session's **user**-scope skills, plugins, and MCP servers are not project authority — the same rule `docs/development/work-systems.md` states for MCP connectors. Two consequences worth naming:
+
+- `.claude/settings.local.json` is gitignored. It currently wires `PostToolUse`/`Stop` hooks to a user-scope skill at `~/.claude/skills/impeccable/`, guarded by `[ ! -f … ] ||` so it silently no-ops where that skill is absent. Nothing in the quality gate may depend on it.
+- A session may load dozens of personal skills. None of them is declared here, and none of them may be cited as the reason for a change.
 
 ## Installation decision
 
