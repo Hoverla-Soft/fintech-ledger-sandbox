@@ -57,6 +57,9 @@ function TransactionDetailRoute() {
                   <ReverseDialog
                     transactionId={data.id}
                     reversedBy={data.reversedBy}
+                    partOfExchange={
+                      data.fxSourceTransactionId !== null || data.fxTargetTransactionId !== null
+                    }
                     onReversed={() => {
                       void transaction.refetch();
                     }}

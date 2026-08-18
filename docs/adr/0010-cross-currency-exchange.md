@@ -57,4 +57,36 @@ By contrast, the chosen model changed **nothing** already built. Reconciliation 
 - **No market data.** The sandbox has no rate source and does not want one; the rate is whatever the caller states. A provider integration was considered and rejected as out of proportion to a fake-money sandbox — it would add a dependency, a network boundary, and non-deterministic tests.
 - **No FX gain/loss recognition.** The bridge accounts accumulate positions; nothing revalues them or books a P&L. That is a real accounting feature and would be its own slice.
 - **No same-currency "exchange".** Refused with `422 same_currency_exchange`; that is an ordinary transfer.
-- **Reversing one leg of an exchange reverses only that leg.** `transactions.reverse` is unchanged and knows nothing about FX links, so reversing the USD half leaves the EUR half standing. Recorded as a known limitation in `docs/open-questions.md` rather than papered over.
+- ~~**Reversing one leg of an exchange reverses only that leg.**~~ **Closed 2026-08-18 — see the amendment below.**
+
+## Amended 2026-08-18 — reversing either leg unwinds the pair
+
+This ADR shipped with "reversing one leg of an exchange reverses only that leg" above, recorded as open question #20 rather than papered over: reversing the USD half restored the payer while the converted EUR stayed with the payee and the EUR bridge stayed short — money simultaneously on the books and unreachable.
+
+It is closed, and the shape of the fix is this ADR's own argument repeating itself. **An unwind has the identical shape to the exchange it undoes**, so `postExchange` grew one optional field — the id each leg reverses — and nothing else moved. Naming either leg posts both mirrors in one commit, under one idempotency key, with the union of both legs' accounts locked once. The pair is itself fx-linked, `R2.fx_source_transaction_id = R1.id`, carrying the originals' direction and rate:
+
+```
+T1 (USD) ──fx──▶ T2 (EUR)      the exchange
+ │                │
+ reversedBy       reversedBy
+ ▼                ▼
+R1 (USD) ──fx──▶ R2 (EUR)      the unwind
+```
+
+Four things follow, and each is why the pair is linked rather than left as two transactions that happen to share a commit.
+
+**The published contract did not change.** `transactions.reverse` still returns one `postedTransactionSchema` — the mirror of the leg the caller named — and that transaction's own `fxSourceTransactionId` / `fxTargetTransactionId` names its counterpart. A response describing one transaction while two were posted would have been the dishonest half of this design; instead the answer is complete without a new output type, a new procedure, or a new error code. The alternative considered was a separate `transactions.reverseExchange` plus a new `422` refusing single-leg reversal, which costs a wire type, a frontend error-vocabulary entry, a second confirmation path in the console, and breaks the existing Reverse button on every FX transaction — all to state what the link already states.
+
+**The idempotency replay path needed nothing.** `loadPostedExchange` finds the second leg by the FX link. An unlinked pair would have needed its own reload, walking mirror → original → fx counterpart → its mirror.
+
+**The rate on the unwind is the original's, not its inverse.** It is not the rate of a new conversion; it is the rate this pair unwinds, and it relates R1's 100.00 USD to R2's 92.00 EUR by exactly the arithmetic `convert` already performed. `1/0.92` is a figure nobody agreed to and is not exactly representable.
+
+**The fingerprint had to grow, and this was not predicted.** `computeExchangeRequestHash` covered `(source legs, target legs, rate)` — nothing about *which* exchange is being unwound. Two identical exchanges produce byte-identical mirror legs, so a key spent unwinding one would have replayed against the other and reported success while the second stayed standing. That is verbatim the failure ADR 0006 puts `reversesTransactionId` in the single-transaction hash to prevent; it simply could not arise here until an exchange could itself be a reversal. The two reversed ids are now in the payload, **omitted entirely when absent** so every exchange hash already stored keeps hashing to what it hashed to before — the un-versioned canonical format ADR 0006 records as a standing hazard.
+
+### What an unwind refuses
+
+**An unaffordable counterpart refuses the whole thing.** If the payee has spent the converted funds, the second mirror rejects with `insufficient_funds` and the entire unwind rolls back, including the leg that would have succeeded. An exchange whose proceeds are gone cannot be undone, and failing must not leave the half-state this amendment removes.
+
+**A leg already reversed is refused with `409 already_reversed`**, from `ledger_transaction_reversesTransactionId_idx` rather than from a handler pre-check, which would be racy for the reason ADR 0006 gives.
+
+**One case routes to the single-leg path, and getting its condition wrong was the bug the tests caught.** When the counterpart already carries a reversal *and the named leg does not* — a genuinely half-reversed exchange, from data written before this behaviour or a leg reversed through `packages/db` directly — the named leg is reversed alone, because the pair path would hit that unique index, roll back, and strand the survivor permanently. The first implementation checked only the counterpart, which also matched a pair this endpoint had *already* unwound: both legs carry a reversal then, so an honest replay of the unwind was routed down the single-transaction path under a different fingerprint and came back as a false `409 idempotency_conflict`. When both legs are reversed there is nothing left to complete, so the pair path is correct — the same key replays and a fresh one is refused as `already_reversed`.

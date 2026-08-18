@@ -461,6 +461,16 @@ Closes open questions #6 and #7, and #29. `transactions.list` was already pagina
 - **Every refusal is audited** with a matching `reason` and the `post_exchange` action
 - **A viewer is refused** `403`
 
+**Unwinding an exchange (open question #20, 2026-08-18).** Reversing either leg unwinds both:
+
+- **Naming either half restores everything** — both wallets and both bridges return to their pre-exchange balances, both originals report a reversal, and reconciliation stays clean. Asserted from the source leg *and* from the target leg, because the orientation is decided in the handler and a one-sided test would pass while the other direction stranded money
+- **The returned reversal names its counterpart** through `fxTargetTransactionId`, and the counterpart carries the *original* rate rather than its inverse. This is what lets `transactions.reverse` keep returning a single transaction while posting two
+- **One key covers the unwind**, and a repeat replays it rather than posting again
+- **An identical exchange is not unwound by another's key.** Two exchanges with the same accounts, amounts, and rate produce byte-identical mirror legs, so without the reversed ids in the fingerprint the second call would replay the first unwind and report success while the second exchange stood. Asserted as a `409` *and* by checking the second exchange still has no reversal — the status alone would not catch a replay
+- **A spent payee refuses the whole unwind.** With the converted EUR moved on, reversing the USD leg is refused `422 insufficient_funds` and the USD leg does not post either, though on its own it would have succeeded. Half an unwind is the outcome the change exists to prevent
+- **A second unwind is refused** `409 already_reversed`
+- **A half-reversed exchange has its survivor unwound alone.** No longer reachable through the API, so the test writes it through `packages/db` — taking the pair path there would hit the unique index on `reverses_transaction_id` and strand the survivor permanently
+
 ### `apps/web/src/features/exchange/conversion.test.ts` — the console's side (Phase 7c)
 
 - **The previewed figure is the one submitted**, computed with `packages/core`'s own `convert`. A browser copy of the rounding rule would agree for most inputs and disagree for exactly the awkward ones, producing a form that submits a value the server rejects with no way to tell which side is wrong
@@ -468,6 +478,7 @@ Closes open questions #6 and #7, and #29. `transactions.list` was already pagina
 - **Eligibility is the mirror of the transfer screen's** — an exchange needs the currencies to *differ* where a transfer needs them to match, so `canExchange` and `canTransfer` disagree on the same org and each empty state says the true thing
 - **FX bridge accounts are excluded from both pickers.** They are plumbing opened automatically to hold the position; exchanging directly into one would work and mean nothing
 - **`isFxBridge` matches the server's naming and nothing near it** — `"FX Bridgehead"` and `"My FX Bridge USD"` are not bridges
+- **The reverse dialog says both halves will be reversed for an FX leg, and says nothing of the sort otherwise** (`reverse-dialog.test.tsx`). The claim is only true of an exchange leg; showing it unconditionally would describe a second transaction that does not exist
 
 **Not unit-tested:** the exchange form's rendering. It was verified by driving the real app — pickers, conversion preview, post, source leg, FX link, target leg — which caught two things unit tests would not have: both money-moving forms displayed the account's raw **uuid** in the picker trigger (Base UI's `Select.Value` renders the bare value unless handed a function), and the transaction detail page never surfaced the FX link at all.
 

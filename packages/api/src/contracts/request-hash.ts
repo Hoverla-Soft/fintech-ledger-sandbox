@@ -112,7 +112,8 @@ function hashableLegs(transaction: Transaction): HashableLeg[] {
 }
 
 /**
- * The fingerprint for a cross-currency exchange.
+ * The fingerprint for a cross-currency exchange, or for the pair of reversals
+ * that unwinds one.
  *
  * Covers **both legs and the rate**. All three matter: retrying the identical
  * exchange must replay, while changing the rate — even with the same two
@@ -123,17 +124,40 @@ function hashableLegs(transaction: Transaction): HashableLeg[] {
  * are kept in source-then-target order rather than sorted against each other:
  * the direction of an exchange is part of its identity, and USD→EUR must never
  * hash the same as EUR→USD.
+ *
+ * ### `reverses`
+ *
+ * Set to `[sourceId, targetId]` when the two transactions being posted are the
+ * mirrors that unwind an existing exchange, which is what `transactions.reverse`
+ * sends for an FX leg. It is not decoration: two *identical* exchanges — same
+ * accounts, same amounts, same rate, posted twice — produce byte-identical
+ * mirror legs, so without the ids in the payload, reversing pair A and then
+ * reusing that key against pair B would hash the same, replay A's reversal, and
+ * leave B un-reversed while the caller was told it succeeded. That is the same
+ * failure `reversesTransactionId` is in the single-transaction hash to prevent
+ * (ADR 0006); it simply could not arise here until an exchange could itself be
+ * a reversal.
+ *
+ * **Omitted from the payload entirely when absent, never emitted as `null`.**
+ * `request_hash` is persisted in `ledger_idempotency_key` and compared on every
+ * retry, so adding a key to this object would re-derive every exchange hash
+ * already in the database and turn honest retries against pre-existing keys
+ * into false `409`s — the un-versioned canonical format ADR 0006 records as a
+ * standing hazard. Plain exchanges must keep hashing to exactly what they
+ * hashed to before this parameter existed.
  */
 export function computeExchangeRequestHash(
   source: Transaction,
   target: Transaction,
   rate: string,
+  reverses: readonly [string, string] | null = null,
 ): string {
   const payload = JSON.stringify({
     exchange: {
       source: hashableLegs(source),
       target: hashableLegs(target),
       rate,
+      ...(reverses === null ? {} : { reverses }),
     },
   });
 

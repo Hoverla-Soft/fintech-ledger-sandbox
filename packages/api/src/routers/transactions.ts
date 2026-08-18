@@ -19,6 +19,7 @@ import {
   getAccountById,
   getTransactionById,
   type LedgerAccountRow,
+  type LedgerTransactionWithPostings,
   listTransactions,
   recordRejection,
 } from "@fintech-ledger-sandbox/db/repositories";
@@ -192,6 +193,167 @@ async function postAndLoad(
 }
 
 /**
+ * The mirrored legs that reverse a persisted transaction.
+ *
+ * Rebuilt from the **persisted rows**, never from anything the caller sent —
+ * a reverse request carries only an id, so there is nothing in it to tamper
+ * with (ADR 0006).
+ */
+function mirrorOf(row: LedgerTransactionWithPostings): Transaction {
+  const rebuilt = Transaction.create(
+    row.postings.map((posting) =>
+      unwrapPosting(createPosting(posting.accountId, posting.direction, posting.amount)),
+    ),
+  );
+
+  if (!rebuilt.ok) {
+    // Unreachable unless persisted history is itself invalid — the rows being
+    // mirrored were validated by this same constructor on the way in. Treated
+    // as an infrastructure fault, not a client error.
+    throw new Error(
+      `persisted transaction "${row.id}" does not satisfy the domain invariants: ${rebuilt.error.kind}`,
+    );
+  }
+
+  return reverse(rebuilt.value);
+}
+
+/** Both legs of one exchange, oriented, plus which of them the caller named. */
+interface ExchangePair {
+  readonly source: LedgerTransactionWithPostings;
+  readonly target: LedgerTransactionWithPostings;
+  /** The agreed rate, carried on the target leg. */
+  readonly rate: string;
+  /** True when the caller named the target leg — decides which mirror is returned. */
+  readonly namedIsTarget: boolean;
+}
+
+/**
+ * Resolves the exchange a transaction belongs to, or `null` when reversing it
+ * is an ordinary single-transaction reversal.
+ *
+ * One read of the named transaction already answers this: `fxSourceTransactionId`
+ * is set on a target leg, `fxTargetTransactionId` on a source leg, and neither
+ * on everything else.
+ *
+ * The counterpart is fetched through `getTransactionById(db, orgId, ...)` for
+ * the same reason the original is: `fx_source_transaction_id` is a self-FK and
+ * therefore **org-blind**, so an unscoped read here would reach across tenants
+ * exactly where the reverse handler's own lookup is careful not to.
+ */
+async function loadExchangePair(
+  context: WriteContext,
+  named: LedgerTransactionWithPostings,
+): Promise<ExchangePair | null> {
+  const counterpartId = named.fxSourceTransactionId ?? named.fxTargetTransactionId;
+  if (counterpartId === null) {
+    return null;
+  }
+
+  const counterpart = await getTransactionById(context.db, context.orgId, counterpartId);
+  if (!counterpart.ok) {
+    // Not a client error: the caller's transaction was found, and its FX link
+    // points at a row this org cannot read. That is broken data, not a bad
+    // request, and answering `404` would blame the caller for it.
+    throw new Error(
+      `transaction "${named.id}" links to exchange counterpart "${counterpartId}", which is not readable in org "${context.orgId}"`,
+    );
+  }
+
+  // A *half*-reversed exchange: the counterpart was unwound on its own — by a
+  // caller predating open question #20, or by one reaching `packages/db`
+  // directly — and this leg was not. Taking the pair path would try to reverse
+  // the counterpart a second time, be refused by
+  // `ledger_transaction_reversesTransactionId_idx`, roll back, and strand this
+  // leg permanently. So the survivor is reversed alone: one leg is left to
+  // unwind, and completing the unwind is the correct answer.
+  //
+  // Both halves of the condition are load-bearing. Checking only the
+  // counterpart also matches a pair that this endpoint *already* unwound —
+  // where both legs carry a reversal — and would send a replay of that unwind
+  // down the single-transaction path under a different fingerprint, turning an
+  // honest retry into a false `409 idempotency_conflict`. When this leg is
+  // reversed too there is nothing left to complete, so the pair path is right:
+  // the same key replays, a fresh one is refused as `already_reversed`.
+  if (named.reversedBy.length === 0 && counterpart.value.reversedBy.length > 0) {
+    return null;
+  }
+
+  const namedIsTarget = named.fxSourceTransactionId !== null;
+  const source = namedIsTarget ? counterpart.value : named;
+  const target = namedIsTarget ? named : counterpart.value;
+
+  if (target.fxRate === null) {
+    throw new Error(
+      `exchange target leg "${target.id}" carries an FX link but no rate, so its unwind cannot be recorded`,
+    );
+  }
+
+  return { source, target, rate: target.fxRate, namedIsTarget };
+}
+
+/**
+ * Unwinds an exchange: both mirrors, one commit, one idempotency key.
+ *
+ * Posted through `postExchange` rather than through two `postTransaction`
+ * calls, because an unwind has the identical shape to the exchange it undoes —
+ * so it inherits the union lock (two sequential per-leg locks would deadlock
+ * against a concurrent exchange in the opposite direction) and the single key
+ * reservation for free. The pair is fx-linked to itself and carries the
+ * original rate, which is what makes it one operation rather than two that
+ * happen to have been posted together.
+ *
+ * If the payee has spent the converted funds, the second mirror rejects with
+ * `insufficient_funds` and the *whole* unwind rolls back — including the leg
+ * that would have succeeded. That is the point of the task: an exchange whose
+ * proceeds are gone cannot be undone, and failing must not leave the half-state
+ * this replaces.
+ */
+async function reverseExchangePair(
+  context: WriteContext,
+  pair: ExchangePair,
+  idempotencyKey: string,
+): Promise<z.infer<typeof postedTransactionSchema>> {
+  const sourceMirror = mirrorOf(pair.source);
+  const targetMirror = mirrorOf(pair.target);
+
+  const posted = await postExchange(context.db, {
+    orgId: context.orgId,
+    actorId: context.actorId,
+    idempotencyKey,
+    // The reversed ids are in the fingerprint, not decoration: two identical
+    // exchanges produce identical mirror legs, so without them a key spent
+    // unwinding one pair would replay against the other.
+    requestHash: computeExchangeRequestHash(sourceMirror, targetMirror, pair.rate, [
+      pair.source.id,
+      pair.target.id,
+    ]),
+    source: sourceMirror,
+    target: targetMirror,
+    rate: pair.rate,
+    reverses: { source: pair.source.id, target: pair.target.id },
+  });
+
+  if (!posted.ok) {
+    // `postExchange` audits everything it rejects internally.
+    throw toORPCError(posted.error);
+  }
+
+  // The caller asked to reverse one leg, so that leg's mirror is the answer.
+  // Its counterpart is not hidden by this: the unwind pair is fx-linked like
+  // the exchange it undoes, so the returned transaction's own
+  // `fxSourceTransactionId` / `fxTargetTransactionId` already names it — which
+  // is why this needs no wider output shape.
+  const named = pair.namedIsTarget ? posted.value.target : posted.value.source;
+  const loaded = await getTransactionById(context.db, context.orgId, named.transactionId);
+  if (!loaded.ok) {
+    throw new Error(`transaction "${named.transactionId}" was posted but is not readable`);
+  }
+
+  return toWirePostedTransaction(loaded.value, named.balances, named.replayed);
+}
+
+/**
  * The FX bridge account for one currency, opening it if this org has never
  * exchanged into or out of that currency before.
  *
@@ -306,6 +468,28 @@ export const transactionsRouter = {
    * effect, nothing in `ledger.md` forbids it, and blocking it by deriving the
    * idempotency key server-side would report a legitimate second reversal as a
    * `409` whose message would be false.
+   *
+   * ## Reversing a leg of an exchange reverses both
+   *
+   * A cross-currency exchange is two linked transactions (ADR 0010), and
+   * reversing one of them used to unwind only that half — restoring the payer
+   * while the converted funds stayed with the payee and the far bridge stayed
+   * short, which is money on the books and unreachable (open question #20).
+   * Naming either leg now unwinds the pair through `postExchange`: both mirrors
+   * in one commit, under one key, fx-linked to each other so the unwind is one
+   * operation in history exactly as the exchange was.
+   *
+   * The response is still one transaction — the mirror of the leg that was
+   * named — and still `postedTransactionSchema`. Nothing had to widen, because
+   * the fx link the pair carries means that transaction already names its own
+   * counterpart.
+   *
+   * Two refusals are load-bearing and both come from where they should. If the
+   * payee has spent the proceeds, the second mirror hits `insufficient_funds`
+   * and the entire unwind rolls back rather than half-completing. And if either
+   * leg already carries a reversal, `reverses_transaction_id`'s unique index
+   * refuses it as `409 already_reversed` — no handler pre-check, which would be
+   * racy for the reason ADR 0006 gives.
    */
   reverse: directPostProcedure
     .input(
@@ -321,24 +505,14 @@ export const transactionsRouter = {
         throw toORPCError(original.error);
       }
 
-      const rebuilt = Transaction.create(
-        original.value.postings.map((posting) =>
-          unwrapPosting(createPosting(posting.accountId, posting.direction, posting.amount)),
-        ),
-      );
-
-      if (!rebuilt.ok) {
-        // Unreachable unless persisted history is itself invalid — the rows
-        // being mirrored were validated by this same constructor on the way
-        // in. Treated as an infrastructure fault, not a client error.
-        throw new Error(
-          `persisted transaction "${input.transactionId}" does not satisfy the domain invariants: ${rebuilt.error.kind}`,
-        );
+      const pair = await loadExchangePair(context, original.value);
+      if (pair !== null) {
+        return reverseExchangePair(context, pair, input.idempotencyKey);
       }
 
       return postAndLoad(context, {
         idempotencyKey: input.idempotencyKey,
-        transaction: reverse(rebuilt.value),
+        transaction: mirrorOf(original.value),
         reversesTransactionId: input.transactionId,
       });
     }),

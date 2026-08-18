@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "@fintech-ledger-sandbox/db";
+import { postTransaction } from "@fintech-ledger-sandbox/db/posting";
 import { reconcileAccounts } from "@fintech-ledger-sandbox/db/repositories";
 import { connectTestDatabase } from "@fintech-ledger-sandbox/db/testing";
 import { beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 import {
+  buildTransfer,
   clientFor,
   postTransfer,
   type SeededTenant,
@@ -303,6 +305,205 @@ describe("idempotency", () => {
         targetAmount: "100.00",
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+/**
+ * Reversing a leg of an exchange (open question #20).
+ *
+ * The property under test is that an exchange cannot be *half* undone. Before
+ * this, `transactions.reverse` knew nothing about the FX link, so reversing the
+ * USD half restored the payer and left the converted EUR with the payee and the
+ * EUR bridge short — money simultaneously on the books and unreachable.
+ */
+describe("reversing one leg unwinds the whole exchange", () => {
+  async function bridgeBalance(currency: string): Promise<string | undefined> {
+    return (await accountNamed(`FX Bridge ${currency}`))?.balance.amount;
+  }
+
+  it("unwinds both legs when the source leg is named", async () => {
+    const original = await exchange();
+
+    await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.source.id,
+    });
+
+    // Every balance the exchange moved is back where it started, including
+    // both halves of the FX position.
+    expect(await balanceOf(usdWallet)).toBe("1000.00");
+    expect(await balanceOf(eurWallet)).toBe("0.00");
+    expect(await bridgeBalance("USD")).toBe("0.00");
+    expect(await bridgeBalance("EUR")).toBe("0.00");
+
+    // Both originals record a reversal — the half that was not named included.
+    const source = await client().transactions.get({ transactionId: original.source.id });
+    const target = await client().transactions.get({ transactionId: original.target.id });
+    expect(source.reversedBy).toHaveLength(1);
+    expect(target.reversedBy).toHaveLength(1);
+
+    for (const row of await reconcileAccounts(db, tenant.orgId)) {
+      expect(row.reconciled, `${row.accountName} drifted`).toBe(true);
+    }
+  });
+
+  it("unwinds both legs when the target leg is named", async () => {
+    const original = await exchange();
+
+    await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.target.id,
+    });
+
+    expect(await balanceOf(usdWallet)).toBe("1000.00");
+    expect(await balanceOf(eurWallet)).toBe("0.00");
+    expect(await bridgeBalance("USD")).toBe("0.00");
+    expect(await bridgeBalance("EUR")).toBe("0.00");
+
+    const source = await client().transactions.get({ transactionId: original.source.id });
+    expect(source.reversedBy).toHaveLength(1);
+  });
+
+  it("links the two reversals, so the returned one names its counterpart", async () => {
+    const original = await exchange();
+
+    // The caller named the source leg, so the source leg's mirror comes back.
+    // This is what lets the response stay a single `postedTransactionSchema`:
+    // the unwind pair is fx-linked like the exchange it undoes, so the one
+    // transaction returned already points at the other.
+    const unwound = await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.source.id,
+    });
+
+    expect(unwound.reversesTransactionId).toBe(original.source.id);
+    expect(unwound.fxTargetTransactionId).not.toBeNull();
+
+    const counterpart = await client().transactions.get({
+      transactionId: unwound.fxTargetTransactionId ?? "",
+    });
+    expect(counterpart.reversesTransactionId).toBe(original.target.id);
+    expect(counterpart.currency).toBe("EUR");
+    // The unwind carries the rate it undoes, not its inverse: that rate is what
+    // relates its own two amounts, and 1/0.92 is not exactly representable.
+    expect(counterpart.fxRate).toBe("0.92");
+  });
+
+  it("replays the whole unwind for a repeated key, posting nothing twice", async () => {
+    const original = await exchange();
+    const key = randomUUID();
+
+    const first = await client().transactions.reverse({
+      idempotencyKey: key,
+      transactionId: original.source.id,
+    });
+    const replayed = await client().transactions.reverse({
+      idempotencyKey: key,
+      transactionId: original.source.id,
+    });
+
+    expect(replayed.id).toBe(first.id);
+    expect(replayed.replayed).toBe(true);
+    expect(await balanceOf(usdWallet)).toBe("1000.00");
+    expect(await balanceOf(eurWallet)).toBe("0.00");
+  });
+
+  it("does not replay one exchange's unwind against an identical exchange", async () => {
+    // Two identical exchanges produce byte-identical mirror legs, so without
+    // the reversed ids in the fingerprint this key would replay the first
+    // unwind and report success while the second exchange stayed standing.
+    const first = await exchange();
+    const second = await exchange();
+    const key = randomUUID();
+
+    await client().transactions.reverse({ idempotencyKey: key, transactionId: first.source.id });
+
+    await expect(
+      client().transactions.reverse({ idempotencyKey: key, transactionId: second.source.id }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: "idempotency_conflict" } });
+
+    // The second exchange is untouched, which is the whole point of the refusal.
+    const stillStanding = await client().transactions.get({ transactionId: second.source.id });
+    expect(stillStanding.reversedBy).toHaveLength(0);
+  });
+
+  it("refuses the entire unwind when the payee has spent the proceeds", async () => {
+    const original = await exchange();
+
+    // The 92.00 EUR leaves before anyone tries to unwind the exchange.
+    const eurSink = await seedAccount(db, tenant.orgId, "external", "EUR Sink", "EUR");
+    await postTransaction(db, {
+      orgId: tenant.orgId,
+      actorId: tenant.userId,
+      idempotencyKey: randomUUID(),
+      requestHash: randomUUID(),
+      transaction: buildTransfer(eurWallet, eurSink, "92.00", "EUR"),
+    });
+
+    await expect(
+      client().transactions.reverse({
+        idempotencyKey: randomUUID(),
+        transactionId: original.source.id,
+      }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: "insufficient_funds" } });
+
+    // Neither leg posted — including the USD one, which on its own would have
+    // succeeded. Half an unwind is the outcome this exists to prevent.
+    expect(await balanceOf(usdWallet)).toBe("900.00");
+    expect(await bridgeBalance("USD")).toBe("100.00");
+    expect(await bridgeBalance("EUR")).toBe("-92.00");
+    const source = await client().transactions.get({ transactionId: original.source.id });
+    expect(source.reversedBy).toHaveLength(0);
+  });
+
+  it("refuses a second unwind of the same exchange", async () => {
+    const original = await exchange();
+    await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.source.id,
+    });
+
+    await expect(
+      client().transactions.reverse({
+        idempotencyKey: randomUUID(),
+        transactionId: original.source.id,
+      }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: "already_reversed" } });
+
+    expect(await balanceOf(usdWallet)).toBe("1000.00");
+  });
+
+  it("unwinds the survivor alone when the counterpart was already reversed", async () => {
+    // A half-reversed exchange is no longer reachable through the API, but it
+    // can already exist in data written before this behaviour. Taking the pair
+    // path there would hit the unique index on `reverses_transaction_id`, roll
+    // back, and strand the survivor permanently — worse than the bug being
+    // fixed — so the remaining leg is reversed on its own.
+    const original = await exchange();
+    const eurBridge = await accountNamed("FX Bridge EUR");
+    expect(eurBridge).toBeDefined();
+
+    await postTransaction(db, {
+      orgId: tenant.orgId,
+      actorId: tenant.userId,
+      idempotencyKey: randomUUID(),
+      requestHash: randomUUID(),
+      transaction: buildTransfer(eurWallet, eurBridge?.id ?? "", "92.00", "EUR"),
+      reversesTransactionId: original.target.id,
+    });
+
+    await client().transactions.reverse({
+      idempotencyKey: randomUUID(),
+      transactionId: original.source.id,
+    });
+
+    expect(await balanceOf(usdWallet)).toBe("1000.00");
+    expect(await balanceOf(eurWallet)).toBe("0.00");
+    expect(await bridgeBalance("USD")).toBe("0.00");
+    expect(await bridgeBalance("EUR")).toBe("0.00");
+    for (const row of await reconcileAccounts(db, tenant.orgId)) {
+      expect(row.reconciled, `${row.accountName} drifted`).toBe(true);
+    }
   });
 });
 

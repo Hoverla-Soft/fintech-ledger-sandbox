@@ -27,13 +27,21 @@ const { CONFIRMATION_WORD, ReverseDialog } = await import("./reverse-dialog");
 
 const TXN = "11111111-2222-3333-4444-555555555555";
 
-function renderDialog(transactionId = TXN, reversedBy: readonly string[] = []) {
+function renderDialog(
+  transactionId = TXN,
+  reversedBy: readonly string[] = [],
+  partOfExchange = false,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ReverseDialog transactionId={transactionId} reversedBy={reversedBy} />
+      <ReverseDialog
+        transactionId={transactionId}
+        reversedBy={reversedBy}
+        partOfExchange={partOfExchange}
+      />
     </QueryClientProvider>,
   );
 }
@@ -224,5 +232,29 @@ describe("already-reversed warning (Phase 6b, open question #3)", () => {
     await openAndConfirm();
 
     await waitFor(() => expect(reverseTransaction).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("exchange warning (open question #20)", () => {
+  async function open() {
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reverse" }));
+  }
+
+  it("says both halves will be reversed when the transaction is part of an exchange", async () => {
+    renderDialog(TXN, [], true);
+    await open();
+
+    expect(screen.getByTestId("exchange-pair-warning")).toHaveTextContent(
+      "This reverses both halves of an exchange.",
+    );
+  });
+
+  it("says nothing about halves for an ordinary transaction", async () => {
+    // The claim is only true of an FX leg. Showing it unconditionally would
+    // describe a second transaction that does not exist.
+    renderDialog(TXN, [], false);
+    await open();
+
+    expect(screen.queryByTestId("exchange-pair-warning")).not.toBeInTheDocument();
   });
 });

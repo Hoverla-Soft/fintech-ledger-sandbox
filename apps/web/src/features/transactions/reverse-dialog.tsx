@@ -52,10 +52,18 @@ export const CONFIRMATION_WORD = "REVERSE";
  * before: the server is the arbiter (open question #1), so the console states
  * the rule and lets the refusal come from the place that enforces it. Typing
  * the confirmation word keeps this a deliberate act rather than a reflex.
+ *
+ * ## The exchange warning
+ *
+ * A currency exchange is two linked transactions, and since open question #20
+ * closed, reversing either one unwinds **both** — two currencies move, not one.
+ * That is a bigger act than the button suggests, so it is disclosed before the
+ * confirmation rather than discovered afterwards in the history table.
  */
 export function ReverseDialog({
   transactionId,
   reversedBy,
+  partOfExchange,
   onReversed,
 }: {
   transactionId: string;
@@ -66,6 +74,15 @@ export function ReverseDialog({
    * warning exists to prevent.
    */
   reversedBy: readonly string[];
+  /**
+   * True when this transaction is one half of a currency exchange — either
+   * `fxSourceTransactionId` or `fxTargetTransactionId` is set on it.
+   *
+   * Required for the same reason `reversedBy` is: defaulting it to `false`
+   * would silently under-state what the button does on exactly the screens
+   * where it does the most.
+   */
+  partOfExchange: boolean;
   onReversed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -166,6 +183,17 @@ export function ReverseDialog({
              * double correction would go through when the server now refuses
              * it.
              */}
+            {partOfExchange ? (
+              <p data-testid="exchange-pair-warning">
+                <span className="font-medium">This reverses both halves of an exchange.</span>{" "}
+                <span className="text-muted-foreground">
+                  The converted transaction is unwound in the same commit, so two currencies move.
+                  If the converted funds have since been spent, the whole reversal is refused and
+                  nothing moves.
+                </span>
+              </p>
+            ) : null}
+
             {reversedBy.length > 0 ? (
               <>
                 <p className="font-medium text-destructive" data-testid="already-reversed">

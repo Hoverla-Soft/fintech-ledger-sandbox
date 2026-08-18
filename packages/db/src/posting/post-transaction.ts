@@ -409,6 +409,22 @@ export interface PostExchangeInput {
   readonly target: Transaction;
   /** The agreed rate, as text. Recorded on the target leg. */
   readonly rate: string;
+  /**
+   * Set when this pair *unwinds* an existing exchange rather than posting a new
+   * one: the id each leg reverses, linked through `reverses_transaction_id`.
+   *
+   * The two mirrors are still fx-linked to each other and still carry the
+   * original rate, so an unwind is one operation in the ledger exactly as the
+   * exchange was — which is what makes reversing either leg unable to strand
+   * the other (open question #20). `applyLeg` turns a violation of
+   * `ledger_transaction_reversesTransactionId_idx` into
+   * `TransactionAlreadyReversed`, so a leg that already has a reversal rolls
+   * the whole pair back rather than half-unwinding it.
+   */
+  readonly reverses?: {
+    readonly source: string;
+    readonly target: string;
+  };
 }
 
 export interface PostedExchange {
@@ -419,6 +435,12 @@ export interface PostedExchange {
 /**
  * Posts a cross-currency exchange as **two linked single-currency transactions**,
  * in one commit, under one idempotency key.
+ *
+ * Also posts the pair that *unwinds* one, via `input.reverses` — an unwind has
+ * the identical shape (two linked legs, one commit, one key) and differs only
+ * in that each leg records what it reverses. Giving it a second routine of its
+ * own would have meant a second copy of the lock ordering and the idempotency
+ * scaffolding below, both of which are already right.
  *
  * ## Why two transactions and not one multi-currency one
  *
@@ -494,6 +516,7 @@ export async function postExchange(
         orgId: input.orgId,
         actorId: input.actorId,
         transaction: input.source,
+        ...(input.reverses === undefined ? {} : { reversesTransactionId: input.reverses.source }),
       });
 
       const target = await applyLeg(tx, {
@@ -502,6 +525,7 @@ export async function postExchange(
         transaction: input.target,
         fxSourceTransactionId: source.transactionId,
         fxRate: input.rate,
+        ...(input.reverses === undefined ? {} : { reversesTransactionId: input.reverses.target }),
       });
 
       // The key points at the **source** leg: it is the transaction the caller
