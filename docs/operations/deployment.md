@@ -24,10 +24,14 @@ under `packages/db/**` rebuilds only the API, and a change to `pnpm-lock.yaml` o
 rebuilds both. Each build is `turbo run build --filter=<service>...`, so it builds that service
 and its workspace dependencies and nothing else.
 
-> ⚠️ **CI is not a gate.** Railway deploys on push, independently of the GitHub Actions result.
-> Nothing blocks a deploy whose checks failed. Compounding this, the account is currently
-> billing-locked, so pushes from the affected account never start a run at all — see
-> [`docs/showcase/security.md`](../showcase/security.md).
+> ⚠️ **CI is not a gate, and right now it does not run at all.** Railway deploys on push,
+> independently of the GitHub Actions result, so nothing blocks a deploy whose checks failed.
+> Compounding that: every run since **2026-08-16 21:03 UTC** has been refused before its first
+> step with *"the job was not started because your account is locked due to a billing issue"* —
+> regardless of which account pushes, and including Dependabot. Both the organization and the
+> personal billing pages show a zero balance and nothing due, so this is a stuck flag rather than
+> an unpaid invoice, and only GitHub Support can clear it. The workflow itself is known good: it
+> executed all five verification steps successfully seven times before that timestamp.
 
 ## Verification commands
 
