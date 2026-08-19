@@ -98,7 +98,7 @@ own organization.
 
 From a reproducible harness ([`scripts/bench/run.mjs`](scripts/bench/run.mjs)) against the
 running API — Apple M3, loopback topology, seeded ledger. Full method, caveats, and the
-complete tables are in [Benchmarks](docs/showcase/benchmarks.md).
+complete tables are in [Performance](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Performance).
 
 | | p50 | p99 |
 |---|---|---|
@@ -111,7 +111,7 @@ Every authenticated request above pays full price: session lookup and membership
 on every call, never cached away. The replay path being consistently faster and tightly bounded
 is the idempotency design showing up in the latency profile — a replay is a lookup, not a posting.
 
-Correctness is held by **779 tests across five packages** — domain, database, API, server, and
+Correctness is held by **783 tests across five packages** — domain, database, API, server, and
 console. The database and API suites are not mocked: they start a real PostgreSQL 18 through
 Testcontainers and drive it, including the concurrency races the design claims to survive
 (N simultaneous callers on one idempotency key producing exactly one transaction, and forbidden
@@ -138,12 +138,16 @@ For the engineering detail that lives beside the code:
 
 | | |
 |---|---|
-| [Architecture](docs/showcase/architecture.md) | Four diagrams: system context, package graph, the transfer write path, the tenant-isolation model |
-| [Security checklist](docs/showcase/security.md) | Every control, where it is enforced, what proves it — including the items honestly marked not done |
-| [Benchmarks](docs/showcase/benchmarks.md) | The full measured tables, the method, and the caveats |
-| [Teardowns](docs/showcase/README.md) | Three deep dives: conservation, idempotency under retries, multi-tenancy without leaks |
+| [Architecture](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Architecture) | Four diagrams: system context, package graph, the transfer write path, the tenant-isolation model |
+| [The eight invariants](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/The-eight-invariants) | What the ledger guarantees, and where each one is enforced |
+| [Security](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Security) | Every control, where it is enforced, what proves it — including the items honestly marked not done |
+| [Performance](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Performance) | The full measured tables, the method, and the caveats |
+| [Multi-tenancy](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Multi-tenancy) · [Idempotency](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Idempotency-and-retries) | Two deep dives: isolation without leaks, retries that never double-post |
 | [Decision records](docs/adr/) | Ten ADRs covering money representation, concurrency, idempotency, tenancy, and more |
 | [Test coverage](docs/test-coverage.md) | What is covered, file by file — and what is not |
+
+Narrative documentation lives in the wiki; the ADRs, specs, and engineering rules live in
+[`docs/`](docs/) beside the code that implements them.
 
 ## Run it locally
 
@@ -172,7 +176,7 @@ Setup detail, environment variables, and deployment notes are in the
 ## Honest limitations
 
 This is a sandbox, and the documentation says so wherever it matters. The
-[security checklist](docs/showcase/security.md) marks every outstanding item ⚠️ rather than
+[security checklist](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Security) marks every outstanding item ⚠️ rather than
 omitting it. In summary: the rate limiter counts in-process (correct for one process, wrong for
 several), the connection pool carries no statement timeout, the operations runbook is still a
 template, and there is no real-money, KYC, or payment-rail integration of any kind.

@@ -5,10 +5,10 @@ import { createApp } from "./app";
 import { REDACTED_PATHS } from "./logger";
 
 /**
- * Proof for the four ⚠️ rows in `docs/showcase/security.md` that this slice
- * converts. That file's "Proven by" column is the reason these exist: a control
- * whose evidence column reads `manual` is a claim, and security headers are
- * exactly the kind of claim that silently stops being true when middleware is
+ * Proof for the security-checklist rows this app is responsible for (the wiki's
+ * Security page). Its "proven by" column is the reason these exist: a control
+ * whose evidence reads `manual` is a claim, and security headers are exactly
+ * the kind of claim that silently stops being true when middleware is
  * reordered.
  */
 

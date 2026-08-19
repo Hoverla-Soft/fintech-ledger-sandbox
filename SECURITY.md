@@ -28,7 +28,7 @@ Out of scope, and already documented as accepted:
 - Network-layer denial of service. Rate limiting is keyed by verified organization and user
   identity, so unauthenticated traffic is deliberately not rate-limited here — that is a job for
   infrastructure in front of the process.
-- Findings already listed as ⚠️ in [`docs/showcase/security.md`](docs/showcase/security.md). Those
+- Findings already listed as outstanding on the wiki's [Security page](https://github.com/Hoverla-Soft/fintech-ledger-sandbox/wiki/Security). Those
   are known and written down; a report that adds a concrete exploit path for one is still welcome.
 - Automated scanner output with no demonstrated impact.
 
