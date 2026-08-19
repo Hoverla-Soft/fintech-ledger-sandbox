@@ -79,7 +79,7 @@ Two consequences worth naming, because they surprise people:
 
 ## What is in the console
 
-| Area | |
+| Area | What it does |
 |---|---|
 | **Accounts** | Customer and external accounts, multi-currency, with balances and per-account history |
 | **Transfer** | Balanced transfers including N-leg splits (a payout and its platform fee in one atomic entry) |
