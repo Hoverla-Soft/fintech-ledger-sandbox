@@ -24,8 +24,10 @@ catalog:
   react-dom: ^19.2.7
   sonner: ^2.0.8
   "@orpc/client": ^1.15.0
-  # Versioned in lockstep with @orpc/server (same 1.14.x release train), so it
-  # cannot drift from the server it plugs into. See ADR 0007.
+  # Versioned in lockstep with @orpc/server (both on the 1.15.x release train),
+  # so it cannot drift from the server it plugs into. See ADR 0007. Keep the two
+  # ranges moving together — that lockstep is the whole reason an `experimental`
+  # package is acceptable here.
   "@orpc/experimental-ratelimit": ^1.15.0
   "@types/react": ^19.2.18
   "@types/react-dom": ^19.2.4
