@@ -30,7 +30,7 @@ Three short videos for technical evaluators, scripted against the **actual UI la
 | 4 | 0:50–1:15 | Scroll to [§3 Transfer write path](../architecture.md#3-transfer-write-path), trace the sequence diagram top to bottom | A write climbs a procedure ladder — session, verified membership, role, rate limit — then one Postgres transaction does everything: idempotency decided by a unique index, not a racy pre-check; account locks deduped and *sorted*, so deadlock is structurally impossible; postings, balances, and the audit entry commit together or not at all. That's ADRs [0003](../../adr/0003-balance-and-concurrency.md) and [0004](../../adr/0004-idempotency.md), and it's race-tested against real Postgres. |
 | 5 | 1:15–1:30 | Scroll to [§4 Tenant isolation model](../architecture.md#4-tenant-isolation-model), hover the two dotted test boxes | Tenant isolation is four layers deep — the org is derived from a membership row, never accepted as input, down to composite foreign keys Postgres enforces itself. Two tests walk the real router and repositories to keep it that way. |
 
-**CTA:** *"The page is `docs/showcase/architecture.md` — including the ⚠️ honest-gaps callouts. Click any box."*
+**CTA:** *"The page is `docs/showcase/architecture.md` — including the honest-gaps callouts. Click any box."*
 
 ---
 
@@ -44,7 +44,7 @@ Three short videos for technical evaluators, scripted against the **actual UI la
 
 *Silent storyboard of this script, captured from the live app (each frame holds a few seconds): overview → sandbox → scenario outcomes (note the deliberate refusal) → the fee-split transaction → its journal netting to zero → reconciliation all green.*
 
-**Naming note (⚠️ honest):** the README calls the conservation view the "theater". In the shipped UI there is no element labeled *theater* — `apps/web/src/features/theater/` exists locally only as an empty placeholder directory, and no component carries that name. The real, shipped proof is the transaction detail's **Journal** section with its **"Journal integrity → Nets to zero"** badge ([`postings-table.tsx`](../../../apps/web/src/features/transactions/postings-table.tsx), `data-testid="net-to-zero-proof"`). The narration below uses the real labels only.
+**Naming note:** there is no element labeled *theater* in the shipped UI, and the README no longer refers to one — the placeholder directory that carried the name has been deleted. The shipped conservation proof is the transaction detail's **Journal** section with its **"Journal integrity → Nets to zero"** badge ([`postings-table.tsx`](../../../apps/web/src/features/transactions/postings-table.tsx), `data-testid="net-to-zero-proof"`). The narration below uses the real labels only.
 
 | # | Time | Screen/Action | Narration |
 |---|------|---------------|-----------|

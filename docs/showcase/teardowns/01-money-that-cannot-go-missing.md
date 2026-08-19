@@ -190,7 +190,6 @@ It links to the full [Reconciliation page](../../../apps/web/src/routes/_auth/re
 ## ⚠️ Honest gaps
 
 - **A privileged Postgres role can disarm the immutability triggers** (`DISABLE TRIGGER`, `session_replication_role = replica`). ADR 0003 says so explicitly and notes the missing control: nothing in `docs/operations/` yet owns provisioning an app role that lacks `ALTER TABLE`. The trigger is real; the role policy around it is an open question.
-- **The README's "theater" step is stale.** Step 4 of the 5-minute demo mentions a money-flow theater; that view was removed in a later cleanup commit and [`apps/web/src/features/theater/`](../../../apps/web/src/features/theater) is currently empty. The live conservation proof in the UI today is the dashboard's per-currency **Conserved** column, the seal, and the Reconciliation page.
 - **Reconciliation is assert-on-demand, not a background alarm.** Deliberate per ADR 0003 (a console polling it would imply the ledger needs supervision), and the seal caches its answer for 30 seconds — but it does mean drift surfaces when someone asks, not the instant it happens.
 
 ## See it yourself
