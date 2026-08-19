@@ -64,8 +64,7 @@ const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000;
  * `apps/server`'s `/ready` probe queries the database — so a hang there
  * produces a probe that never answers rather than one that reports unhealthy.
  * That is the same wrong failure direction as the liveness bug already fixed in
- * `apps/server` (see `docs/open-questions.md` #28): a supervisor can act on
- * "unhealthy", not on "still waiting".
+ * `apps/server`: a supervisor can act on "unhealthy", not on "still waiting".
  */
 const CONNECTION_TIMEOUT_MS = 5_000;
 

@@ -46,6 +46,18 @@ describe("security response headers", () => {
     expect(csp).toContain("form-action 'none'");
   });
 
+  it("does not let the reference UI's font allowance reach the JSON surface", async () => {
+    // `font-src` is the directive that was missing entirely until 2026-08-19,
+    // and its absence was invisible precisely because it falls back to
+    // `default-src`. Now that it is spelled out, it has to be spelled out
+    // *restrictively* here — a blanket `font-src` would have widened every
+    // JSON response to pay for one HTML page.
+    const csp = (await createApp().request("/")).headers.get("content-security-policy");
+
+    expect(csp).toContain("font-src 'none'");
+    expect(csp).not.toContain("fonts.scalar.com");
+  });
+
   it("relaxes the policy only on the reference UI, and only as far as it needs", async () => {
     // The docs page is the one HTML surface here: oRPC renders it with a
     // jsDelivr <script src> plus a nonce-less inline <script>. If this ever
@@ -59,6 +71,52 @@ describe("security response headers", () => {
     // The relaxation must not follow the page off its own path.
     expect(csp).not.toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  it("lets the reference UI load its own webfonts", async () => {
+    // Found by loading the deployed page in a real browser, not by reading the
+    // policy: the Scalar bundle pulls 14 Inter/JetBrains Mono faces from
+    // `fonts.scalar.com`, a host that appears nowhere in the HTML the plugin
+    // emits. Every one of them was blocked, and the page still "worked" in a
+    // fallback system font, which is why no test caught it.
+    const csp = (await createApp().request("/api-reference")).headers.get(
+      "content-security-policy",
+    );
+
+    expect(csp).toContain("font-src 'self' https://fonts.scalar.com data:");
+  });
+});
+
+describe("rate-limit response headers", () => {
+  /**
+   * `withRateLimitHeaders` is exercised through the app rather than exported,
+   * so these drive the real middleware chain. Provoking a genuine 429 would
+   * mean 30 authenticated writes against a live database — that path is already
+   * covered in `packages/api`. What is unproven *here* is the composition: that
+   * a 429 leaving oRPC picks the headers up, and that nothing else does.
+   */
+
+  it("exposes the rate-limit headers to a cross-origin caller", async () => {
+    // Present-on-the-wire is not the same as readable. The console is a
+    // separate origin, so without this list the browser hides all four and the
+    // headers help nobody.
+    const response = await createApp().request("/", {
+      headers: { Origin: "http://localhost:3001" },
+    });
+    const exposed = response.headers.get("access-control-expose-headers") ?? "";
+
+    for (const header of ["Retry-After", "RateLimit-Limit", "RateLimit-Remaining"]) {
+      expect(exposed).toContain(header);
+    }
+  });
+
+  it("leaves a non-429 response streaming and untouched", async () => {
+    const response = await createApp().request("/");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("retry-after")).toBeNull();
+    expect(response.headers.get("ratelimit-limit")).toBeNull();
+    expect(await response.text()).toBe("OK");
   });
 });
 

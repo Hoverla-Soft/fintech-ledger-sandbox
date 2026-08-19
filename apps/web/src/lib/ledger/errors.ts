@@ -276,7 +276,14 @@ const VALIDATION: FailureCopy = {
   disposition: "fix_input",
 };
 
-/** Extra context the server puts in the body for a throttled write. There is no `Retry-After` header — see ADR 0007. */
+/**
+ * Extra context the server puts in the body for a throttled write.
+ *
+ * The server also sends `Retry-After` and `RateLimit-*` headers (added
+ * 2026-08-19, CORS-exposed so this origin can read them). The console keeps
+ * reading the body: it needs `scope` to say *whose* budget ran out, and no
+ * header carries that.
+ */
 export interface RateLimitDetail {
   readonly scope?: string;
   readonly limit?: number;

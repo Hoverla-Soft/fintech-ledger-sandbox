@@ -50,6 +50,72 @@ function isReferenceUi(path: string): boolean {
   return path === "/api-reference" || path.startsWith("/api-reference/");
 }
 
+/**
+ * Headers a throttled client can act on without parsing the body.
+ *
+ * `packages/api`'s limiter already puts `limit` and `retryAfterSeconds` in
+ * `data`, and the console reads them from there. What the body cannot reach is
+ * *generic* retry machinery — an HTTP client, a proxy, a job runner — which
+ * looks for `Retry-After` and otherwise backs off on a schedule of its own
+ * invention, or not at all (ADR 0007 recorded exactly this consequence).
+ *
+ * Derived from the body rather than plumbed down from the limiter because the
+ * limiter throws through oRPC, which owns response construction from there on.
+ * Re-reading one small JSON body is the cheap way to stay outside that.
+ *
+ * Only a `429` is buffered. Every other response, which is all of them in any
+ * normal minute, is passed through untouched and still streams.
+ */
+async function withRateLimitHeaders(response: Response): Promise<Response> {
+  if (response.status !== 429) {
+    return response;
+  }
+
+  const body = await response.text();
+  const headers = new Headers(response.headers);
+
+  try {
+    const detail = (JSON.parse(body) as { data?: Record<string, unknown> }).data;
+
+    if (typeof detail?.retryAfterSeconds === "number") {
+      // Both, deliberately: `Retry-After` is the one every generic client
+      // already knows, `RateLimit-Reset` the one the draft standard specifies.
+      headers.set("Retry-After", String(detail.retryAfterSeconds));
+      headers.set("RateLimit-Reset", String(detail.retryAfterSeconds));
+    }
+    if (typeof detail?.limit === "number") {
+      headers.set("RateLimit-Limit", String(detail.limit));
+    }
+    // A 429 means the budget is spent by definition.
+    headers.set("RateLimit-Remaining", "0");
+  } catch {
+    // A 429 whose body is not the expected JSON still has to reach the client.
+    // Losing the advisory headers is survivable; turning a throttle into a 500
+    // because a header could not be computed is not.
+  }
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
+ * Response headers a cross-origin caller is allowed to *read*.
+ *
+ * The console runs on a different origin, and a browser hides every response
+ * header outside the CORS-safelisted set unless it is named here. Without this
+ * the headers above would be present on the wire and invisible to the one
+ * client that ships with this API.
+ */
+const RATE_LIMIT_HEADERS = [
+  "Retry-After",
+  "RateLimit-Limit",
+  "RateLimit-Remaining",
+  "RateLimit-Reset",
+];
+
 export function createApp(): Hono {
   const app = new Hono();
 
@@ -120,6 +186,21 @@ export function createApp(): Hono {
               ? "'self' https://cdn.jsdelivr.net 'unsafe-inline' data:"
               : "'none'",
         ],
+        // `font-src` *does* fall back to `default-src`, which is why this was
+        // missed: the policy above looked complete and the page still rendered.
+        // It rendered in a fallback system font. A live load of
+        // `/api-reference` blocked 14 faces from `fonts.scalar.com` — the
+        // Scalar bundle fetches its own webfonts from a host that appears
+        // nowhere in the HTML the plugin emits, so reading the renderer (which
+        // is how the jsDelivr entry was found) could not have surfaced it.
+        // Only a browser could, which is the general lesson here: a CSP is not
+        // verified until something has actually executed under it.
+        //
+        // Scoped to the reference UI and to fonts alone. Everything else on
+        // this origin is JSON and keeps inheriting `'none'`.
+        fontSrc: [
+          (c) => (isReferenceUi(c.req.path) ? "'self' https://fonts.scalar.com data:" : "'none'"),
+        ],
         // None of these fall back to `default-src`; they have to be spelled out.
         frameAncestors: ["'none'"],
         baseUri: ["'none'"],
@@ -151,6 +232,7 @@ export function createApp(): Hono {
       origin: env.CORS_ORIGIN,
       allowMethods: ["GET", "POST", "OPTIONS"],
       allowHeaders: ["Content-Type", "Authorization"],
+      exposeHeaders: RATE_LIMIT_HEADERS,
       credentials: true,
     }),
   );
@@ -223,7 +305,8 @@ export function createApp(): Hono {
     });
 
     if (rpcResult.matched) {
-      return c.newResponse(rpcResult.response.body, rpcResult.response);
+      const response = await withRateLimitHeaders(rpcResult.response);
+      return c.newResponse(response.body, response);
     }
 
     const apiResult = await apiHandler.handle(c.req.raw, {
@@ -232,7 +315,8 @@ export function createApp(): Hono {
     });
 
     if (apiResult.matched) {
-      return c.newResponse(apiResult.response.body, apiResult.response);
+      const response = await withRateLimitHeaders(apiResult.response);
+      return c.newResponse(response.body, response);
     }
 
     await next();

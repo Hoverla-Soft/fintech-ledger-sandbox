@@ -41,14 +41,20 @@ import { ORPCError } from "@orpc/server";
  * **no `reason` field**, which contradicts `docs/backend/error-handling.md`'s
  * rule that clients switch on `data.reason` and never on `message`. And its
  * companion `RatelimitHandlerPlugin` — the piece that emits `RateLimit-*` and
- * `Retry-After` headers — has to be registered on the handler in
- * `apps/server`, which is outside this phase's scope. The wrapper below keeps
- * the error contract conforming; the response headers are a follow-up.
+ * `Retry-After` headers — would have to be registered on the handler in
+ * `apps/server`, and adopting it there would drag its non-conforming error
+ * shape back in with it. Those headers arrived instead on 2026-08-19 as
+ * `withRateLimitHeaders` in `apps/server/src/app.ts`, which derives them from
+ * the `data` block below. So this stays the single source of the 429's
+ * contract, and the headers are a projection of it rather than a second
+ * opinion that can disagree.
  *
  * ### Known limitation
  *
  * In-process state: correct for this single-process sandbox, lost on restart,
- * not shared across replicas. ADR 0007 records what to swap in.
+ * not shared across replicas. Deliberate — a shared store means a new declared
+ * dependency and an operational component this sandbox has no other use for.
+ * ADR 0007 records what to swap in if that ever changes.
  */
 
 const MINUTE_MS = 60_000;
@@ -56,10 +62,15 @@ const MINUTE_MS = 60_000;
 /**
  * Recorded in `docs/tasks/2026-07-27-phase-4b-write-endpoints.md` rather than
  * invented here: `ledger.md` line 66 mandates that writes be limited but names
- * no number. The org ceiling is deliberately conservative — `createDb`'s pool
- * has no size cap and no `statement_timeout` (an open Phase 3 deferral), and
- * an idempotency-key loser blocks for the whole duration of the winner's
- * posting transaction, so a high limit converts directly into pool exhaustion.
+ * no number. The org ceiling is deliberately conservative because an
+ * idempotency-key loser blocks for the whole duration of the winner's posting
+ * transaction, so a high limit converts directly into pool exhaustion.
+ *
+ * The pool is no longer unbounded — `createDb` has carried `statement_timeout`,
+ * `idle_in_transaction_session_timeout`, and a connection timeout since the
+ * Phase 3 deferral this comment used to cite was closed. The limit stays where
+ * it is regardless: a timeout turns exhaustion into a slow error rather than
+ * preventing the contention that caused it.
  */
 export const WRITES_PER_MINUTE_PER_ORG = 60;
 export const WRITES_PER_MINUTE_PER_USER = 30;

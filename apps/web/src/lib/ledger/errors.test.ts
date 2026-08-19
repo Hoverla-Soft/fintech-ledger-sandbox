@@ -190,7 +190,7 @@ describe("describeFailure — reasoned failures", () => {
     }
   });
 
-  it("surfaces the rate-limit detail from the body, since there is no Retry-After header", () => {
+  it("surfaces the rate-limit detail from the body, which carries the scope no header does", () => {
     const described = describeFailure(
       orpcError("TOO_MANY_REQUESTS", 429, {
         reason: "rate_limited",
