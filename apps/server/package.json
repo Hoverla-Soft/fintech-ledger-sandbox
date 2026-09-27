@@ -28,7 +28,7 @@
     "@fintech-ledger-sandbox/config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
