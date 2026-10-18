@@ -5,52 +5,52 @@ allowBuilds:
   esbuild: true
 catalog:
   dotenv: ^17.4.2
-  zod: ^4.5.4
+  zod: ^4.6.7
   typescript: ^6
-  "@types/node": ^22.13.14
+  "@types/node": ^22.20.5
   # Floor is a security minimum, not a preference: 4.12.34 patches four
   # advisories against `apps/server`'s request path. `^4.12.27` already *allowed*
   # the fix, but the lockfile stayed resolved at 4.12.32 — a caret range does not
   # pull a patch nobody asks for. Raise the floor so the advisory cannot come
   # back on a fresh `pnpm install`.
-  hono: ^4.13.5
-  "@orpc/server": ^1.15.0
-  "@orpc/openapi": ^1.15.0
-  "@orpc/zod": ^1.15.0
-  better-auth: 1.7.2
-  lucide-react: ^1.40.0
+  hono: ^4.13.13
+  "@orpc/server": ^1.15.7
+  "@orpc/openapi": ^1.15.7
+  "@orpc/zod": ^1.15.7
+  better-auth: 1.7.10
+  lucide-react: ^1.57.0
   next-themes: ^0.4.6
-  react: ^19.2.7
-  react-dom: ^19.2.7
+  react: ^19.3.1
+  react-dom: ^19.3.1
   sonner: ^2.0.8
-  "@orpc/client": ^1.15.0
+  "@orpc/client": ^1.15.7
   # Versioned in lockstep with @orpc/server (both on the 1.15.x release train),
   # so it cannot drift from the server it plugs into. See ADR 0007. Keep the two
   # ranges moving together — that lockstep is the whole reason an `experimental`
   # package is acceptable here.
-  "@orpc/experimental-ratelimit": ^1.15.0
-  "@types/react": ^19.2.18
-  "@types/react-dom": ^19.2.7
+  "@orpc/experimental-ratelimit": ^1.15.7
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
   tailwindcss: ^4.3.2
-  vitest: ^4.1.11
-  "@testcontainers/postgresql": ^12.1.0
+  vitest: ^4.1.12
+  "@testcontainers/postgresql": ^12.2.1
   # The `apps/web` console suite (Phase 5a). `packages/*` suites are Node-environment
   # and need none of this; the console's highest-risk behaviours are DOM-bound
   # ("the dialog closes only after the request resolves", "submit is disabled in
   # flight", "the form stays open with the reason inline"), so they need a real
   # document. See docs/development/tech-stack.md → Testing framework.
-  happy-dom: ^20.13.2
+  happy-dom: ^20.14.6
   # v16 is the first line supporting React 19's createRoot/act contract.
   "@testing-library/react": ^16.3.3
-  "@testing-library/user-event": ^14.6.7
+  "@testing-library/user-event": ^14.6.8
   "@testing-library/jest-dom": ^7.0.1
   # Linter *and* formatter, one binary (Phase 6a). Catalogued so all 8 workspace
   # packages resolve the identical version — a formatter that differs by package
   # would rewrite the same file two ways depending on who ran it last.
-  "@biomejs/biome": ^2.5.12
+  "@biomejs/biome": ^2.5.15
   # End-to-end (Phase 6c). Lives in `apps/web`; replaces the manual demo
   # scripts every Phase 5 slice carried as acceptance criteria.
-  "@playwright/test": ^1.62.1
+  "@playwright/test": ^1.64.1
   # The structured logger `docs/development/tech-stack.md` has declared since
   # Phase 4b and which no phase ever delivered — installed 2026-08-16, closing
   # the ⚠️ row in `docs/showcase/security.md`. Chosen there, not here: this is
@@ -59,7 +59,7 @@ catalog:
   # whose only job is making dev output readable, and `pino.transport` would
   # add a worker thread per process for that. Dev readability is handled with
   # a plain formatter instead.
-  pino: ^10.3.1
+  pino: ^10.4.0
 
 # Advisories in packages nothing here depends on directly — they arrive through
 # a dependency's dependency, so no manifest edit can reach them. Both entries

@@ -15,7 +15,7 @@
     "@fintech-ledger-sandbox/auth": "workspace:*",
     "@fintech-ledger-sandbox/db": "workspace:*",
     "@fintech-ledger-sandbox/env": "workspace:*",
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.5",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
@@ -27,8 +27,8 @@
   "devDependencies": {
     "@fintech-ledger-sandbox/config": "workspace:*",
     "@types/node": "catalog:",
-    "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.23.15",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
