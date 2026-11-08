@@ -23,7 +23,7 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "zod": "catalog:"
   },
   "devDependencies": {
